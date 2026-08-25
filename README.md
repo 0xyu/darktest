@@ -70,3 +70,5 @@ The first version should focus on:
 8. Build diversity emerging from equipment
 
 Do not expand into multiplayer, PvP, guilds, trading, complex crafting, or large meta systems before the core loop is proven fun.
+
+## GoDot Engine Path: D:\IDE\godotEngine

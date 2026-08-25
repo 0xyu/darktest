@@ -44,6 +44,10 @@ func _run_tests() -> void:
 	_expect(result.final_damage == 23, "critical damage uses the 150 percent multiplier")
 	_expect(enemy.enemy_stats.current_hp == 77, "damage reduces enemy HP")
 
+	combat.connect_actor(enemy)
+	enemy.attack_requested.emit(enemy, player)
+	_expect(player.player_stats.current_hp == 97, "enemy attack resolves without player-only critical stats")
+
 	var far_enemy := EnemyController.new()
 	far_enemy.grid_path = NodePath("../Grid")
 	far_enemy.grid_position = Vector2i(5, 1)

@@ -145,7 +145,7 @@ func _draw() -> void:
 	draw_rect(Rect2(34, 26, 1212, 668), Color("6c5331"), false, 2.0)
 	var font: Font = ThemeDB.fallback_font
 	draw_string(font, Vector2(66, 66), "DARK FANTASY // STAGE GENERATION", HORIZONTAL_ALIGNMENT_LEFT, -1, 25, Color("e2c988"))
-	draw_string(font, Vector2(68, 91), "Phase 10 Mini Boss harness", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
+	draw_string(font, Vector2(68, 91), "Phase 11 Special Encounter harness", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
 
 	draw_rect(Rect2(900, 112, 308, 570), Color("171522"), true)
 	draw_rect(Rect2(900, 112, 308, 570), Color("4d465e"), false, 1.0)

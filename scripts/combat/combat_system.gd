@@ -50,10 +50,13 @@ func resolve_attack(attacker: Node, target: Node, damage_multiplier: float = 1.0
 	var attack_power: int = maxi(int(attacker_stats.get("attack")), 0)
 	var defense: int = maxi(int(target_stats.get("defense")), 0)
 	result.raw_damage = maxi(1, attack_power - defense)
-	result.final_damage = maxi(1, roundi(float(result.raw_damage) * maxf(damage_multiplier, 0.0)))
+	result.final_damage = maxi(1, roundi(result.raw_damage * maxf(damage_multiplier, 0.0)))
 
-	var critical_chance: float = clampf(float(attacker_stats.get("critical_chance")), 0.0, 1.0)
-	var critical_damage: float = maxf(float(attacker_stats.get("critical_damage")), 1.0)
+	var critical_chance: float = 0.0
+	var critical_damage: float = 1.0
+	if attacker_stats is PlayerStats:
+		critical_chance = clampf(attacker_stats.critical_chance, 0.0, 1.0)
+		critical_damage = maxf(attacker_stats.critical_damage, 1.0)
 	if critical_chance > 0.0 and _random_number_generator.randf() < critical_chance:
 		result.is_critical = true
 		result.final_damage = maxi(1, roundi(result.raw_damage * critical_damage))
