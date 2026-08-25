@@ -3,6 +3,7 @@ extends Node2D
 
 signal moved(from_cell: Vector2i, to_cell: Vector2i, movement_points_remaining: int)
 signal selection_changed(is_selected: bool)
+signal action_completed
 
 @export var grid_path: NodePath
 @export var player_id: StringName = &"player"
@@ -12,6 +13,8 @@ signal selection_changed(is_selected: bool)
 
 var movement_points_remaining: int = 0
 var _grid: GridMap2D
+var _input_enabled: bool = true
+var _turn_manager: Node
 
 
 func _ready() -> void:
@@ -25,6 +28,7 @@ func _ready() -> void:
 		_grid.set_occupied(grid_position, player_id)
 	global_position = _grid.grid_to_world(grid_position)
 	reset_movement_points()
+	_input_enabled = true
 	_refresh_grid_feedback()
 	queue_redraw()
 
@@ -41,7 +45,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("move_left"):
 		try_move(Vector2i.LEFT)
 	elif event.is_action_pressed("primary_action"):
-		reset_movement_points()
+		if _turn_manager != null:
+			action_completed.emit()
+		else:
+			reset_movement_points()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var clicked_cell: Vector2i = _grid.world_to_grid(get_global_mouse_position())
 		if clicked_cell == grid_position:
@@ -49,7 +56,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func try_move(direction: Vector2i) -> bool:
-	if not is_selected or movement_points_remaining <= 0 or _grid == null:
+	if not _input_enabled or not is_selected or movement_points_remaining <= 0 or _grid == null:
 		return false
 	var target_cell: Vector2i = grid_position + direction
 	if not _grid.is_walkable(target_cell) or _grid.is_occupied(target_cell):
@@ -73,6 +80,30 @@ func reset_movement_points() -> void:
 	movement_points_remaining = maxi(player_stats.movement_points, 0)
 	_refresh_grid_feedback()
 	queue_redraw()
+
+
+func begin_player_turn(movement_points: int = -1) -> void:
+	_input_enabled = true
+	if movement_points >= 0:
+		movement_points_remaining = movement_points
+		_refresh_grid_feedback()
+		queue_redraw()
+	else:
+		reset_movement_points()
+
+
+func end_player_turn() -> void:
+	_input_enabled = false
+	_refresh_grid_feedback()
+	queue_redraw()
+
+
+func attach_turn_manager(turn_manager: Node) -> void:
+	_turn_manager = turn_manager
+
+
+func is_input_enabled() -> bool:
+	return _input_enabled
 
 
 func set_selected(selected: bool) -> void:
