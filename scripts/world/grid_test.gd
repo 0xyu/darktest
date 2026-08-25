@@ -5,6 +5,7 @@ extends Node2D
 @onready var player: PlayerController = $Player
 @onready var enemy: EnemyController = $Enemy
 @onready var turn_manager: TurnManager = $TurnManager
+@onready var combat_system: CombatSystem = $CombatSystem
 
 var _last_move_text: String = "Awaiting input"
 
@@ -20,6 +21,12 @@ func _ready() -> void:
 	player.moved.connect(_on_player_moved)
 	enemy.moved.connect(_on_enemy_moved)
 	enemy.attack_requested.connect(_on_enemy_attack_requested)
+	combat_system.attach_turn_manager(turn_manager)
+	combat_system.set_player_actor(player)
+	combat_system.connect_actor(player)
+	combat_system.connect_actor(enemy)
+	combat_system.attack_resolved.connect(_on_attack_resolved)
+	combat_system.actor_died.connect(_on_actor_died)
 	turn_manager.state_changed.connect(_on_turn_state_changed)
 	turn_manager.start_combat(player, [enemy])
 	player.selection_changed.connect(_on_selection_changed)
@@ -38,6 +45,24 @@ func _on_enemy_moved(from_cell: Vector2i, to_cell: Vector2i) -> void:
 
 func _on_enemy_attack_requested(_enemy: EnemyController, _target: Node) -> void:
 	_last_move_text = "Enemy attack requested (damage in Phase 7)"
+	queue_redraw()
+
+
+func _on_attack_resolved(result: DamageResult) -> void:
+	if result.is_miss:
+		_last_move_text = "Attack missed: target out of range"
+	else:
+		_last_move_text = "Critical hit for %d" % result.final_damage if result.is_critical else "Hit for %d" % result.final_damage
+	queue_redraw()
+
+
+func _on_actor_died(actor: Node) -> void:
+	if actor == player:
+		_last_move_text = "PLAYER DEFEATED"
+		turn_manager.set_defeat()
+	elif actor == enemy:
+		_last_move_text = "ENEMY DEFEATED"
+		turn_manager.set_victory()
 	queue_redraw()
 
 
@@ -77,8 +102,10 @@ func _draw() -> void:
 	draw_string(font, Vector2(1030, 430), "Move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
 	draw_string(font, Vector2(930, 464), "SPACE", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
 	draw_string(font, Vector2(1030, 464), "End player turn", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(930, 498), "CLICK", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
-	draw_string(font, Vector2(1030, 498), "Toggle selection", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(930, 498), "F", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
+	draw_string(font, Vector2(1030, 498), "Attack training enemy", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(930, 532), "CLICK", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
+	draw_string(font, Vector2(1030, 532), "Toggle selection", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
 
 	draw_string(font, Vector2(930, 566), "LAST EVENT", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
 	draw_string(font, Vector2(930, 598), _last_move_text, HORIZONTAL_ALIGNMENT_LEFT, 250, 14, Color("d5cbe0"))

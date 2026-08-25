@@ -4,6 +4,7 @@ extends Node2D
 signal moved(from_cell: Vector2i, to_cell: Vector2i)
 signal target_selected(target: Node)
 signal attack_requested(enemy: EnemyController, target: Node)
+signal defeated
 
 @export var grid_path: NodePath
 @export var enemy_id: StringName = &"enemy"
@@ -14,6 +15,7 @@ signal attack_requested(enemy: EnemyController, target: Node)
 var enemy_stats: EnemyStats = EnemyStats.new()
 var _grid: GridMap2D
 var _target: Node
+var _is_defeated: bool = false
 
 
 func _ready() -> void:
@@ -50,6 +52,22 @@ func take_turn(player: Node, turn_manager: TurnManager) -> void:
 
 func get_grid_position() -> Vector2i:
 	return grid_position
+
+
+func handle_defeat() -> void:
+	if _is_defeated:
+		return
+	_is_defeated = true
+	enemy_stats.current_hp = 0
+	if _grid != null:
+		_grid.clear_occupied(grid_position, enemy_id)
+	process_mode = Node.PROCESS_MODE_DISABLED
+	visible = false
+	defeated.emit()
+
+
+func is_defeated() -> bool:
+	return _is_defeated
 
 
 func _move_toward_target(target_cell: Vector2i) -> void:

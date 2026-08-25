@@ -4,17 +4,21 @@ extends Node2D
 signal moved(from_cell: Vector2i, to_cell: Vector2i, movement_points_remaining: int)
 signal selection_changed(is_selected: bool)
 signal action_completed
+signal attack_requested(target: Node)
+signal defeated
 
 @export var grid_path: NodePath
 @export var player_id: StringName = &"player"
 @export var grid_position: Vector2i = Vector2i(1, 1)
 @export var player_stats: PlayerStats = PlayerStats.new()
 @export var is_selected: bool = true
+@export var target_path: NodePath
 
 var movement_points_remaining: int = 0
 var _grid: GridMap2D
 var _input_enabled: bool = true
 var _turn_manager: Node
+var _is_defeated: bool = false
 
 
 func _ready() -> void:
@@ -49,6 +53,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			action_completed.emit()
 		else:
 			reset_movement_points()
+	elif event.is_action_pressed("attack"):
+		if _input_enabled and is_selected:
+			attack_requested.emit(get_node_or_null(target_path))
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var clicked_cell: Vector2i = _grid.world_to_grid(get_global_mouse_position())
 		if clicked_cell == grid_position:
@@ -119,6 +126,22 @@ func get_grid_position() -> Vector2i:
 	return grid_position
 
 
+func handle_defeat() -> void:
+	if _is_defeated:
+		return
+	_is_defeated = true
+	player_stats.current_hp = 0
+	_input_enabled = false
+	if _grid != null:
+		_grid.clear_occupied(grid_position, player_id)
+	queue_redraw()
+	defeated.emit()
+
+
+func is_defeated() -> bool:
+	return _is_defeated
+
+
 func _refresh_grid_feedback() -> void:
 	if _grid == null:
 		return
@@ -130,7 +153,7 @@ func _refresh_grid_feedback() -> void:
 
 
 func _draw() -> void:
-	var body_color := Color("b7a2d1") if is_selected else Color("736a82")
+	var body_color := Color("5c5366") if _is_defeated else (Color("b7a2d1") if is_selected else Color("736a82"))
 	draw_circle(Vector2.ZERO, 22.0, Color("08070c", 0.85))
 	draw_circle(Vector2.ZERO, 18.0, body_color)
 	draw_circle(Vector2(0, -5), 7.0, Color("e3c889"))
