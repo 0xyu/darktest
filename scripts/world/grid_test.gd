@@ -3,11 +3,12 @@ extends Node2D
 
 @onready var grid: GridMap2D = $Grid
 @onready var player: PlayerController = $Player
-@onready var enemy: EnemyController = $Enemy
 @onready var turn_manager: TurnManager = $TurnManager
 @onready var combat_system: CombatSystem = $CombatSystem
+@onready var stage_manager: StageManager = $StageManager
 
 var _last_move_text: String = "Awaiting input"
+var _active_enemies: Array[Node] = []
 
 
 func _ready() -> void:
@@ -19,17 +20,52 @@ func _ready() -> void:
 	grid.queue_redraw()
 	player.reset_movement_points()
 	player.moved.connect(_on_player_moved)
-	enemy.moved.connect(_on_enemy_moved)
-	enemy.attack_requested.connect(_on_enemy_attack_requested)
 	combat_system.attach_turn_manager(turn_manager)
 	combat_system.set_player_actor(player)
 	combat_system.connect_actor(player)
-	combat_system.connect_actor(enemy)
 	combat_system.attack_resolved.connect(_on_attack_resolved)
 	combat_system.actor_died.connect(_on_actor_died)
 	turn_manager.state_changed.connect(_on_turn_state_changed)
-	turn_manager.start_combat(player, [enemy])
+	stage_manager.stage_started.connect(_on_stage_started)
+	stage_manager.stage_completed.connect(_on_stage_completed)
+	stage_manager.stage_generation_failed.connect(_on_stage_generation_failed)
 	player.selection_changed.connect(_on_selection_changed)
+	stage_manager.initialize_stage(1)
+	queue_redraw()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("primary_action") and turn_manager.get_phase() == TurnState.VICTORY:
+		if stage_manager.start_next_stage():
+			get_viewport().set_input_as_handled()
+
+
+func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
+	_active_enemies = enemies
+	for enemy_node in _active_enemies:
+		var enemy := enemy_node as EnemyController
+		if enemy == null:
+			continue
+		combat_system.connect_actor(enemy)
+		if enemy.has_signal("moved"):
+			enemy.moved.connect(_on_enemy_moved)
+		if enemy.has_signal("attack_requested"):
+			enemy.attack_requested.connect(_on_enemy_attack_requested)
+	if not _active_enemies.is_empty():
+		player.set_target(_active_enemies[0])
+	turn_manager.start_combat(player, _active_enemies)
+	_last_move_text = "%s started with %d enemy%s" % [stage_manager.current_definition.display_name, _active_enemies.size(), "" if _active_enemies.size() == 1 else "s"]
+	queue_redraw()
+
+
+func _on_stage_completed(stage_state: StageState) -> void:
+	_last_move_text = "STAGE %d CLEARED — SPACE FOR NEXT STAGE" % stage_state.stage_number
+	turn_manager.set_victory()
+	queue_redraw()
+
+
+func _on_stage_generation_failed(stage_number: int, reason: String) -> void:
+	_last_move_text = "Stage %d failed: %s" % [stage_number, reason]
 	queue_redraw()
 
 
@@ -44,7 +80,7 @@ func _on_enemy_moved(from_cell: Vector2i, to_cell: Vector2i) -> void:
 
 
 func _on_enemy_attack_requested(_enemy: EnemyController, _target: Node) -> void:
-	_last_move_text = "Enemy attack requested (damage in Phase 7)"
+	_last_move_text = "Enemy attack requested"
 	queue_redraw()
 
 
@@ -60,10 +96,18 @@ func _on_actor_died(actor: Node) -> void:
 	if actor == player:
 		_last_move_text = "PLAYER DEFEATED"
 		turn_manager.set_defeat()
-	elif actor == enemy:
-		_last_move_text = "ENEMY DEFEATED"
-		turn_manager.set_victory()
+	else:
+		_last_move_text = "Enemy defeated"
+		_select_next_target()
 	queue_redraw()
+
+
+func _select_next_target() -> void:
+	for enemy_node in _active_enemies:
+		var enemy := enemy_node as EnemyController
+		if enemy != null and is_instance_valid(enemy) and not enemy.is_defeated():
+			player.set_target(enemy)
+			return
 
 
 func _on_turn_state_changed(_state: TurnState) -> void:
@@ -80,35 +124,44 @@ func _draw() -> void:
 	draw_rect(Rect2(34, 26, 1212, 668), Color("12101c"), true)
 	draw_rect(Rect2(34, 26, 1212, 668), Color("6c5331"), false, 2.0)
 	var font: Font = ThemeDB.fallback_font
-	draw_string(font, Vector2(66, 66), "DARK FANTASY // GRID TEST", HORIZONTAL_ALIGNMENT_LEFT, -1, 25, Color("e2c988"))
-	draw_string(font, Vector2(68, 91), "Phase 3 + Phase 4 development harness", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
+	draw_string(font, Vector2(66, 66), "DARK FANTASY // STAGE GENERATION", HORIZONTAL_ALIGNMENT_LEFT, -1, 25, Color("e2c988"))
+	draw_string(font, Vector2(68, 91), "Phase 8 procedural stage harness", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
 
-	draw_rect(Rect2(900, 112, 308, 512), Color("171522"), true)
-	draw_rect(Rect2(900, 112, 308, 512), Color("4d465e"), false, 1.0)
-	draw_string(font, Vector2(930, 158), "PLAYER", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
-	draw_string(font, Vector2(930, 198), "Cell", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(1088, 198), str(player.grid_position), HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("f0e7d1"))
-	draw_string(font, Vector2(930, 232), "Movement", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(1088, 232), "%d / %d" % [player.movement_points_remaining, player.player_stats.movement_points], HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("f0e7d1"))
-	draw_string(font, Vector2(930, 266), "Status", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(1088, 266), "SELECTED" if player.is_selected else "IDLE", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("b7a2d1"))
-	draw_string(font, Vector2(930, 300), "Turn", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(1088, 300), _turn_label(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("e2c988"))
-	draw_string(font, Vector2(930, 334), "Enemy HP", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(1088, 334), "%d / %d" % [enemy.enemy_stats.current_hp, enemy.enemy_stats.max_hp], HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("f0e7d1"))
+	draw_rect(Rect2(900, 112, 308, 570), Color("171522"), true)
+	draw_rect(Rect2(900, 112, 308, 570), Color("4d465e"), false, 1.0)
+	draw_string(font, Vector2(930, 158), "STAGE %d" % stage_manager.stage_state.stage_number, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
+	draw_string(font, Vector2(930, 181), "Enemies %d / %d" % [stage_manager.stage_state.defeated_enemy_count, stage_manager.stage_state.spawned_enemy_count], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("9c91ad"))
+	draw_string(font, Vector2(930, 217), "PLAYER", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
+	draw_string(font, Vector2(930, 257), "Cell", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(1088, 257), str(player.grid_position), HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("f0e7d1"))
+	draw_string(font, Vector2(930, 291), "Movement", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(1088, 291), "%d / %d" % [player.movement_points_remaining, player.player_stats.movement_points], HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("f0e7d1"))
+	draw_string(font, Vector2(930, 325), "Status", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(1088, 325), "SELECTED" if player.is_selected else "IDLE", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("b7a2d1"))
+	draw_string(font, Vector2(930, 359), "Turn", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(1088, 359), _turn_label(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("e2c988"))
+	var enemy_y: int = 393
+	for enemy_node in _active_enemies:
+		var enemy := enemy_node as EnemyController
+		if enemy == null or not is_instance_valid(enemy):
+			continue
+		var enemy_stats: EnemyStats = enemy.enemy_stats
+		if enemy_stats == null:
+			continue
+		draw_string(font, Vector2(930, enemy_y), "Enemy Lv.%d" % enemy.enemy_level, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("9c91ad"))
+		draw_string(font, Vector2(1088, enemy_y), "%d / %d" % [enemy_stats.current_hp, enemy_stats.max_hp], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("f0e7d1"))
+		enemy_y += 24
 
-	draw_string(font, Vector2(930, 390), "CONTROLS", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
-	draw_string(font, Vector2(930, 430), "W A S D", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
-	draw_string(font, Vector2(1030, 430), "Move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(930, 464), "SPACE", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
-	draw_string(font, Vector2(1030, 464), "End player turn", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(930, 498), "F", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
-	draw_string(font, Vector2(1030, 498), "Attack training enemy", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(930, 532), "CLICK", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
-	draw_string(font, Vector2(1030, 532), "Toggle selection", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(930, 500), "CONTROLS", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
+	draw_string(font, Vector2(930, 534), "W A S D", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
+	draw_string(font, Vector2(1030, 534), "Move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(930, 566), "SPACE", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
+	draw_string(font, Vector2(1030, 566), "End turn / Next stage", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(930, 598), "F", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
+	draw_string(font, Vector2(1030, 598), "Attack target", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
 
-	draw_string(font, Vector2(930, 566), "LAST EVENT", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
-	draw_string(font, Vector2(930, 598), _last_move_text, HORIZONTAL_ALIGNMENT_LEFT, 250, 14, Color("d5cbe0"))
+	draw_string(font, Vector2(930, 638), "LAST EVENT", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
+	draw_string(font, Vector2(930, 666), _last_move_text, HORIZONTAL_ALIGNMENT_LEFT, 250, 12, Color("d5cbe0"))
 
 
 func _turn_label() -> String:

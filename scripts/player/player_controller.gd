@@ -19,6 +19,7 @@ var _grid: GridMap2D
 var _input_enabled: bool = true
 var _turn_manager: Node
 var _is_defeated: bool = false
+var _target: Node
 
 
 func _ready() -> void:
@@ -55,7 +56,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			reset_movement_points()
 	elif event.is_action_pressed("attack"):
 		if _input_enabled and is_selected:
-			attack_requested.emit(get_node_or_null(target_path))
+			attack_requested.emit(_get_attack_target())
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var clicked_cell: Vector2i = _grid.world_to_grid(get_global_mouse_position())
 		if clicked_cell == grid_position:
@@ -109,6 +110,14 @@ func attach_turn_manager(turn_manager: Node) -> void:
 	_turn_manager = turn_manager
 
 
+func set_target(target: Node) -> void:
+	_target = target
+
+
+func get_target() -> Node:
+	return _get_attack_target()
+
+
 func is_input_enabled() -> bool:
 	return _input_enabled
 
@@ -140,6 +149,12 @@ func handle_defeat() -> void:
 
 func is_defeated() -> bool:
 	return _is_defeated
+
+
+func _get_attack_target() -> Node:
+	if _target != null and is_instance_valid(_target):
+		return _target
+	return get_node_or_null(target_path)
 
 
 func _refresh_grid_feedback() -> void:

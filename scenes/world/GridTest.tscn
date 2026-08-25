@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/grid_test.gd" id="1_test"]
 [ext_resource type="Script" path="res://scripts/systems/grid_map_2d.gd" id="2_grid"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/enemies/Enemy.tscn" id="4_enemy"]
 [ext_resource type="Script" path="res://scripts/systems/turn_manager.gd" id="5_turn"]
 [ext_resource type="Script" path="res://scripts/combat/combat_system.gd" id="6_combat"]
+[ext_resource type="Script" path="res://scripts/systems/stage_manager.gd" id="7_stage"]
 
 [node name="GridTest" type="Node2D"]
 script = ExtResource("1_test")
@@ -20,15 +21,15 @@ origin = Vector2(66, 112)
 [node name="Player" parent="." instance=ExtResource("3_player")]
 grid_path = NodePath("../Grid")
 grid_position = Vector2i(1, 3)
-target_path = NodePath("../Enemy")
-
-[node name="Enemy" parent="." instance=ExtResource("4_enemy")]
-grid_path = NodePath("../Grid")
-enemy_id = &"training_enemy"
-grid_position = Vector2i(10, 3)
 
 [node name="TurnManager" type="Node" parent="."]
 script = ExtResource("5_turn")
 
 [node name="CombatSystem" type="Node" parent="."]
 script = ExtResource("6_combat")
+
+[node name="StageManager" type="Node" parent="."]
+script = ExtResource("7_stage")
+grid_path = NodePath("../Grid")
+spawn_parent_path = NodePath("..")
+enemy_scene = ExtResource("4_enemy")

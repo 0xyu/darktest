@@ -36,6 +36,9 @@ func _ready() -> void:
 
 
 func take_turn(player: Node, turn_manager: TurnManager) -> void:
+	if _is_defeated or enemy_stats.current_hp <= 0:
+		turn_manager.complete_enemy_turn(self)
+		return
 	if _grid == null or player == null:
 		turn_manager.complete_enemy_turn(self)
 		return
