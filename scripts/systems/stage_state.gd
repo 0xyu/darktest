@@ -8,6 +8,9 @@ extends Resource
 @export var defeated_enemy_count: int = 0
 @export var is_complete: bool = false
 @export var encounter_id: StringName = &""
+@export var is_special_encounter: bool = false
+@export var special_encounter_type: int = SpecialEncounterType.NONE
+@export_range(1, 999999, 1) var special_mini_boss_level: int = 1
 
 
 func reset_for_stage(new_stage_number: int, mini_boss_stage: bool = false) -> void:
@@ -17,3 +20,6 @@ func reset_for_stage(new_stage_number: int, mini_boss_stage: bool = false) -> vo
 	defeated_enemy_count = 0
 	is_complete = false
 	encounter_id = &""
+	is_special_encounter = false
+	special_encounter_type = SpecialEncounterType.NONE
+	special_mini_boss_level = 1

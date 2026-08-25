@@ -1,6 +1,8 @@
 class_name GridTest
 extends Node2D
 
+const SpecialEncounterTypeResource = preload("res://scripts/systems/special_encounter_type.gd")
+
 @onready var grid: GridMap2D = $Grid
 @onready var player: PlayerController = $Player
 @onready var turn_manager: TurnManager = $TurnManager
@@ -49,6 +51,8 @@ func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
 		player.set_target(_active_enemies[0])
 	turn_manager.start_combat(player, _active_enemies)
 	var encounter_label: String = "MINI BOSS" if stage_state.is_mini_boss_stage else "NORMAL"
+	if stage_state.is_special_encounter:
+		encounter_label = SpecialEncounterTypeResource.get_display_name(stage_state.special_encounter_type).to_upper()
 	_last_move_text = "%s // %s started" % [stage_manager.current_definition.display_name, encounter_label]
 	queue_redraw()
 
@@ -148,6 +152,8 @@ func _draw() -> void:
 	var stage_title: String = "STAGE %d" % stage_manager.stage_state.stage_number
 	if stage_manager.stage_state.is_mini_boss_stage:
 		stage_title += " // MINI BOSS"
+	elif stage_manager.stage_state.is_special_encounter:
+		stage_title += " // " + SpecialEncounterTypeResource.get_display_name(stage_manager.stage_state.special_encounter_type).to_upper()
 	draw_string(font, Vector2(930, 158), stage_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
 	draw_string(font, Vector2(930, 181), "Enemies %d / %d" % [stage_manager.stage_state.defeated_enemy_count, stage_manager.stage_state.spawned_enemy_count], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("9c91ad"))
 	draw_string(font, Vector2(930, 217), "PLAYER", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
