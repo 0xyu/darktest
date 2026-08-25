@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="MiniBossDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/mini_boss_definition.gd" id="1_definition"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="2_stats"]
+
+[sub_resource type="Resource" id="EnemyStats_ashen_oracle"]
+script = ExtResource("2_stats")
+level = 1
+max_hp = 180
+current_hp = 180
+attack = 24
+defense = 7
+movement_points = 3
+attack_range = 1
+experience_reward = 100
+gold_reward = 75
+
+[resource]
+script = ExtResource("1_definition")
+definition_id = &"ashen_oracle"
+display_name = "Ashen Oracle"
+enemy_type = 3
+base_stats = SubResource("EnemyStats_ashen_oracle")
+description = "A cinder-eyed oracle whose shockwave reaches across the battlefield."
+boss_behavior = 0
+ability_range = 2
+ability_damage_multiplier = 0.75

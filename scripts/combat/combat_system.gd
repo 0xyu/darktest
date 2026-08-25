@@ -24,18 +24,23 @@ func set_player_actor(player: Node) -> void:
 
 
 func connect_actor(actor: Node) -> void:
-	if actor == null or not actor.has_signal("attack_requested"):
+	if actor == null:
 		return
-	var attack_signal: Signal = actor.attack_requested
-	if not attack_signal.is_connected(_on_attack_requested):
-		attack_signal.connect(_on_attack_requested)
+	if actor.has_signal("attack_requested"):
+		var attack_signal: Signal = actor.attack_requested
+		if not attack_signal.is_connected(_on_attack_requested):
+			attack_signal.connect(_on_attack_requested)
+	if actor.has_signal("area_attack_requested"):
+		var area_attack_signal: Signal = actor.area_attack_requested
+		if not area_attack_signal.is_connected(_on_area_attack_requested):
+			area_attack_signal.connect(_on_area_attack_requested)
 
 
-func resolve_attack(attacker: Node, target: Node) -> DamageResult:
+func resolve_attack(attacker: Node, target: Node, damage_multiplier: float = 1.0, attack_range_override: int = -1) -> DamageResult:
 	var result := DamageResult.new()
 	result.attacker_id = _get_actor_id(attacker)
 	result.target_id = _get_actor_id(target)
-	if not _is_valid_attack(attacker, target):
+	if not _is_valid_attack(attacker, target, attack_range_override):
 		result.is_miss = true
 		attack_resolved.emit(result)
 		return result
@@ -45,7 +50,7 @@ func resolve_attack(attacker: Node, target: Node) -> DamageResult:
 	var attack_power: int = maxi(int(attacker_stats.get("attack")), 0)
 	var defense: int = maxi(int(target_stats.get("defense")), 0)
 	result.raw_damage = maxi(1, attack_power - defense)
-	result.final_damage = result.raw_damage
+	result.final_damage = maxi(1, roundi(float(result.raw_damage) * maxf(damage_multiplier, 0.0)))
 
 	var critical_chance: float = clampf(float(attacker_stats.get("critical_chance")), 0.0, 1.0)
 	var critical_damage: float = maxf(float(attacker_stats.get("critical_damage")), 1.0)
@@ -77,7 +82,11 @@ func _on_attack_requested(attacker: Node, target: Node) -> void:
 		_turn_manager.complete_player_turn()
 
 
-func _is_valid_attack(attacker: Node, target: Node) -> bool:
+func _on_area_attack_requested(attacker: Node, target: Node, attack_range: int, damage_multiplier: float) -> void:
+	resolve_attack(attacker, target, damage_multiplier, attack_range)
+
+
+func _is_valid_attack(attacker: Node, target: Node, attack_range_override: int = -1) -> bool:
 	if attacker == null or target == null or not is_instance_valid(attacker) or not is_instance_valid(target):
 		return false
 	if attacker == target:
@@ -90,7 +99,7 @@ func _is_valid_attack(attacker: Node, target: Node) -> bool:
 		return false
 	var attacker_cell: Vector2i = _get_grid_position(attacker)
 	var target_cell: Vector2i = _get_grid_position(target)
-	var attack_range: int = maxi(int(attacker_stats.get("attack_range")), 0)
+	var attack_range: int = attack_range_override if attack_range_override >= 0 else maxi(int(attacker_stats.get("attack_range")), 0)
 	return _grid_distance(attacker_cell, target_cell) <= attack_range
 
 

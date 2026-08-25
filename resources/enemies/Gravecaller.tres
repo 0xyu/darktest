@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="MiniBossDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/mini_boss_definition.gd" id="1_definition"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="2_stats"]
+
+[sub_resource type="Resource" id="EnemyStats_gravecaller"]
+script = ExtResource("2_stats")
+level = 1
+max_hp = 210
+current_hp = 210
+attack = 21
+defense = 8
+movement_points = 2
+attack_range = 1
+experience_reward = 125
+gold_reward = 90
+
+[resource]
+script = ExtResource("1_definition")
+definition_id = &"gravecaller"
+display_name = "Gravecaller"
+enemy_type = 3
+base_stats = SubResource("EnemyStats_gravecaller")
+description = "A grave priest who calls a fresh servant from the dark between turns."
+boss_behavior = 1
+summon_count = 1

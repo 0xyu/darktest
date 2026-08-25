@@ -5,13 +5,21 @@ const EnemyScalingSystem = preload("res://scripts/systems/enemy_scaling.gd")
 
 ## Creates and advances the procedural stages used by the combat scene.
 signal stage_started(stage_state: StageState, enemies: Array[Node])
+signal enemy_spawned(enemy: Node)
 signal stage_completed(stage_state: StageState)
 signal stage_generation_failed(stage_number: int, reason: String)
+
+const DEFAULT_MINI_BOSS_PATHS: Array[String] = [
+	"res://resources/enemies/AshenOracle.tres",
+	"res://resources/enemies/Gravecaller.tres",
+	"res://resources/enemies/BloodboundWarlord.tres",
+]
 
 @export var grid_path: NodePath
 @export var spawn_parent_path: NodePath = NodePath("..")
 @export var enemy_scene: PackedScene
 @export var enemy_definitions: Array[EnemyDefinition] = []
+@export var mini_boss_definitions: Array[MiniBossDefinition] = []
 @export_range(1, 999999, 1) var starting_stage: int = 1
 @export_range(1, 999, 1) var base_enemy_count: int = 1
 @export_range(1, 999, 1) var enemy_count_growth_interval: int = 3
@@ -62,6 +70,9 @@ func initialize_stage(new_stage_number: int = -1) -> bool:
 	_clear_spawned_enemies()
 	current_definition = build_stage_definition(target_stage)
 	stage_state.reset_for_stage(target_stage, false)
+	stage_state.is_mini_boss_stage = current_definition.is_mini_boss_stage
+	if current_definition.mini_boss_definition != null:
+		stage_state.encounter_id = current_definition.mini_boss_definition.definition_id
 	_defeated_enemy_ids.clear()
 
 	var spawn_cells: Array[Vector2i] = _get_random_spawn_cells(current_definition.enemy_count)
@@ -72,29 +83,35 @@ func initialize_stage(new_stage_number: int = -1) -> bool:
 		return false
 
 	var spawned_nodes: Array[Node] = []
-	for enemy_index in range(current_definition.enemy_count):
-		var enemy := enemy_scene.instantiate() as EnemyController
-		if enemy == null:
-			var invalid_scene_reason := "Enemy scene must contain an EnemyController root node."
-			stage_generation_failed.emit(target_stage, invalid_scene_reason)
-			push_error(invalid_scene_reason)
-			_clear_spawned_enemies()
+	if current_definition.is_mini_boss_stage:
+		if current_definition.mini_boss_definition == null:
+			var missing_boss_reason := "No Mini Boss definition is available."
+			stage_generation_failed.emit(target_stage, missing_boss_reason)
+			push_error(missing_boss_reason)
 			return false
-
-		enemy.name = "StageEnemy_%d_%d" % [target_stage, enemy_index + 1]
-		enemy.enemy_id = StringName("stage_%d_enemy_%d" % [target_stage, enemy_index + 1])
-		enemy.enemy_level = roll_enemy_level(target_stage)
-		enemy.grid_position = spawn_cells[enemy_index]
-		enemy.grid_path = _get_enemy_grid_path()
-		if not enemy_definitions.is_empty():
-			enemy.enemy_definition = enemy_definitions[_random_number_generator.randi_range(0, enemy_definitions.size() - 1)]
-		_scale_enemy_definition(enemy, target_stage)
-		_spawn_parent.add_child(enemy)
-		_spawned_enemies.append(enemy)
-		stage_state.spawned_enemy_count += 1
-		if enemy.has_signal("defeated"):
-			enemy.defeated.connect(_on_enemy_defeated.bind(enemy))
-		spawned_nodes.append(enemy)
+		var boss := _spawn_enemy(
+			current_definition.mini_boss_definition,
+			target_stage,
+			spawn_cells[0],
+			StringName("stage_%d_boss" % target_stage),
+			target_stage
+		)
+		if boss == null:
+			return false
+		spawned_nodes.append(boss)
+	else:
+		for enemy_index in range(current_definition.enemy_count):
+			var normal_definition: EnemyDefinition = _pick_enemy_definition()
+			var enemy := _spawn_enemy(
+				normal_definition,
+				target_stage,
+				spawn_cells[enemy_index],
+				StringName("stage_%d_enemy_%d" % [target_stage, enemy_index + 1]),
+				roll_enemy_level(target_stage)
+			)
+			if enemy == null:
+				return false
+			spawned_nodes.append(enemy)
 
 	stage_started.emit(stage_state, spawned_nodes)
 	return true
@@ -110,9 +127,18 @@ func build_stage_definition(for_stage: int) -> StageDefinition:
 	var definition := StageDefinition.new()
 	definition.stage_number = maxi(for_stage, 1)
 	definition.display_name = "Stage %d" % definition.stage_number
-	definition.enemy_count = get_enemy_count(definition.stage_number)
-	definition.enemy_definitions = enemy_definitions
+	definition.is_mini_boss_stage = is_mini_boss_stage(definition.stage_number)
+	if definition.is_mini_boss_stage:
+		definition.enemy_count = 1
+		definition.mini_boss_definition = _pick_mini_boss_definition()
+	else:
+		definition.enemy_count = get_enemy_count(definition.stage_number)
+		definition.enemy_definitions = enemy_definitions
 	return definition
+
+
+func is_mini_boss_stage(for_stage: int) -> bool:
+	return maxi(for_stage, 1) % 10 == 0
 
 
 func get_enemy_count(for_stage: int) -> int:
@@ -137,6 +163,25 @@ func roll_enemy_level(stage_level: int) -> int:
 
 func get_spawned_enemies() -> Array[EnemyController]:
 	return _spawned_enemies.duplicate()
+
+
+func _pick_enemy_definition() -> EnemyDefinition:
+	if enemy_definitions.is_empty():
+		return null
+	return enemy_definitions[_random_number_generator.randi_range(0, enemy_definitions.size() - 1)]
+
+
+func _pick_mini_boss_definition() -> MiniBossDefinition:
+	var available_definitions: Array[MiniBossDefinition] = mini_boss_definitions
+	if available_definitions.is_empty():
+		for definition_path in DEFAULT_MINI_BOSS_PATHS:
+			var loaded_definition := load(definition_path) as MiniBossDefinition
+			if loaded_definition != null:
+				available_definitions.append(loaded_definition)
+		mini_boss_definitions = available_definitions
+	if available_definitions.is_empty():
+		return null
+	return available_definitions[_random_number_generator.randi_range(0, available_definitions.size() - 1)]
 
 
 func _get_random_spawn_cells(required_count: int) -> Array[Vector2i]:
@@ -176,6 +221,56 @@ func _scale_enemy_definition(enemy: EnemyController, stage_number: int) -> void:
 		gold_growth_rate
 	)
 	enemy.enemy_definition = scaled_definition
+
+
+func _spawn_enemy(
+	enemy_definition: EnemyDefinition,
+	stage_number: int,
+	spawn_cell: Vector2i,
+	generated_id: StringName,
+	level: int
+) -> EnemyController:
+	var enemy := enemy_scene.instantiate() as EnemyController
+	if enemy == null:
+		var invalid_scene_reason := "Enemy scene must contain an EnemyController root node."
+		stage_generation_failed.emit(stage_number, invalid_scene_reason)
+		push_error(invalid_scene_reason)
+		_clear_spawned_enemies()
+		return null
+
+	enemy.name = generated_id
+	enemy.enemy_id = generated_id
+	enemy.enemy_level = maxi(level, 1)
+	enemy.grid_position = spawn_cell
+	enemy.grid_path = _get_enemy_grid_path()
+	if enemy_definition != null:
+		enemy.enemy_definition = enemy_definition
+	_scale_enemy_definition(enemy, stage_number)
+	_spawn_parent.add_child(enemy)
+	_spawned_enemies.append(enemy)
+	stage_state.spawned_enemy_count += 1
+	if enemy.has_signal("defeated"):
+		enemy.defeated.connect(_on_enemy_defeated.bind(enemy))
+	if enemy.has_signal("summon_requested"):
+		enemy.summon_requested.connect(_on_summon_requested)
+	return enemy
+
+
+func _on_summon_requested(boss: EnemyController, summon_count: int) -> void:
+	if not _spawned_enemies.has(boss) or boss.is_defeated():
+		return
+	var spawn_cells: Array[Vector2i] = _get_random_spawn_cells(maxi(summon_count, 0))
+	for spawn_cell in spawn_cells:
+		var summon_index: int = stage_state.spawned_enemy_count + 1
+		var summon := _spawn_enemy(
+			_pick_enemy_definition(),
+			stage_state.stage_number,
+			spawn_cell,
+			StringName("stage_%d_summon_%d" % [stage_state.stage_number, summon_index]),
+			roll_enemy_level(stage_state.stage_number)
+		)
+		if summon != null:
+			enemy_spawned.emit(summon)
 
 
 func _on_enemy_defeated(enemy: EnemyController) -> void:

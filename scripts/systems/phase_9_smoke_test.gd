@@ -39,10 +39,11 @@ func _run_tests() -> void:
 	_expect(manager.initialize_stage(20), "stage twenty initializes")
 	var stage_twenty_enemy: EnemyController = manager.get_spawned_enemies()[0]
 	var stage_twenty_stats: EnemyStats = stage_twenty_enemy.enemy_stats
-	var expected_hp: int = EnemyScalingSystem.scale_value(60, 1.20, 20)
-	var expected_attack: int = EnemyScalingSystem.scale_value(8, 1.16, 20)
-	var expected_defense: int = EnemyScalingSystem.scale_value(2, 1.15, 20)
-	var expected_gold: int = EnemyScalingSystem.scale_value(10, 1.18, 20)
+	var stage_twenty_base_stats: EnemyStats = manager.current_definition.mini_boss_definition.base_stats
+	var expected_hp: int = EnemyScalingSystem.scale_value(stage_twenty_base_stats.max_hp, 1.20, 20)
+	var expected_attack: int = EnemyScalingSystem.scale_value(stage_twenty_base_stats.attack, 1.16, 20)
+	var expected_defense: int = EnemyScalingSystem.scale_value(stage_twenty_base_stats.defense, 1.15, 20)
+	var expected_gold: int = EnemyScalingSystem.scale_value(stage_twenty_base_stats.gold_reward, 1.18, 20)
 	_expect(stage_twenty_stats.max_hp == expected_hp, "stage twenty HP follows exponential scaling")
 	_expect(stage_twenty_stats.attack == expected_attack, "stage twenty attack follows exponential scaling")
 	_expect(stage_twenty_stats.defense == expected_defense, "stage twenty defense follows exponential scaling")
@@ -56,7 +57,7 @@ func _run_tests() -> void:
 	manager.attack_growth_rate = 1.0
 	manager.defense_growth_rate = 1.0
 	manager.gold_growth_rate = 1.0
-	_expect(manager.initialize_stage(20), "stage twenty reinitializes with custom growth rates")
+	_expect(manager.initialize_stage(2), "stage two initializes with custom growth rates")
 	var custom_stats: EnemyStats = manager.get_spawned_enemies()[0].enemy_stats
 	_expect(custom_stats.max_hp == 60, "HP growth rate is tunable")
 	_expect(custom_stats.attack == 8, "attack growth rate is tunable")

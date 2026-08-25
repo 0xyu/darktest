@@ -27,6 +27,7 @@ func _ready() -> void:
 	combat_system.actor_died.connect(_on_actor_died)
 	turn_manager.state_changed.connect(_on_turn_state_changed)
 	stage_manager.stage_started.connect(_on_stage_started)
+	stage_manager.enemy_spawned.connect(_on_enemy_spawned)
 	stage_manager.stage_completed.connect(_on_stage_completed)
 	stage_manager.stage_generation_failed.connect(_on_stage_generation_failed)
 	player.selection_changed.connect(_on_selection_changed)
@@ -43,19 +44,34 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
 	_active_enemies = enemies
 	for enemy_node in _active_enemies:
-		var enemy := enemy_node as EnemyController
-		if enemy == null:
-			continue
-		combat_system.connect_actor(enemy)
-		if enemy.has_signal("moved"):
-			enemy.moved.connect(_on_enemy_moved)
-		if enemy.has_signal("attack_requested"):
-			enemy.attack_requested.connect(_on_enemy_attack_requested)
+		_register_enemy(enemy_node as EnemyController)
 	if not _active_enemies.is_empty():
 		player.set_target(_active_enemies[0])
 	turn_manager.start_combat(player, _active_enemies)
-	_last_move_text = "%s started with %d enemy%s" % [stage_manager.current_definition.display_name, _active_enemies.size(), "" if _active_enemies.size() == 1 else "s"]
+	var encounter_label: String = "MINI BOSS" if stage_state.is_mini_boss_stage else "NORMAL"
+	_last_move_text = "%s // %s started" % [stage_manager.current_definition.display_name, encounter_label]
 	queue_redraw()
+
+
+func _on_enemy_spawned(enemy: Node) -> void:
+	var enemy_controller := enemy as EnemyController
+	if enemy_controller == null:
+		return
+	_active_enemies.append(enemy_controller)
+	_register_enemy(enemy_controller)
+	turn_manager.add_enemy(enemy_controller)
+	_last_move_text = "%s summoned" % enemy_controller.get_display_name()
+	queue_redraw()
+
+
+func _register_enemy(enemy: EnemyController) -> void:
+	if enemy == null:
+		return
+	combat_system.connect_actor(enemy)
+	if enemy.has_signal("moved") and not enemy.moved.is_connected(_on_enemy_moved):
+		enemy.moved.connect(_on_enemy_moved)
+	if enemy.has_signal("attack_requested") and not enemy.attack_requested.is_connected(_on_enemy_attack_requested):
+		enemy.attack_requested.connect(_on_enemy_attack_requested)
 
 
 func _on_stage_completed(stage_state: StageState) -> void:
@@ -125,11 +141,14 @@ func _draw() -> void:
 	draw_rect(Rect2(34, 26, 1212, 668), Color("6c5331"), false, 2.0)
 	var font: Font = ThemeDB.fallback_font
 	draw_string(font, Vector2(66, 66), "DARK FANTASY // STAGE GENERATION", HORIZONTAL_ALIGNMENT_LEFT, -1, 25, Color("e2c988"))
-	draw_string(font, Vector2(68, 91), "Phase 8 procedural stage harness", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
+	draw_string(font, Vector2(68, 91), "Phase 10 Mini Boss harness", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
 
 	draw_rect(Rect2(900, 112, 308, 570), Color("171522"), true)
 	draw_rect(Rect2(900, 112, 308, 570), Color("4d465e"), false, 1.0)
-	draw_string(font, Vector2(930, 158), "STAGE %d" % stage_manager.stage_state.stage_number, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
+	var stage_title: String = "STAGE %d" % stage_manager.stage_state.stage_number
+	if stage_manager.stage_state.is_mini_boss_stage:
+		stage_title += " // MINI BOSS"
+	draw_string(font, Vector2(930, 158), stage_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
 	draw_string(font, Vector2(930, 181), "Enemies %d / %d" % [stage_manager.stage_state.defeated_enemy_count, stage_manager.stage_state.spawned_enemy_count], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("9c91ad"))
 	draw_string(font, Vector2(930, 217), "PLAYER", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
 	draw_string(font, Vector2(930, 257), "Cell", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
@@ -148,7 +167,10 @@ func _draw() -> void:
 		var enemy_stats: EnemyStats = enemy.enemy_stats
 		if enemy_stats == null:
 			continue
-		draw_string(font, Vector2(930, enemy_y), "Enemy Lv.%d" % enemy.enemy_level, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("9c91ad"))
+		var enemy_label: String = "%s Lv.%d" % [enemy.get_display_name(), enemy.enemy_level]
+		if enemy.is_mini_boss:
+			enemy_label += " [%s]" % enemy.get_boss_behavior_name()
+		draw_string(font, Vector2(930, enemy_y), enemy_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("9c91ad"))
 		draw_string(font, Vector2(1088, enemy_y), "%d / %d" % [enemy_stats.current_hp, enemy_stats.max_hp], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("f0e7d1"))
 		enemy_y += 24
 

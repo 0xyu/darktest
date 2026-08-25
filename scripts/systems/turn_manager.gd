@@ -35,6 +35,12 @@ func start_combat(player: Node, enemies: Array[Node] = []) -> void:
 	player_turn_started.emit()
 
 
+func add_enemy(enemy: Node) -> void:
+	if enemy == null or _enemies.has(enemy):
+		return
+	_enemies.append(enemy)
+
+
 func complete_player_turn() -> void:
 	if turn_state.phase != TurnState.PLAYER_TURN:
 		return

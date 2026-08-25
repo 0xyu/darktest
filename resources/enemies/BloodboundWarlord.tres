@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="MiniBossDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/mini_boss_definition.gd" id="1_definition"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="2_stats"]
+
+[sub_resource type="Resource" id="EnemyStats_bloodbound_warlord"]
+script = ExtResource("2_stats")
+level = 1
+max_hp = 240
+current_hp = 240
+attack = 27
+defense = 6
+movement_points = 3
+attack_range = 1
+experience_reward = 150
+gold_reward = 110
+
+[resource]
+script = ExtResource("1_definition")
+definition_id = &"bloodbound_warlord"
+display_name = "Bloodbound Warlord"
+enemy_type = 3
+base_stats = SubResource("EnemyStats_bloodbound_warlord")
+description = "A warlord who grows more dangerous as the last of his strength burns away."
+boss_behavior = 2
+enrage_health_threshold = 0.5
+enrage_attack_multiplier = 1.5
