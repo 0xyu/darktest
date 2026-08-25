@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_definition.gd" id="1_definition"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="2_stats"]
+
+[sub_resource type="Resource" id="EnemyStats_training"]
+script = ExtResource("2_stats")
+level = 1
+max_hp = 60
+current_hp = 60
+attack = 8
+defense = 2
+movement_points = 3
+attack_range = 1
+experience_reward = 25
+gold_reward = 10
+
+[resource]
+script = ExtResource("1_definition")
+definition_id = &"training_wraith"
+display_name = "Training Wraith"
+enemy_type = 0
+base_stats = SubResource("EnemyStats_training")
+description = "A harmless training enemy for the Phase 6 movement harness."

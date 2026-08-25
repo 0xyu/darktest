@@ -27,6 +27,8 @@ func start_combat(player: Node, enemies: Array[Node] = []) -> void:
 		var player_action_signal: Signal = _player.action_completed
 		if not player_action_signal.is_connected(_on_player_action_completed):
 			player_action_signal.connect(_on_player_action_completed)
+	if _player.has_method("attach_turn_manager"):
+		_player.attach_turn_manager(self)
 	if _player.has_method("begin_player_turn"):
 		_player.begin_player_turn(turn_state.movement_points_remaining)
 	_emit_state()
