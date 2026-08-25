@@ -1,6 +1,8 @@
 class_name StageManager
 extends Node
 
+const EnemyScalingSystem = preload("res://scripts/systems/enemy_scaling.gd")
+
 ## Creates and advances the procedural stages used by the combat scene.
 signal stage_started(stage_state: StageState, enemies: Array[Node])
 signal stage_completed(stage_state: StageState)
@@ -14,6 +16,10 @@ signal stage_generation_failed(stage_number: int, reason: String)
 @export_range(1, 999, 1) var base_enemy_count: int = 1
 @export_range(1, 999, 1) var enemy_count_growth_interval: int = 3
 @export_range(1, 999, 1) var max_enemy_count: int = 4
+@export_range(0.1, 10.0, 0.01) var hp_growth_rate: float = 1.20
+@export_range(0.1, 10.0, 0.01) var attack_growth_rate: float = 1.16
+@export_range(0.1, 10.0, 0.01) var defense_growth_rate: float = 1.15
+@export_range(0.1, 10.0, 0.01) var gold_growth_rate: float = 1.18
 @export var random_seed: int = 0
 
 var stage_state: StageState = StageState.new()
@@ -82,6 +88,7 @@ func initialize_stage(new_stage_number: int = -1) -> bool:
 		enemy.grid_path = _get_enemy_grid_path()
 		if not enemy_definitions.is_empty():
 			enemy.enemy_definition = enemy_definitions[_random_number_generator.randi_range(0, enemy_definitions.size() - 1)]
+		_scale_enemy_definition(enemy, target_stage)
 		_spawn_parent.add_child(enemy)
 		_spawned_enemies.append(enemy)
 		stage_state.spawned_enemy_count += 1
@@ -154,6 +161,21 @@ func _get_enemy_grid_path() -> NodePath:
 	if parent_grid_path == ".":
 		return NodePath("..")
 	return NodePath("../" + parent_grid_path)
+
+
+func _scale_enemy_definition(enemy: EnemyController, stage_number: int) -> void:
+	if enemy.enemy_definition == null or enemy.enemy_definition.base_stats == null:
+		return
+	var scaled_definition := enemy.enemy_definition.duplicate(true) as EnemyDefinition
+	scaled_definition.base_stats = EnemyScalingSystem.scale_stats(
+		enemy.enemy_definition.base_stats,
+		stage_number,
+		hp_growth_rate,
+		attack_growth_rate,
+		defense_growth_rate,
+		gold_growth_rate
+	)
+	enemy.enemy_definition = scaled_definition
 
 
 func _on_enemy_defeated(enemy: EnemyController) -> void:
