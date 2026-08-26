@@ -6,6 +6,7 @@ extends CanvasLayer
 signal move_requested(direction: Vector2i)
 signal attack_requested
 signal end_turn_requested
+signal auto_toggle_requested
 
 @onready var _stage_manager: Node = get_parent().get_node_or_null("StageManager")
 @onready var _turn_manager: Node = get_parent().get_node_or_null("TurnManager")
@@ -24,6 +25,7 @@ signal end_turn_requested
 @onready var _event_label: Label = %EventLabel
 @onready var _attack_button: Button = %AttackButton
 @onready var _end_turn_button: Button = %EndTurnButton
+@onready var _auto_button: Button = %AutoButton
 @onready var _move_buttons: Array[Button] = [%MoveUpButton, %MoveLeftButton, %MoveDownButton, %MoveRightButton]
 
 
@@ -34,6 +36,7 @@ func _ready() -> void:
 	_move_buttons[3].pressed.connect(_on_move_right_pressed)
 	_attack_button.pressed.connect(func() -> void: attack_requested.emit())
 	_end_turn_button.pressed.connect(func() -> void: end_turn_requested.emit())
+	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_refresh()
 
@@ -139,8 +142,16 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 	else:
 		_end_turn_button.text = "END TURN"
 		_end_turn_button.disabled = not player_turn
+	_auto_button.disabled = phase == TurnState.DEFEAT
 	if player_stats == null:
 		_attack_button.disabled = true
+
+
+func set_auto_mode(enabled: bool) -> void:
+	if _auto_button == null:
+		return
+	_auto_button.text = "AUTO: ON" if enabled else "AUTO: OFF"
+	_auto_button.modulate = Color("89c797") if enabled else Color("f0e7d2")
 
 
 func _get_encounter_text(stage_state: StageState) -> String:

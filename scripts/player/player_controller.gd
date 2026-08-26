@@ -9,6 +9,7 @@ signal defeated
 signal experience_gained(amount: int, current_experience: int, required_experience: int)
 signal level_up(new_level: int)
 signal equipment_effect_triggered(effect_id: StringName, description: String)
+signal healing_item_used(remaining_items: int, amount_healed: int)
 
 @export var grid_path: NodePath
 @export var player_id: StringName = &"player"
@@ -18,6 +19,8 @@ signal equipment_effect_triggered(effect_id: StringName, description: String)
 @export var equipment_inventory: EquipmentInventory
 @export var is_selected: bool = true
 @export var target_path: NodePath
+@export_range(0, 99, 1) var healing_item_count: int = 3
+@export_range(0.05, 1.0, 0.05) var healing_item_heal_ratio: float = 0.35
 
 var movement_points_remaining: int = 0
 var _grid: GridMap2D
@@ -87,6 +90,24 @@ func select_item(item: EquipmentInstance) -> bool:
 
 func get_selected_item() -> EquipmentInstance:
 	return get_inventory().get_selected_item()
+
+
+func get_healing_item_count() -> int:
+	return maxi(healing_item_count, 0)
+
+
+func use_healing_item() -> bool:
+	if player_stats == null or get_healing_item_count() <= 0:
+		return false
+	if player_stats.current_hp <= 0 or player_stats.current_hp >= player_stats.max_hp:
+		return false
+	var previous_hp: int = player_stats.current_hp
+	var heal_amount: int = maxi(roundi(float(player_stats.max_hp) * clampf(healing_item_heal_ratio, 0.0, 1.0)), 1)
+	player_stats.current_hp = mini(player_stats.current_hp + heal_amount, player_stats.max_hp)
+	healing_item_count -= 1
+	healing_item_used.emit(healing_item_count, player_stats.current_hp - previous_hp)
+	queue_redraw()
+	return true
 
 
 func discard_item(item: EquipmentInstance) -> bool:

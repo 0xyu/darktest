@@ -12,6 +12,7 @@ const SpecialEncounterTypeResource = preload("res://scripts/systems/special_enco
 @onready var hud: MobileCombatHUD = $MobileCombatHUD
 @onready var gold_system = $GoldSystem
 @onready var loot_system = $LootSystem
+@onready var auto_combat: AutoCombatController = $AutoCombatController
 
 var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
@@ -53,6 +54,10 @@ func _ready() -> void:
 	hud.move_requested.connect(_on_hud_move_requested)
 	hud.attack_requested.connect(_on_hud_attack_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
+	hud.auto_toggle_requested.connect(_on_hud_auto_toggle_requested)
+	auto_combat.attach_systems(player, turn_manager, combat_system, stage_manager, grid)
+	auto_combat.auto_mode_changed.connect(_on_auto_mode_changed)
+	auto_combat.auto_action_taken.connect(_on_auto_action_taken)
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_layout_portrait_grid()
 	stage_manager.initialize_stage(1)
@@ -60,6 +65,10 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("toggle_auto") and turn_manager.get_phase() != TurnState.DEFEAT:
+		auto_combat.toggle_auto()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("primary_action") and turn_manager.get_phase() == TurnState.VICTORY:
 		if stage_manager.start_next_stage():
 			get_viewport().set_input_as_handled()
@@ -80,6 +89,22 @@ func _on_hud_end_turn_requested() -> void:
 		stage_manager.start_next_stage()
 	elif turn_manager.get_phase() == TurnState.PLAYER_TURN:
 		turn_manager.complete_player_turn()
+
+
+func _on_hud_auto_toggle_requested() -> void:
+	auto_combat.toggle_auto()
+
+
+func _on_auto_mode_changed(enabled: bool) -> void:
+	hud.set_auto_mode(enabled)
+	_last_move_text = "AUTO MODE %s" % ("ENABLED" if enabled else "DISABLED")
+	queue_redraw()
+
+
+func _on_auto_action_taken(description: String) -> void:
+	if not description.is_empty():
+		_last_move_text = description
+		queue_redraw()
 
 
 func _on_viewport_size_changed() -> void:

@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/grid_test.gd" id="1_test"]
 [ext_resource type="Script" path="res://scripts/systems/grid_map_2d.gd" id="2_grid"]
@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/MobileCombatHUD.tscn" id="9_hud"]
 [ext_resource type="Script" path="res://scripts/systems/gold_system.gd" id="10_gold"]
 [ext_resource type="Script" path="res://scripts/systems/loot_system.gd" id="11_loot"]
+[ext_resource type="Script" path="res://scripts/systems/auto_combat_controller.gd" id="12_auto"]
 
 [node name="GridTest" type="Node2D"]
 script = ExtResource("1_test")
@@ -48,3 +49,6 @@ script = ExtResource("10_gold")
 
 [node name="LootSystem" type="Node" parent="."]
 script = ExtResource("11_loot")
+
+[node name="AutoCombatController" type="Node" parent="."]
+script = ExtResource("12_auto")
