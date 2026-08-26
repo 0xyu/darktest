@@ -47,10 +47,17 @@ func resolve_attack(attacker: Node, target: Node, damage_multiplier: float = 1.0
 
 	var attacker_stats: Resource = _get_combat_stats(attacker)
 	var target_stats: Resource = _get_combat_stats(target)
+	var attack_context: Dictionary = {}
+	if attacker.has_method("create_attack_context"):
+		attack_context = attacker.create_attack_context(target)
+	var equipment_multiplier: float = 1.0
+	if attacker.has_method("get_equipment_damage_multiplier"):
+		equipment_multiplier = maxf(float(attacker.get_equipment_damage_multiplier(target, attack_context)), 0.0)
 	var attack_power: int = maxi(int(attacker_stats.get("attack")), 0)
 	var defense: int = maxi(int(target_stats.get("defense")), 0)
 	result.raw_damage = maxi(1, attack_power - defense)
-	result.final_damage = maxi(1, roundi(result.raw_damage * maxf(damage_multiplier, 0.0)))
+	var modified_damage: float = float(result.raw_damage) * maxf(damage_multiplier, 0.0) * equipment_multiplier
+	result.final_damage = maxi(1, roundi(modified_damage))
 
 	var critical_chance: float = 0.0
 	var critical_damage: float = 1.0
@@ -59,13 +66,15 @@ func resolve_attack(attacker: Node, target: Node, damage_multiplier: float = 1.0
 		critical_damage = maxf(attacker_stats.critical_damage, 1.0)
 	if critical_chance > 0.0 and _random_number_generator.randf() < critical_chance:
 		result.is_critical = true
-		result.final_damage = maxi(1, roundi(result.raw_damage * critical_damage))
+		result.final_damage = maxi(1, roundi(modified_damage * critical_damage))
 
 	var remaining_hp: int = maxi(int(target_stats.get("current_hp")) - result.final_damage, 0)
 	target_stats.set("current_hp", remaining_hp)
 	result.target_defeated = remaining_hp <= 0
 	if target.has_method("clamp_current_hp"):
 		target.clamp_current_hp()
+	if attacker.has_method("apply_equipment_attack_effects"):
+		attacker.apply_equipment_attack_effects(target, result, attack_context)
 	if result.target_defeated and target.has_method("handle_defeat"):
 		target.handle_defeat()
 	if is_instance_valid(target) and target.has_method("queue_redraw"):

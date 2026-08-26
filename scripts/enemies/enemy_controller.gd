@@ -28,6 +28,8 @@ var _is_defeated: bool = false
 var _boss_definition: Resource
 var _summons_used: int = 0
 var _is_enraged: bool = false
+var poisoned: bool = false
+var facing_direction: Vector2i = Vector2i.DOWN
 
 
 func _ready() -> void:
@@ -86,6 +88,21 @@ func handle_defeat() -> void:
 
 func is_defeated() -> bool:
 	return _is_defeated
+
+
+func set_poisoned(is_poisoned_value: bool = true) -> void:
+	poisoned = is_poisoned_value
+	queue_redraw()
+
+
+func is_poisoned() -> bool:
+	return poisoned
+
+
+func is_attacked_from_behind(attacker_cell: Vector2i) -> bool:
+	if facing_direction == Vector2i.ZERO:
+		return false
+	return attacker_cell - grid_position == -facing_direction
 
 
 func get_display_name() -> String:
@@ -183,6 +200,7 @@ func _move_toward_target(target_cell: Vector2i) -> void:
 		_grid.set_occupied(previous_cell, enemy_id)
 		return
 	grid_position = best_cell
+	facing_direction = _direction_to_cell(previous_cell, best_cell)
 	global_position = _grid.grid_to_world(grid_position)
 	queue_redraw()
 	moved.emit(previous_cell, grid_position)
@@ -199,6 +217,15 @@ func _get_target_cell(target: Node) -> Vector2i:
 
 func _grid_distance(from_cell: Vector2i, to_cell: Vector2i) -> int:
 	return absi(from_cell.x - to_cell.x) + absi(from_cell.y - to_cell.y)
+
+
+func _direction_to_cell(from_cell: Vector2i, to_cell: Vector2i) -> Vector2i:
+	var difference: Vector2i = to_cell - from_cell
+	if absi(difference.x) >= absi(difference.y) and difference.x != 0:
+		return Vector2i(signi(difference.x), 0)
+	if difference.y != 0:
+		return Vector2i(0, signi(difference.y))
+	return facing_direction
 
 
 func _draw() -> void:

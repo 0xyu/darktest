@@ -24,6 +24,7 @@ func generate_equipment(item_level: int = 1, slot: int = -1, rarity: int = -1) -
 	definition.item_level = safe_level
 	definition.display_name = "%s %s" % [EquipmentRarity.get_display_name(selected_rarity), EquipmentSlot.get_display_name(selected_slot)]
 	definition.description = "A generated %s equipment item." % EquipmentSlot.get_display_name(selected_slot).to_lower()
+	definition.unique_effect_id = _roll_unique_effect_id(selected_rarity)
 
 	var instance := EquipmentInstance.new()
 	instance.instance_id = StringName("%s_%d" % [definition.definition_id, _next_instance_id])
@@ -31,6 +32,25 @@ func generate_equipment(item_level: int = 1, slot: int = -1, rarity: int = -1) -
 	instance.affixes = roll_affixes(definition)
 	_next_instance_id += 1
 	return instance
+
+
+func _roll_unique_effect_id(rarity: int) -> StringName:
+	if rarity == EquipmentRarity.MYTHIC:
+		return _random_unique_effect_id()
+	if rarity == EquipmentRarity.LEGENDARY and _random_number_generator.randf() <= 0.25:
+		return _random_unique_effect_id()
+	return &""
+
+
+func _random_unique_effect_id() -> StringName:
+	var effect_ids: Array[StringName] = [
+		&"every_3rd_attack",
+		&"critical_healing",
+		&"movement_attack",
+		&"back_attack",
+		&"poisoned_target",
+	]
+	return effect_ids[_random_number_generator.randi_range(0, effect_ids.size() - 1)]
 
 
 func roll_affixes(definition: EquipmentDefinition, requested_count: int = -1) -> Array[EquipmentAffix]:

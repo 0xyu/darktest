@@ -49,6 +49,7 @@ func _ready() -> void:
 	stage_manager.stage_completed.connect(_on_stage_completed)
 	stage_manager.stage_generation_failed.connect(_on_stage_generation_failed)
 	player.selection_changed.connect(_on_selection_changed)
+	player.equipment_effect_triggered.connect(_on_equipment_effect_triggered)
 	hud.move_requested.connect(_on_hud_move_requested)
 	hud.attack_requested.connect(_on_hud_attack_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
@@ -202,10 +203,21 @@ func _on_gold_awarded(amount: int, _current_gold: int, source_name: String) -> v
 
 func _on_loot_dropped(_enemy: Node, loot: Array[EquipmentInstance]) -> void:
 	var loot_names: Array[String] = []
+	var added_count: int = 0
 	for item in loot:
 		if item != null:
 			loot_names.append(item.get_display_name())
-	_last_move_text = "Loot dropped: %s" % ", ".join(loot_names)
+			if player.add_equipment(item):
+				added_count += 1
+	if added_count == loot.size():
+		_last_move_text = "Loot added: %s (%d/%d)" % [", ".join(loot_names), player.get_inventory().get_item_count(), player.get_inventory().capacity]
+	else:
+		_last_move_text = "Loot added %d/%d — inventory full" % [added_count, loot.size()]
+	queue_redraw()
+
+
+func _on_equipment_effect_triggered(_effect_id: StringName, description: String) -> void:
+	_last_move_text = "EFFECT // %s" % description
 	queue_redraw()
 
 
