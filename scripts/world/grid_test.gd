@@ -17,6 +17,7 @@ const SpecialEncounterTypeResource = preload("res://scripts/systems/special_enco
 var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
 var _grid_play_area: Rect2 = Rect2()
+var _defeat_retry_scheduled: bool = false
 
 
 func _ready() -> void:
@@ -267,9 +268,27 @@ func _on_actor_died(actor: Node) -> void:
 	if actor == player:
 		_last_move_text = "PLAYER DEFEATED"
 		turn_manager.set_defeat()
+		if not _defeat_retry_scheduled:
+			_defeat_retry_scheduled = true
+			call_deferred("_retry_previous_stage_after_defeat")
 	else:
 		_last_move_text = "Enemy defeated"
 		_select_next_target()
+	queue_redraw()
+
+
+func _retry_previous_stage_after_defeat() -> void:
+	_defeat_retry_scheduled = false
+	if turn_manager.get_phase() != TurnState.DEFEAT or not player.is_defeated():
+		return
+
+	player.revive_for_retry()
+	var retry_stage: int = maxi(stage_manager.stage_state.stage_number - 1, 1)
+	if stage_manager.start_previous_stage():
+		_last_move_text = "DEFEAT — RETURNED TO STAGE %02d" % retry_stage
+	else:
+		player.handle_defeat()
+		_last_move_text = "DEFEAT — RETRY FAILED"
 	queue_redraw()
 
 

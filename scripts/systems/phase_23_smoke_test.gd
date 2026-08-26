@@ -33,6 +33,10 @@ func _run_tests() -> void:
 	_expect("1 /" in panel.get_node("Panel/Margin/Content/InventoryCount").text, "inventory count is displayed")
 	_expect(panel.get_node("Panel/Margin/Content/EquippedGrid").get_child_count() == 7, "all equipment slots are displayed")
 	_expect(panel.get_node("Panel/Margin/Content/InventoryScroll/InventoryGrid").get_child_count() == 1, "inventory grid displays stored equipment")
+	var inventory_button := panel.get_node("Panel/Margin/Content/InventoryScroll/InventoryGrid").get_child(0) as Button
+	inventory_button.pressed.emit()
+	await process_frame
+	_expect(panel.get_selected_item() == weapon, "clicking an inventory item is safe")
 
 	_expect(panel.select_item(weapon), "inventory item can be selected")
 	await process_frame

@@ -151,6 +151,11 @@ func start_next_stage() -> bool:
 	return initialize_stage(next_stage, special_encounter_type)
 
 
+func start_previous_stage() -> bool:
+	var previous_stage: int = maxi(stage_state.stage_number - 1, 1)
+	return initialize_stage(previous_stage)
+
+
 func build_stage_definition(for_stage: int, requested_special_encounter_type: int = SpecialEncounterTypeResource.NONE) -> StageDefinition:
 	var definition := StageDefinition.new()
 	definition.stage_number = maxi(for_stage, 1)

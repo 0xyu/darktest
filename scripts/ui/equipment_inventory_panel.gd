@@ -18,6 +18,7 @@ signal panel_closed
 var _player: PlayerController
 var _inventory: EquipmentInventory
 var _selected_item: EquipmentInstance
+var _refresh_scheduled: bool = false
 
 
 func _ready() -> void:
@@ -42,12 +43,12 @@ func set_player(player: PlayerController) -> void:
 			_inventory.inventory_changed.connect(_on_inventory_changed)
 		if not _inventory.item_selected.is_connected(_on_item_selected):
 			_inventory.item_selected.connect(_on_item_selected)
-	_refresh()
+	_request_refresh()
 
 
 func show_inventory() -> void:
 	visible = true
-	_refresh()
+	_request_refresh()
 
 
 func hide_inventory() -> void:
@@ -65,7 +66,7 @@ func select_item(item: EquipmentInstance) -> bool:
 	var selected: bool = _inventory.select_item(item)
 	if selected:
 		_selected_item = _inventory.get_selected_item()
-		_refresh()
+		_request_refresh()
 	return selected
 
 
@@ -78,7 +79,7 @@ func equip_selected_item() -> bool:
 		return false
 	var equipped: bool = _player != null and _player.equip_item(_selected_item)
 	if equipped:
-		_refresh()
+		_request_refresh()
 	return equipped
 
 
@@ -88,18 +89,30 @@ func discard_selected_item() -> bool:
 	var discarded: bool = _player != null and _player.discard_item(_selected_item)
 	if discarded:
 		_selected_item = null
-		_refresh()
+		_request_refresh()
 	return discarded
 
 
 func _on_inventory_changed() -> void:
 	if _selected_item != null and not _inventory.has_item(_selected_item):
 		_selected_item = null
-	_refresh()
+	_request_refresh()
 
 
 func _on_item_selected(item: EquipmentInstance) -> void:
 	_selected_item = item
+	_request_refresh()
+
+
+func _request_refresh() -> void:
+	if _refresh_scheduled:
+		return
+	_refresh_scheduled = true
+	call_deferred("_run_scheduled_refresh")
+
+
+func _run_scheduled_refresh() -> void:
+	_refresh_scheduled = false
 	_refresh()
 
 
@@ -227,7 +240,8 @@ func _format_comparison(comparison: EquipmentComparison, current_item: Equipment
 
 func _clear_grid(grid: GridContainer) -> void:
 	for child in grid.get_children():
-		child.free()
+		grid.remove_child(child)
+		child.queue_free()
 
 
 func _get_rarity_color(rarity: int) -> Color:

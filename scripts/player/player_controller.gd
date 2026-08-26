@@ -296,6 +296,22 @@ func handle_defeat() -> void:
 	defeated.emit()
 
 
+func revive_for_retry() -> void:
+	_is_defeated = false
+	_input_enabled = true
+	if player_stats != null:
+		player_stats.reset_current_hp()
+	if _grid != null:
+		if _grid.is_occupied(grid_position):
+			_grid.clear_occupied(grid_position, player_id)
+		_grid.set_occupied(grid_position, player_id)
+		global_position = _grid.grid_to_world(grid_position)
+	reset_movement_points()
+	reset_equipment_effect_state()
+	_target = null
+	queue_redraw()
+
+
 func is_defeated() -> bool:
 	return _is_defeated
 
