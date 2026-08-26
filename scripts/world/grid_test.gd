@@ -11,6 +11,7 @@ const SpecialEncounterTypeResource = preload("res://scripts/systems/special_enco
 @onready var experience_system: ExperienceSystem = $ExperienceSystem
 @onready var hud: MobileCombatHUD = $MobileCombatHUD
 @onready var gold_system = $GoldSystem
+@onready var loot_system = $LootSystem
 
 var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
@@ -39,6 +40,9 @@ func _ready() -> void:
 	gold_system.attach_combat_system(combat_system)
 	gold_system.attach_stage_manager(stage_manager)
 	gold_system.gold_awarded.connect(_on_gold_awarded)
+	loot_system.attach_combat_system(combat_system)
+	loot_system.attach_stage_manager(stage_manager)
+	loot_system.loot_dropped.connect(_on_loot_dropped)
 	turn_manager.state_changed.connect(_on_turn_state_changed)
 	stage_manager.stage_started.connect(_on_stage_started)
 	stage_manager.enemy_spawned.connect(_on_enemy_spawned)
@@ -193,6 +197,15 @@ func _on_level_up(new_level: int, _max_hp_gain: int, _attack_gain: int, _defense
 
 func _on_gold_awarded(amount: int, _current_gold: int, source_name: String) -> void:
 	_last_move_text = "Gained %d Gold%s" % [amount, " from %s" % source_name if not source_name.is_empty() else ""]
+	queue_redraw()
+
+
+func _on_loot_dropped(_enemy: Node, loot: Array[EquipmentInstance]) -> void:
+	var loot_names: Array[String] = []
+	for item in loot:
+		if item != null:
+			loot_names.append(item.get_display_name())
+	_last_move_text = "Loot dropped: %s" % ", ".join(loot_names)
 	queue_redraw()
 
 
