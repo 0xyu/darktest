@@ -1,7 +1,8 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/mobile_combat_hud.gd" id="1_hud"]
 [ext_resource type="Script" path="res://scripts/ui/loot_presentation.gd" id="2_loot"]
+[ext_resource type="PackedScene" path="res://scenes/ui/EquipmentInventoryPanel.tscn" id="3_inventory"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.0706, 0.0627, 0.102, 0.97)
@@ -444,6 +445,14 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
 text = "AUTO: OFF"
 
+[node name="InventoryButton" type="Button" parent="Root/BottomPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(0, 48)
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_font_sizes/font_size = 15
+text = "INVENTORY 0"
+
 [node name="CriticalLabel" type="Label" parent="Root"]
 unique_name_in_owner = true
 layout_mode = 1
@@ -487,3 +496,6 @@ theme_override_font_sizes/font_size = 28
 text = "VICTORY"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="InventoryPanel" parent="Root" instance=ExtResource("3_inventory")]
+unique_name_in_owner = true

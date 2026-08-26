@@ -28,9 +28,11 @@ signal auto_toggle_requested
 @onready var _item_button: Button = %ItemButton
 @onready var _end_turn_button: Button = %EndTurnButton
 @onready var _auto_button: Button = %AutoButton
+@onready var _inventory_button: Button = %InventoryButton
 @onready var _critical_label: Label = %CriticalLabel
 @onready var _state_banner: PanelContainer = %StateBanner
 @onready var _state_label: Label = %StateLabel
+@onready var _inventory_panel: EquipmentInventoryPanel = %InventoryPanel
 @onready var _move_buttons: Array[Button] = [%MoveUpButton, %MoveLeftButton, %MoveDownButton, %MoveRightButton]
 
 var _critical_time_remaining: float = 0.0
@@ -45,6 +47,8 @@ func _ready() -> void:
 	_item_button.pressed.connect(func() -> void: item_requested.emit())
 	_end_turn_button.pressed.connect(func() -> void: end_turn_requested.emit())
 	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
+	_inventory_button.pressed.connect(_on_inventory_button_pressed)
+	_inventory_panel.set_player(_player)
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_refresh()
 
@@ -62,6 +66,10 @@ func _process(delta: float) -> void:
 
 func _on_viewport_size_changed() -> void:
 	_refresh()
+
+
+func _on_inventory_button_pressed() -> void:
+	_inventory_panel.toggle_inventory()
 
 
 func _on_move_up_pressed() -> void:
@@ -92,6 +100,9 @@ func _refresh() -> void:
 	_turn_label.modulate = _get_turn_color()
 	_encounter_label.text = _get_encounter_text(stage_state)
 	_event_label.text = str(get_parent().get("_last_move_text"))
+	var inventory: EquipmentInventory = _player.get_inventory() if _player.has_method("get_inventory") else null
+	if inventory != null:
+		_inventory_button.text = "INVENTORY %d" % inventory.get_item_count()
 
 	var player_stats: PlayerStats = _player.get("player_stats") as PlayerStats
 	var player_progression: PlayerProgression = _player.get("player_progression") as PlayerProgression
