@@ -5,6 +5,7 @@ extends CanvasLayer
 ## The HUD only forwards input to the existing player and turn systems.
 signal move_requested(direction: Vector2i)
 signal attack_requested
+signal item_requested
 signal end_turn_requested
 signal auto_toggle_requested
 
@@ -24,9 +25,15 @@ signal auto_toggle_requested
 @onready var _combat_info_label: Label = %CombatInfoLabel
 @onready var _event_label: Label = %EventLabel
 @onready var _attack_button: Button = %AttackButton
+@onready var _item_button: Button = %ItemButton
 @onready var _end_turn_button: Button = %EndTurnButton
 @onready var _auto_button: Button = %AutoButton
+@onready var _critical_label: Label = %CriticalLabel
+@onready var _state_banner: PanelContainer = %StateBanner
+@onready var _state_label: Label = %StateLabel
 @onready var _move_buttons: Array[Button] = [%MoveUpButton, %MoveLeftButton, %MoveDownButton, %MoveRightButton]
+
+var _critical_time_remaining: float = 0.0
 
 
 func _ready() -> void:
@@ -35,15 +42,21 @@ func _ready() -> void:
 	_move_buttons[2].pressed.connect(_on_move_down_pressed)
 	_move_buttons[3].pressed.connect(_on_move_right_pressed)
 	_attack_button.pressed.connect(func() -> void: attack_requested.emit())
+	_item_button.pressed.connect(func() -> void: item_requested.emit())
 	_end_turn_button.pressed.connect(func() -> void: end_turn_requested.emit())
 	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_refresh()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# State changes can come from combat signals, enemy AI, or stage generation.
 	# A lightweight refresh keeps the HUD in sync without coupling it to gameplay.
+	if _critical_time_remaining > 0.0:
+		_critical_time_remaining = maxf(_critical_time_remaining - delta, 0.0)
+		_critical_label.modulate.a = clampf(_critical_time_remaining / 0.8, 0.0, 1.0)
+		if is_zero_approx(_critical_time_remaining):
+			_critical_label.visible = false
 	_refresh()
 
 
@@ -131,6 +144,12 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 		button.disabled = not can_move
 	var can_attack: bool = player_turn and input_enabled and _get_target() != null
 	_attack_button.disabled = not can_attack
+	var potion_count: int = _player.get_healing_item_count() if _player.has_method("get_healing_item_count") else 0
+	_item_button.text = "POTION %d" % potion_count
+	var can_use_item: bool = player_turn and input_enabled and potion_count > 0
+	if player_stats != null:
+		can_use_item = can_use_item and player_stats.current_hp < player_stats.max_hp
+	_item_button.disabled = not can_use_item
 
 	var phase: int = _turn_manager.get_phase()
 	if phase == TurnState.VICTORY:
@@ -143,8 +162,12 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 		_end_turn_button.text = "END TURN"
 		_end_turn_button.disabled = not player_turn
 	_auto_button.disabled = phase == TurnState.DEFEAT
+	_state_banner.visible = phase == TurnState.VICTORY or phase == TurnState.DEFEAT
+	_state_label.text = "VICTORY" if phase == TurnState.VICTORY else "DEFEAT"
+	_state_label.modulate = Color("89c797") if phase == TurnState.VICTORY else Color("d46a78")
 	if player_stats == null:
 		_attack_button.disabled = true
+		_item_button.disabled = true
 
 
 func set_auto_mode(enabled: bool) -> void:
@@ -152,6 +175,18 @@ func set_auto_mode(enabled: bool) -> void:
 		return
 	_auto_button.text = "AUTO: ON" if enabled else "AUTO: OFF"
 	_auto_button.modulate = Color("89c797") if enabled else Color("f0e7d2")
+
+
+func present_loot(items: Array[EquipmentInstance], new_best_items: Array[EquipmentInstance] = [], source_name: String = "") -> void:
+	var loot_presentation: LootPresentation = %LootPresentation
+	loot_presentation.present_loot(items, new_best_items, source_name)
+
+
+func show_critical_indicator(damage: int) -> void:
+	_critical_label.text = "CRITICAL HIT  •  %d" % damage
+	_critical_label.visible = true
+	_critical_label.modulate = Color("f2c15e")
+	_critical_time_remaining = 0.8
 
 
 func _get_encounter_text(stage_state: StageState) -> String:

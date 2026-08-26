@@ -53,6 +53,7 @@ func _ready() -> void:
 	player.equipment_effect_triggered.connect(_on_equipment_effect_triggered)
 	hud.move_requested.connect(_on_hud_move_requested)
 	hud.attack_requested.connect(_on_hud_attack_requested)
+	hud.item_requested.connect(_on_hud_item_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
 	hud.auto_toggle_requested.connect(_on_hud_auto_toggle_requested)
 	auto_combat.attach_systems(player, turn_manager, combat_system, stage_manager, grid)
@@ -82,6 +83,15 @@ func _on_hud_attack_requested() -> void:
 	if turn_manager.get_phase() != TurnState.PLAYER_TURN or not player.is_input_enabled():
 		return
 	player.attack_requested.emit(player, player.get_target())
+
+
+func _on_hud_item_requested() -> void:
+	if turn_manager.get_phase() != TurnState.PLAYER_TURN or not player.is_input_enabled():
+		return
+	if player.use_healing_item():
+		_last_move_text = "Used healing item"
+		turn_manager.complete_player_turn()
+		queue_redraw()
 
 
 func _on_hud_end_turn_requested() -> void:
@@ -208,6 +218,8 @@ func _on_attack_resolved(result: DamageResult) -> void:
 		_last_move_text = "Attack missed: target out of range"
 	else:
 		_last_move_text = "Critical hit for %d" % result.final_damage if result.is_critical else "Hit for %d" % result.final_damage
+		if result.is_critical:
+			hud.show_critical_indicator(result.final_damage)
 	queue_redraw()
 
 
@@ -228,16 +240,21 @@ func _on_gold_awarded(amount: int, _current_gold: int, source_name: String) -> v
 
 func _on_loot_dropped(_enemy: Node, loot: Array[EquipmentInstance]) -> void:
 	var loot_names: Array[String] = []
+	var new_best_items: Array[EquipmentInstance] = []
 	var added_count: int = 0
 	for item in loot:
 		if item != null:
 			loot_names.append(item.get_display_name())
+			var comparison: EquipmentComparison = player.get_inventory().create_comparison(item)
 			if player.add_equipment(item):
 				added_count += 1
+				if comparison != null and comparison.is_upgrade():
+					new_best_items.append(item)
 	if added_count == loot.size():
 		_last_move_text = "Loot added: %s (%d/%d)" % [", ".join(loot_names), player.get_inventory().get_item_count(), player.get_inventory().capacity]
 	else:
 		_last_move_text = "Loot added %d/%d — inventory full" % [added_count, loot.size()]
+	hud.present_loot(loot, new_best_items, str(_enemy.get("enemy_id")) if _enemy != null else "")
 	queue_redraw()
 
 

@@ -1,6 +1,7 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/mobile_combat_hud.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scripts/ui/loot_presentation.gd" id="2_loot"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.0706, 0.0627, 0.102, 0.97)
@@ -80,6 +81,91 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+
+[node name="LootPresentation" type="Control" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_loot")
+
+[node name="LootPanel" type="PanelContainer" parent="Root/LootPresentation"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -214.0
+offset_top = -142.0
+offset_right = 214.0
+offset_bottom = 142.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="Root/LootPresentation/LootPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 16
+
+[node name="Content" type="VBoxContainer" parent="Root/LootPresentation/LootPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LootBurst" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "✦"
+horizontal_alignment = 1
+
+[node name="LootTitle" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_font_sizes/font_size = 13
+text = "LOOT FOUND"
+horizontal_alignment = 1
+
+[node name="LootRarity" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "RARE"
+horizontal_alignment = 1
+
+[node name="LootItem" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_font_sizes/font_size = 22
+text = "Equipment"
+clip_text = true
+horizontal_alignment = 1
+
+[node name="LootDetails" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.741, 0.706, 0.808, 1)
+theme_override_font_sizes/font_size = 12
+text = "WEAPON  •  ITEM LEVEL 1"
+horizontal_alignment = 1
+
+[node name="LootBest" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "NEW BEST ITEM"
+horizontal_alignment = 1
+visible = false
 
 [node name="TopPanel" type="PanelContainer" parent="Root"]
 layout_mode = 1
@@ -322,6 +408,18 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
 text = "ATTACK"
 
+[node name="ItemButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+text = "POTION 3"
+
 [node name="EndTurnButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -345,3 +443,47 @@ theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
 text = "AUTO: OFF"
+
+[node name="CriticalLabel" type="Label" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 16.0
+offset_top = 184.0
+offset_right = -16.0
+offset_bottom = 218.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.941, 0.761, 0.369, 1)
+theme_override_font_sizes/font_size = 22
+text = "CRITICAL HIT"
+horizontal_alignment = 1
+visible = false
+
+[node name="StateBanner" type="PanelContainer" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -180.0
+offset_top = -48.0
+offset_right = 180.0
+offset_bottom = 48.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StylePanel")
+visible = false
+
+[node name="StateLabel" type="Label" parent="Root/StateBanner"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
+theme_override_font_sizes/font_size = 28
+text = "VICTORY"
+horizontal_alignment = 1
+vertical_alignment = 1
