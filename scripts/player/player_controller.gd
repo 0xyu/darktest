@@ -4,13 +4,16 @@ extends Node2D
 signal moved(from_cell: Vector2i, to_cell: Vector2i, movement_points_remaining: int)
 signal selection_changed(is_selected: bool)
 signal action_completed
-signal attack_requested(target: Node)
+signal attack_requested(attacker: Node, target: Node)
 signal defeated
+signal experience_gained(amount: int, current_experience: int, required_experience: int)
+signal level_up(new_level: int)
 
 @export var grid_path: NodePath
 @export var player_id: StringName = &"player"
 @export var grid_position: Vector2i = Vector2i(1, 1)
 @export var player_stats: PlayerStats = PlayerStats.new()
+@export var player_progression: PlayerProgression = PlayerProgression.new()
 @export var is_selected: bool = true
 @export var target_path: NodePath
 
@@ -56,7 +59,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			reset_movement_points()
 	elif event.is_action_pressed("attack"):
 		if _input_enabled and is_selected:
-			attack_requested.emit(_get_attack_target())
+			attack_requested.emit(self, _get_attack_target())
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var clicked_cell: Vector2i = _grid.world_to_grid(get_global_mouse_position())
 		if clicked_cell == grid_position:
@@ -149,6 +152,32 @@ func handle_defeat() -> void:
 
 func is_defeated() -> bool:
 	return _is_defeated
+
+
+func get_level() -> int:
+	if player_progression == null:
+		return 1
+	return maxi(player_progression.level, 1)
+
+
+func get_experience() -> int:
+	if player_progression == null:
+		return 0
+	return maxi(player_progression.experience, 0)
+
+
+func get_experience_to_next_level() -> int:
+	if player_progression == null:
+		return 1
+	return player_progression.experience_to_next_level()
+
+
+func notify_experience_gained(amount: int, current_experience: int, required_experience: int) -> void:
+	experience_gained.emit(amount, current_experience, required_experience)
+
+
+func notify_level_up(new_level: int) -> void:
+	level_up.emit(new_level)
 
 
 func _get_attack_target() -> Node:

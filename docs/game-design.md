@@ -1287,3 +1287,111 @@ Fight
 ```
 
 This loop is more important than secondary systems.
+
+# Platform & Screen Layout
+
+## Primary Platform
+
+The game is designed primarily for **mobile devices in portrait orientation**.
+
+### Platform Priority
+
+1. Mobile Portrait — **Primary**
+2. Tablet Portrait — Secondary
+3. Desktop — Development / Debugging only
+
+Desktop landscape is **not** the primary target and must not drive UI or gameplay layout decisions.
+
+## Orientation
+
+* Default orientation: **Portrait**
+* Primary aspect ratio: **9:16**
+* Must also support common modern mobile ratios such as:
+
+    * 9:19.5
+    * 9:20
+    * 9:21
+* Never assume a fixed physical screen resolution.
+* UI must adapt to different portrait resolutions and aspect ratios.
+
+## Godot Configuration
+
+Godot project settings must use portrait-oriented display settings.
+
+The project should be configured so that running the game starts in a portrait window.
+
+Do not change the project to landscape orientation unless explicitly requested.
+
+## UI Design Rules
+
+All UI must be designed for a portrait mobile screen.
+
+### Layout
+
+* Use responsive Godot Containers where appropriate.
+* Avoid hard-coded absolute positions for important UI elements.
+* Keep critical controls within comfortable thumb-reach areas.
+* Do not place important information only at the extreme top or bottom edges.
+* Respect mobile safe areas and screen cutouts where applicable.
+* UI must remain usable on narrow portrait screens.
+
+### Interaction
+
+The primary interaction model is:
+
+* Touch
+* Tap
+* Drag where required
+* Short touch interactions
+
+Mouse and keyboard input may be supported for development/debugging, but must not determine the primary interaction design.
+
+## Gameplay Layout
+
+Gameplay must be designed around the portrait viewport.
+
+For the grid-based turn-based RPG:
+
+* The gameplay grid must remain clearly visible in portrait mode.
+* Combat UI must not require landscape orientation.
+* Player/enemy information should be readable without covering the main gameplay area.
+* Action buttons should be positioned for comfortable mobile touch interaction.
+* Important combat actions should remain accessible without excessive scrolling.
+
+## Responsive Layout Requirements
+
+When implementing a new screen, scene, HUD, menu, popup, or gameplay UI, the Agent must consider:
+
+1. Portrait viewport size.
+2. Different mobile aspect ratios.
+3. Touch target size.
+4. Safe areas.
+5. UI readability.
+6. Available gameplay area.
+
+Do not optimize a screen for desktop first and then attempt to squeeze it into portrait mode.
+
+The implementation should be **mobile-first and portrait-first**.
+
+## Development Rule
+
+When implementing or modifying UI:
+
+> **Always treat Mobile Portrait as the source of truth.**
+
+If a design works on desktop but does not work well on a portrait mobile screen, the implementation is considered incorrect.
+
+Desktop support is only for development convenience and must not compromise the mobile portrait experience.
+
+## Agent Acceptance Criteria
+
+Before considering a UI-related task complete, verify:
+
+* [ ] Desktop testing does not replace mobile portrait testing.
+* [ ] Game runs in portrait orientation.
+* [ ] UI is usable at 9:16.
+* [ ] UI does not break on taller portrait screens.
+* [ ] No important UI element is clipped.
+* [ ] Touch targets are large enough for mobile interaction.
+* [ ] Gameplay remains clearly visible.
+* [ ] No landscape-only assumption exists in the implementation.

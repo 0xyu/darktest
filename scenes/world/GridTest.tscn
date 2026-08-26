@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/grid_test.gd" id="1_test"]
 [ext_resource type="Script" path="res://scripts/systems/grid_map_2d.gd" id="2_grid"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scripts/systems/turn_manager.gd" id="5_turn"]
 [ext_resource type="Script" path="res://scripts/combat/combat_system.gd" id="6_combat"]
 [ext_resource type="Script" path="res://scripts/systems/stage_manager.gd" id="7_stage"]
+[ext_resource type="Script" path="res://scripts/systems/experience_system.gd" id="8_experience"]
 
 [node name="GridTest" type="Node2D"]
 script = ExtResource("1_test")
@@ -33,3 +34,6 @@ script = ExtResource("7_stage")
 grid_path = NodePath("../Grid")
 spawn_parent_path = NodePath("..")
 enemy_scene = ExtResource("4_enemy")
+
+[node name="ExperienceSystem" type="Node" parent="."]
+script = ExtResource("8_experience")

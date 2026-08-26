@@ -8,6 +8,7 @@ const SpecialEncounterTypeResource = preload("res://scripts/systems/special_enco
 @onready var turn_manager: TurnManager = $TurnManager
 @onready var combat_system: CombatSystem = $CombatSystem
 @onready var stage_manager: StageManager = $StageManager
+@onready var experience_system: ExperienceSystem = $ExperienceSystem
 
 var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
@@ -27,6 +28,10 @@ func _ready() -> void:
 	combat_system.connect_actor(player)
 	combat_system.attack_resolved.connect(_on_attack_resolved)
 	combat_system.actor_died.connect(_on_actor_died)
+	experience_system.attach_player(player)
+	experience_system.attach_combat_system(combat_system)
+	experience_system.experience_awarded.connect(_on_experience_awarded)
+	experience_system.level_up.connect(_on_level_up)
 	turn_manager.state_changed.connect(_on_turn_state_changed)
 	stage_manager.stage_started.connect(_on_stage_started)
 	stage_manager.enemy_spawned.connect(_on_enemy_spawned)
@@ -112,6 +117,16 @@ func _on_attack_resolved(result: DamageResult) -> void:
 	queue_redraw()
 
 
+func _on_experience_awarded(amount: int, _current_experience: int, _required_experience: int, source_name: String) -> void:
+	_last_move_text = "Gained %d EXP%s" % [amount, " from %s" % source_name if not source_name.is_empty() else ""]
+	queue_redraw()
+
+
+func _on_level_up(new_level: int, _max_hp_gain: int, _attack_gain: int, _defense_gain: int) -> void:
+	_last_move_text = "LEVEL UP — Player reached level %d" % new_level
+	queue_redraw()
+
+
 func _on_actor_died(actor: Node) -> void:
 	if actor == player:
 		_last_move_text = "PLAYER DEFEATED"
@@ -145,7 +160,7 @@ func _draw() -> void:
 	draw_rect(Rect2(34, 26, 1212, 668), Color("6c5331"), false, 2.0)
 	var font: Font = ThemeDB.fallback_font
 	draw_string(font, Vector2(66, 66), "DARK FANTASY // STAGE GENERATION", HORIZONTAL_ALIGNMENT_LEFT, -1, 25, Color("e2c988"))
-	draw_string(font, Vector2(68, 91), "Phase 11 Special Encounter harness", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
+	draw_string(font, Vector2(68, 91), "Phase 12 EXP / Level harness", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
 
 	draw_rect(Rect2(900, 112, 308, 570), Color("171522"), true)
 	draw_rect(Rect2(900, 112, 308, 570), Color("4d465e"), false, 1.0)
@@ -165,7 +180,11 @@ func _draw() -> void:
 	draw_string(font, Vector2(1088, 325), "SELECTED" if player.is_selected else "IDLE", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("b7a2d1"))
 	draw_string(font, Vector2(930, 359), "Turn", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
 	draw_string(font, Vector2(1088, 359), _turn_label(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("e2c988"))
-	var enemy_y: int = 393
+	draw_string(font, Vector2(930, 393), "Level", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(1088, 393), str(player.get_level()), HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("e2c988"))
+	draw_string(font, Vector2(930, 427), "EXP", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(1088, 427), "%d / %d" % [player.get_experience(), player.get_experience_to_next_level()], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("f0e7d1"))
+	var enemy_y: int = 463
 	for enemy_node in _active_enemies:
 		var enemy := enemy_node as EnemyController
 		if enemy == null or not is_instance_valid(enemy):
@@ -180,16 +199,16 @@ func _draw() -> void:
 		draw_string(font, Vector2(1088, enemy_y), "%d / %d" % [enemy_stats.current_hp, enemy_stats.max_hp], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("f0e7d1"))
 		enemy_y += 24
 
-	draw_string(font, Vector2(930, 500), "CONTROLS", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
-	draw_string(font, Vector2(930, 534), "W A S D", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
-	draw_string(font, Vector2(1030, 534), "Move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(930, 566), "SPACE", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
-	draw_string(font, Vector2(1030, 566), "End turn / Next stage", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(930, 598), "F", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
-	draw_string(font, Vector2(1030, 598), "Attack target", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(930, 570), "CONTROLS", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
+	draw_string(font, Vector2(930, 596), "W A S D", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
+	draw_string(font, Vector2(1030, 596), "Move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(930, 620), "SPACE", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
+	draw_string(font, Vector2(1030, 620), "End turn / Next stage", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
+	draw_string(font, Vector2(930, 644), "F", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
+	draw_string(font, Vector2(1030, 644), "Attack target", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
 
-	draw_string(font, Vector2(930, 638), "LAST EVENT", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
-	draw_string(font, Vector2(930, 666), _last_move_text, HORIZONTAL_ALIGNMENT_LEFT, 250, 12, Color("d5cbe0"))
+	draw_string(font, Vector2(930, 668), "LAST EVENT", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
+	draw_string(font, Vector2(930, 686), _last_move_text, HORIZONTAL_ALIGNMENT_LEFT, 250, 12, Color("d5cbe0"))
 
 
 func _turn_label() -> String:
