@@ -10,6 +10,7 @@ const SpecialEncounterTypeResource = preload("res://scripts/systems/special_enco
 @onready var stage_manager: StageManager = $StageManager
 @onready var experience_system: ExperienceSystem = $ExperienceSystem
 @onready var hud: MobileCombatHUD = $MobileCombatHUD
+@onready var gold_system = $GoldSystem
 
 var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
@@ -34,6 +35,10 @@ func _ready() -> void:
 	experience_system.attach_combat_system(combat_system)
 	experience_system.experience_awarded.connect(_on_experience_awarded)
 	experience_system.level_up.connect(_on_level_up)
+	gold_system.attach_player(player)
+	gold_system.attach_combat_system(combat_system)
+	gold_system.attach_stage_manager(stage_manager)
+	gold_system.gold_awarded.connect(_on_gold_awarded)
 	turn_manager.state_changed.connect(_on_turn_state_changed)
 	stage_manager.stage_started.connect(_on_stage_started)
 	stage_manager.enemy_spawned.connect(_on_enemy_spawned)
@@ -183,6 +188,11 @@ func _on_experience_awarded(amount: int, _current_experience: int, _required_exp
 
 func _on_level_up(new_level: int, _max_hp_gain: int, _attack_gain: int, _defense_gain: int) -> void:
 	_last_move_text = "LEVEL UP — Player reached level %d" % new_level
+	queue_redraw()
+
+
+func _on_gold_awarded(amount: int, _current_gold: int, source_name: String) -> void:
+	_last_move_text = "Gained %d Gold%s" % [amount, " from %s" % source_name if not source_name.is_empty() else ""]
 	queue_redraw()
 
 

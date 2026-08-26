@@ -4,6 +4,7 @@ extends Resource
 ## Persistent progression values independent from the player's derived stats.
 signal experience_changed(current_experience: int, required_experience: int)
 signal level_up(new_level: int)
+signal gold_changed(current_gold: int, amount: int)
 
 const BASE_EXPERIENCE_TO_NEXT_LEVEL: int = 100
 const EXPERIENCE_GROWTH_RATE: float = 1.15
@@ -42,3 +43,12 @@ func get_experience_ratio() -> float:
 	if required_experience <= 0:
 		return 0.0
 	return clampf(float(experience) / float(required_experience), 0.0, 1.0)
+
+
+func add_gold(amount: int) -> int:
+	var safe_amount: int = maxi(amount, 0)
+	if safe_amount == 0:
+		return 0
+	gold += safe_amount
+	gold_changed.emit(gold, safe_amount)
+	return safe_amount

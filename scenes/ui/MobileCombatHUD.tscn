@@ -115,6 +115,16 @@ theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
 theme_override_font_sizes/font_size = 20
 text = "STAGE 01"
 
+[node name="GoldLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(92, 0)
+theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
+theme_override_font_sizes/font_size = 14
+text = "GOLD 0"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="TurnLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header"]
 unique_name_in_owner = true
 layout_mode = 2

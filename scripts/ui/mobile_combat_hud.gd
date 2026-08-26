@@ -12,6 +12,7 @@ signal end_turn_requested
 @onready var _player: Node = get_parent().get_node_or_null("Player")
 
 @onready var _stage_label: Label = %StageLabel
+@onready var _gold_label: Label = %GoldLabel
 @onready var _turn_label: Label = %TurnLabel
 @onready var _encounter_label: Label = %EncounterLabel
 @onready var _player_hp_bar: ProgressBar = %PlayerHPBar
@@ -77,6 +78,9 @@ func _refresh() -> void:
 	_event_label.text = str(get_parent().get("_last_move_text"))
 
 	var player_stats: PlayerStats = _player.get("player_stats") as PlayerStats
+	var player_progression: PlayerProgression = _player.get("player_progression") as PlayerProgression
+	if player_progression != null:
+		_gold_label.text = "GOLD %s" % _format_number(player_progression.gold)
 	if player_stats != null:
 		_player_hp_bar.max_value = maxi(player_stats.max_hp, 1)
 		_player_hp_bar.value = clampi(player_stats.current_hp, 0, maxi(player_stats.max_hp, 1))
@@ -174,3 +178,12 @@ func _get_turn_color() -> Color:
 			return Color("d46a78")
 		_:
 			return Color("b9afc6")
+
+
+func _format_number(value: int) -> String:
+	var text_value: String = str(maxi(value, 0))
+	var formatted: String = ""
+	while text_value.length() > 3:
+		formatted = "," + text_value.substr(text_value.length() - 3, 3) + formatted
+		text_value = text_value.substr(0, text_value.length() - 3)
+	return text_value + formatted

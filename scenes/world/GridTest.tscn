@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/grid_test.gd" id="1_test"]
 [ext_resource type="Script" path="res://scripts/systems/grid_map_2d.gd" id="2_grid"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scripts/systems/stage_manager.gd" id="7_stage"]
 [ext_resource type="Script" path="res://scripts/systems/experience_system.gd" id="8_experience"]
 [ext_resource type="PackedScene" path="res://scenes/ui/MobileCombatHUD.tscn" id="9_hud"]
+[ext_resource type="Script" path="res://scripts/systems/gold_system.gd" id="10_gold"]
 
 [node name="GridTest" type="Node2D"]
 script = ExtResource("1_test")
@@ -40,3 +41,6 @@ enemy_scene = ExtResource("4_enemy")
 script = ExtResource("8_experience")
 
 [node name="MobileCombatHUD" parent="." instance=ExtResource("9_hud")]
+
+[node name="GoldSystem" type="Node" parent="."]
+script = ExtResource("10_gold")
