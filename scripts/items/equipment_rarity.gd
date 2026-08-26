@@ -25,3 +25,25 @@ static func affix_count(rarity: int) -> int:
 			return 5
 		_:
 			return 1
+
+
+static func get_display_name(rarity: int) -> String:
+	match rarity:
+		COMMON:
+			return "Common"
+		UNCOMMON:
+			return "Uncommon"
+		RARE:
+			return "Rare"
+		EPIC:
+			return "Epic"
+		LEGENDARY:
+			return "Legendary"
+		MYTHIC:
+			return "Mythic"
+		_:
+			return "Unknown Rarity"
+
+
+static func is_valid(rarity: int) -> bool:
+	return rarity >= COMMON and rarity <= MYTHIC

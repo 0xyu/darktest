@@ -10,3 +10,11 @@ extends Resource
 @export var base_affixes: Array[EquipmentAffix] = []
 @export var unique_effect_id: StringName = &""
 @export_multiline var description: String = ""
+
+
+func get_slot_name() -> String:
+	return EquipmentSlot.get_display_name(slot)
+
+
+func get_rarity_name() -> String:
+	return EquipmentRarity.get_display_name(rarity)
