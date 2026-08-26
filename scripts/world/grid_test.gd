@@ -9,9 +9,11 @@ const SpecialEncounterTypeResource = preload("res://scripts/systems/special_enco
 @onready var combat_system: CombatSystem = $CombatSystem
 @onready var stage_manager: StageManager = $StageManager
 @onready var experience_system: ExperienceSystem = $ExperienceSystem
+@onready var hud: MobileCombatHUD = $MobileCombatHUD
 
 var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
+var _grid_play_area: Rect2 = Rect2()
 
 
 func _ready() -> void:
@@ -38,6 +40,11 @@ func _ready() -> void:
 	stage_manager.stage_completed.connect(_on_stage_completed)
 	stage_manager.stage_generation_failed.connect(_on_stage_generation_failed)
 	player.selection_changed.connect(_on_selection_changed)
+	hud.move_requested.connect(_on_hud_move_requested)
+	hud.attack_requested.connect(_on_hud_attack_requested)
+	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
+	get_viewport().size_changed.connect(_on_viewport_size_changed)
+	_layout_portrait_grid()
 	stage_manager.initialize_stage(1)
 	queue_redraw()
 
@@ -46,6 +53,58 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("primary_action") and turn_manager.get_phase() == TurnState.VICTORY:
 		if stage_manager.start_next_stage():
 			get_viewport().set_input_as_handled()
+
+
+func _on_hud_move_requested(direction: Vector2i) -> void:
+	player.try_move(direction)
+
+
+func _on_hud_attack_requested() -> void:
+	if turn_manager.get_phase() != TurnState.PLAYER_TURN or not player.is_input_enabled():
+		return
+	player.attack_requested.emit(player, player.get_target())
+
+
+func _on_hud_end_turn_requested() -> void:
+	if turn_manager.get_phase() == TurnState.VICTORY:
+		stage_manager.start_next_stage()
+	elif turn_manager.get_phase() == TurnState.PLAYER_TURN:
+		turn_manager.complete_player_turn()
+
+
+func _on_viewport_size_changed() -> void:
+	_layout_portrait_grid()
+	queue_redraw()
+
+
+func _layout_portrait_grid() -> void:
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var top_reserved: float = clampf(viewport_size.y * 0.14, 180.0, 210.0)
+	var bottom_reserved: float = clampf(viewport_size.y * 0.28, 338.0, 390.0)
+	var side_margin: float = clampf(viewport_size.x * 0.045, 18.0, 36.0)
+	var available_size := Vector2(
+		maxf(viewport_size.x - side_margin * 2.0, 1.0),
+		maxf(viewport_size.y - top_reserved - bottom_reserved - 24.0, 1.0)
+	)
+	var cell_size: int = maxi(floori(minf(
+		available_size.x / float(grid.grid_size.x),
+		available_size.y / float(grid.grid_size.y)
+	)), 1)
+	var grid_pixel_size := Vector2(grid.grid_size * cell_size)
+	var play_area_top: float = top_reserved + 12.0
+	var play_area_height: float = maxf(viewport_size.y - top_reserved - bottom_reserved - 24.0, grid_pixel_size.y)
+	grid.cell_size = cell_size
+	grid.origin = Vector2(
+		(viewport_size.x - grid_pixel_size.x) * 0.5,
+		play_area_top + (play_area_height - grid_pixel_size.y) * 0.5
+	)
+	_grid_play_area = Rect2(grid.origin - Vector2(8.0, 8.0), grid_pixel_size + Vector2(16.0, 16.0))
+	grid.queue_redraw()
+	player.global_position = grid.grid_to_world(player.grid_position)
+	for enemy_node in _active_enemies:
+		var enemy := enemy_node as EnemyController
+		if enemy != null and is_instance_valid(enemy):
+			enemy.global_position = grid.grid_to_world(enemy.grid_position)
 
 
 func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
@@ -155,60 +214,13 @@ func _on_selection_changed(selected: bool) -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(0, 0, 1280, 720), Color("090811"), true)
-	draw_rect(Rect2(34, 26, 1212, 668), Color("12101c"), true)
-	draw_rect(Rect2(34, 26, 1212, 668), Color("6c5331"), false, 2.0)
-	var font: Font = ThemeDB.fallback_font
-	draw_string(font, Vector2(66, 66), "DARK FANTASY // STAGE GENERATION", HORIZONTAL_ALIGNMENT_LEFT, -1, 25, Color("e2c988"))
-	draw_string(font, Vector2(68, 91), "Phase 12 EXP / Level harness", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
-
-	draw_rect(Rect2(900, 112, 308, 570), Color("171522"), true)
-	draw_rect(Rect2(900, 112, 308, 570), Color("4d465e"), false, 1.0)
-	var stage_title: String = "STAGE %d" % stage_manager.stage_state.stage_number
-	if stage_manager.stage_state.is_mini_boss_stage:
-		stage_title += " // MINI BOSS"
-	elif stage_manager.stage_state.is_special_encounter:
-		stage_title += " // " + SpecialEncounterTypeResource.get_display_name(stage_manager.stage_state.special_encounter_type).to_upper()
-	draw_string(font, Vector2(930, 158), stage_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
-	draw_string(font, Vector2(930, 181), "Enemies %d / %d" % [stage_manager.stage_state.defeated_enemy_count, stage_manager.stage_state.spawned_enemy_count], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("9c91ad"))
-	draw_string(font, Vector2(930, 217), "PLAYER", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
-	draw_string(font, Vector2(930, 257), "Cell", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(1088, 257), str(player.grid_position), HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("f0e7d1"))
-	draw_string(font, Vector2(930, 291), "Movement", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(1088, 291), "%d / %d" % [player.movement_points_remaining, player.player_stats.movement_points], HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("f0e7d1"))
-	draw_string(font, Vector2(930, 325), "Status", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(1088, 325), "SELECTED" if player.is_selected else "IDLE", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("b7a2d1"))
-	draw_string(font, Vector2(930, 359), "Turn", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(1088, 359), _turn_label(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("e2c988"))
-	draw_string(font, Vector2(930, 393), "Level", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(1088, 393), str(player.get_level()), HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("e2c988"))
-	draw_string(font, Vector2(930, 427), "EXP", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(1088, 427), "%d / %d" % [player.get_experience(), player.get_experience_to_next_level()], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("f0e7d1"))
-	var enemy_y: int = 463
-	for enemy_node in _active_enemies:
-		var enemy := enemy_node as EnemyController
-		if enemy == null or not is_instance_valid(enemy):
-			continue
-		var enemy_stats: EnemyStats = enemy.enemy_stats
-		if enemy_stats == null:
-			continue
-		var enemy_label: String = "%s Lv.%d" % [enemy.get_display_name(), enemy.enemy_level]
-		if enemy.is_mini_boss:
-			enemy_label += " [%s]" % enemy.get_boss_behavior_name()
-		draw_string(font, Vector2(930, enemy_y), enemy_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("9c91ad"))
-		draw_string(font, Vector2(1088, enemy_y), "%d / %d" % [enemy_stats.current_hp, enemy_stats.max_hp], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("f0e7d1"))
-		enemy_y += 24
-
-	draw_string(font, Vector2(930, 570), "CONTROLS", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("c59b52"))
-	draw_string(font, Vector2(930, 596), "W A S D", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
-	draw_string(font, Vector2(1030, 596), "Move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(930, 620), "SPACE", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
-	draw_string(font, Vector2(1030, 620), "End turn / Next stage", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-	draw_string(font, Vector2(930, 644), "F", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("e2c988"))
-	draw_string(font, Vector2(1030, 644), "Attack target", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("9c91ad"))
-
-	draw_string(font, Vector2(930, 668), "LAST EVENT", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("887d9b"))
-	draw_string(font, Vector2(930, 686), _last_move_text, HORIZONTAL_ALIGNMENT_LEFT, 250, 12, Color("d5cbe0"))
+	var viewport_size: Vector2 = get_viewport_rect().size
+	draw_rect(Rect2(Vector2.ZERO, viewport_size), Color("090811"), true)
+	draw_rect(Rect2(Vector2(10.0, 10.0), viewport_size - Vector2(20.0, 20.0)), Color("12101c"), true)
+	draw_rect(Rect2(Vector2(10.0, 10.0), viewport_size - Vector2(20.0, 20.0)), Color("6c5331"), false, 2.0)
+	if _grid_play_area.size.x > 0.0:
+		draw_rect(_grid_play_area, Color("0b0a10", 0.92), true)
+		draw_rect(_grid_play_area, Color("4d465e", 0.85), false, 1.0)
 
 
 func _turn_label() -> String:
