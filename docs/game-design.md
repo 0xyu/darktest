@@ -305,7 +305,24 @@ Stage 11
 
 Stages increase in difficulty.
 
-## 5.1 Normal Stage
+## 5.1 Hybrid Level Data
+
+The playable stage pipeline resolves a level through `LevelManager` and
+`LevelProvider`, then passes the resulting `StageDefinition` to
+`StageManager`:
+
+```text
+LevelManager → LevelProvider → StageDefinition → StageManager → Battle
+```
+
+`StageEnemyEntry` references an existing `EnemyData` and stores only stage
+composition data such as count, level offset, spawn rule, and optional stat
+overrides. Fixed levels are authored as `LevelConfig` resources under
+`resources/levels/`. Levels without a fixed resource are generated from a
+`LevelTemplate` using the level ID as the procedural seed. Both paths return
+the same `StageDefinition` shape.
+
+## 5.2 Normal Stage
 
 Most stages contain:
 
