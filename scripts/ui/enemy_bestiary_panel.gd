@@ -6,9 +6,9 @@ extends Control
 ## creature sprites while the lower rows contain miscellaneous icons.
 
 const ATLAS_SHEET: Texture2D = preload("res://assets/enemies/oryx_16bit_fantasy_creatures_trans.png")
-const CELL_SIZE: int = 16
-const ATLAS_COLUMNS: int = 30
-const CREATURE_ROWS: int = 36
+const CELL_SIZE: int = 24
+const ATLAS_COLUMNS: int = 18
+const CREATURE_ROWS: int = 20
 
 @onready var _count_label: Label = %CountLabel
 @onready var _selected_preview: TextureRect = %SelectedPreview
