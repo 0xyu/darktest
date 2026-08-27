@@ -54,7 +54,6 @@ The game should be easy to understand while gradually becoming deeper through eq
 
 - `AGENTS.md` — AI coding rules and project conventions
 - `docs/game-design.md` — gameplay and balance design
-- `docs/coding-plan.md` — phased implementation plan
 
 ## MVP Priority
 

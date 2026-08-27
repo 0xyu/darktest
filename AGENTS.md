@@ -20,14 +20,13 @@ Read these documents before making gameplay changes:
 
 - `README.md`
 - `docs/game-design.md`
-- `docs/coding-plan.md`
 
 ---
 
 ## Core Development Rules
 
-1. Implement only the requested phase or feature.
-2. Do not silently implement future phases.
+1. Implement only the requested feature.
+2. Do not silently implement unrelated or future systems.
 3. Inspect the existing project before creating new files or systems.
 4. Reuse existing systems before introducing new abstractions.
 5. Do not modify unrelated files.
@@ -45,15 +44,17 @@ Read these documents before making gameplay changes:
 
 ---
 
-## Phase-Based Development
+## Feature-Based Development
 
-The project is developed according to `docs/coding-plan.md`.
+The completed MVP phase plan is archived under `archive/mvp/` and is historical
+reference only. Current work follows the user's request and the existing
+playable architecture.
 
 The agent MUST:
 
-- Implement only the requested phase.
+- Implement only the requested feature.
 - Preserve the current playable state.
-- Verify the current phase before moving forward.
+- Verify the affected behavior before moving forward.
 - Avoid speculative architecture.
 - Avoid large rewrites of working code.
 - Keep changes focused on the current feature.
@@ -262,7 +263,7 @@ Use the following capabilities when the MCP session is connected:
   and node properties.
 - `editor_manage.game_eval` — query or exercise running-game state with
   GDScript when structured runtime inspection is insufficient.
-- `test_run` and `test_manage` — run and inspect project GDScript smoke tests.
+- `test_run` and `test_manage` — run and inspect project GDScript tests when present.
 - `tileset_get_atlas_image` and `tileset_get_atlas_tiles` — inspect TileSet
   atlas images and occupied atlas cells.
 
@@ -301,5 +302,3 @@ Update documentation when a design or architecture decision materially changes.
 Do not rewrite documentation for minor implementation details.
 
 `docs/game-design.md` is the source of truth for gameplay rules.
-
-`docs/coding-plan.md` is the source of truth for implementation sequencing.
