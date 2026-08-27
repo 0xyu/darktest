@@ -292,9 +292,9 @@ func _sync_legacy_hp_if_needed() -> void:
 
 func _draw() -> void:
 	draw_circle(Vector2(0, 5), 22.0, Color("09070d", 0.9))
-	var battle_sprite: Texture2D = enemy_data.battle_sprite if enemy_data != null else null
+	var battle_sprite: Texture2D = CharacterSpriteCatalog.get_texture(enemy_data.character_sprite_id) if enemy_data != null else null
 	if battle_sprite != null:
-		# EnemyData stores an AtlasTexture cut from the 24 px creature sheet.
+		# EnemyData stores only the catalog ID; the catalog resolves its AtlasTexture.
 		# Scale the cell to fit the 64 px combat grid while keeping pixel edges crisp.
 		var atlas_texture := battle_sprite as AtlasTexture
 		if atlas_texture != null and atlas_texture.atlas != null:

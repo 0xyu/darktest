@@ -55,6 +55,13 @@ The game should be easy to understand while gradually becoming deeper through eq
 - `AGENTS.md` — AI coding rules and project conventions
 - `docs/game-design.md` — gameplay and balance design
 
+## Character Sprite Catalog
+
+`scripts/systems/character_sprite_catalog.gd` is the single source of truth
+for the enemy character sprite sheet, slice coordinates, and unique character
+IDs. Enemy data stores only `character_sprite_id`; UI and gameplay code resolve
+the corresponding texture through `CharacterSpriteCatalog`.
+
 ## MVP Priority
 
 The first version should focus on:

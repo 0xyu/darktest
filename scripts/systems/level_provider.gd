@@ -206,7 +206,7 @@ func _build_special_enemy_definition(for_level: int, encounter_type: int, rng: R
 	var special_definition := EnemyData.new()
 	special_definition.base_stats = source_definition.base_stats
 	special_definition.portrait = source_definition.portrait
-	special_definition.battle_sprite = source_definition.battle_sprite
+	special_definition.character_sprite_id = source_definition.character_sprite_id
 	special_definition.skills = source_definition.skills
 	special_definition.loot_table = source_definition.loot_table
 	special_definition.description = source_definition.description

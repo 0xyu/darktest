@@ -2,14 +2,6 @@ class_name EnemyBestiaryPanel
 extends Control
 
 ## Browsable atlas viewer for the creature sheet supplied with the project.
-## The sheet uses a 16 x 16 pixel grid; the first 36 rows contain the
-## creature sprites while the lower rows contain miscellaneous icons.
-
-const ATLAS_SHEET: Texture2D = preload("res://assets/enemies/oryx_16bit_fantasy_creatures_trans.png")
-const CELL_SIZE: int = 24
-const ATLAS_COLUMNS: int = 18
-const CREATURE_ROWS: int = 20
-
 @onready var _count_label: Label = %CountLabel
 @onready var _selected_preview: TextureRect = %SelectedPreview
 @onready var _selected_name: Label = %SelectedName
@@ -18,7 +10,6 @@ const CREATURE_ROWS: int = 20
 @onready var _specimen_grid: GridContainer = %SpecimenGrid
 @onready var _close_button: Button = %CloseButton
 
-var _atlas_image: Image
 var _specimen_count: int = 0
 
 
@@ -60,52 +51,25 @@ func _update_grid_columns() -> void:
 
 
 func _build_specimen_grid() -> void:
-	_atlas_image = ATLAS_SHEET.get_image()
 	_specimen_count = 0
-	var first_texture: AtlasTexture
-	var first_column: int = 0
-	var first_row: int = 0
 	for child in _specimen_grid.get_children():
 		child.queue_free()
 
-	for row in range(CREATURE_ROWS):
-		for column in range(ATLAS_COLUMNS):
-			if not _cell_contains_sprite(column, row):
-				continue
-			_specimen_count += 1
-			var atlas_texture := _create_atlas_texture(column, row)
-			if first_texture == null:
-				first_texture = atlas_texture
-				first_column = column
-				first_row = row
-			var card := _create_specimen_card(atlas_texture, _specimen_count)
-			_specimen_grid.add_child(card)
-			card.pressed.connect(_on_specimen_pressed.bind(atlas_texture, _specimen_count, column, row))
+	var first_id: StringName = &""
+	for character_id: StringName in CharacterSpriteCatalog.get_discovered_ids():
+		var atlas_texture := CharacterSpriteCatalog.get_texture(character_id)
+		if atlas_texture == null:
+			continue
+		_specimen_count += 1
+		if first_id == &"":
+			first_id = character_id
+		var card := _create_specimen_card(atlas_texture, _specimen_count)
+		_specimen_grid.add_child(card)
+		card.pressed.connect(_on_specimen_pressed.bind(character_id, _specimen_count))
 
-	_count_label.text = "%d SPECIMENS  •  16 PX ATLAS CELLS" % _specimen_count
-	if first_texture != null:
-		_select_specimen(first_texture, 1, first_column, first_row)
-
-
-func _cell_contains_sprite(column: int, row: int) -> bool:
-	if _atlas_image == null:
-		return false
-	var origin := Vector2i(column * CELL_SIZE, row * CELL_SIZE)
-	for y in range(CELL_SIZE):
-		for x in range(CELL_SIZE):
-			var pixel_position := origin + Vector2i(x, y)
-			if pixel_position.x >= _atlas_image.get_width() or pixel_position.y >= _atlas_image.get_height():
-				continue
-			if _atlas_image.get_pixelv(pixel_position).a > 0.05:
-				return true
-	return false
-
-
-func _create_atlas_texture(column: int, row: int) -> AtlasTexture:
-	var atlas_texture := AtlasTexture.new()
-	atlas_texture.atlas = ATLAS_SHEET
-	atlas_texture.region = Rect2(column * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-	return atlas_texture
+	_count_label.text = "%d SPECIMENS  •  24 PX ATLAS CELLS" % _specimen_count
+	if first_id != &"":
+		_select_specimen(first_id, 1)
 
 
 func _create_specimen_card(atlas_texture: AtlasTexture, index: int) -> Button:
@@ -118,7 +82,7 @@ func _create_specimen_card(atlas_texture: AtlasTexture, index: int) -> Button:
 	card.add_theme_stylebox_override("pressed", _make_card_style(Color("3a2a25"), Color("e0b967"), 2))
 
 	var preview := TextureRect.new()
-	preview.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE, Control.PRESET_MODE_MINSIZE, 6.0)
+	preview.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE, Control.PRESET_MODE_MINSIZE, 6)
 	preview.offset_left = 8.0
 	preview.offset_top = 5.0
 	preview.offset_right = -8.0
@@ -131,7 +95,7 @@ func _create_specimen_card(atlas_texture: AtlasTexture, index: int) -> Button:
 	card.add_child(preview)
 
 	var index_label := Label.new()
-	index_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE, Control.PRESET_MODE_MINSIZE, 4.0)
+	index_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE, Control.PRESET_MODE_MINSIZE, 4)
 	index_label.offset_left = 4.0
 	index_label.offset_top = -18.0
 	index_label.offset_right = -4.0
@@ -145,15 +109,19 @@ func _create_specimen_card(atlas_texture: AtlasTexture, index: int) -> Button:
 	return card
 
 
-func _on_specimen_pressed(atlas_texture: AtlasTexture, index: int, column: int, row: int) -> void:
-	_select_specimen(atlas_texture, index, column, row)
+func _on_specimen_pressed(character_id: StringName, index: int) -> void:
+	_select_specimen(character_id, index)
 
 
-func _select_specimen(atlas_texture: Texture2D, index: int, column: int, row: int) -> void:
+func _select_specimen(character_id: StringName, _index: int) -> void:
+	var atlas_texture := CharacterSpriteCatalog.get_texture(character_id)
+	var cell: Vector2i = CharacterSpriteCatalog.get_cell(character_id)
+	if atlas_texture == null or cell.x < 0:
+		return
 	_selected_preview.texture = atlas_texture
-	_selected_name.text = "ATLAS SPECIMEN %03d" % index
-	_selected_meta.text = "CREATURE ARCHIVE  //  COLUMN %02d  •  ROW %02d" % [column + 1, row + 1]
-	_selected_description.text = "A discovered creature sprite from the Oryx 16-bit fantasy atlas.\nTap another specimen below to inspect it."
+	_selected_name.text = str(character_id).to_upper()
+	_selected_meta.text = "CHARACTER SPRITE  //  ID %s  •  COLUMN %02d  •  ROW %02d" % [character_id, cell.x + 1, cell.y + 1]
+	_selected_description.text = "A discovered character slice from the Oryx 16-bit fantasy atlas.\nTap another ID below to inspect it."
 
 
 func _make_card_style(background: Color, border: Color, border_width: int) -> StyleBoxFlat:

@@ -10,7 +10,7 @@ extends Resource
 @export_enum("Normal", "Elite", "Special", "Mini Boss", "Treasure", "Gold", "Cursed") var enemy_type: int = EnemyType.NORMAL
 @export var base_stats: EnemyStats = EnemyStats.new()
 @export var portrait: Texture2D
-@export var battle_sprite: Texture2D
+@export var character_sprite_id: StringName = &""
 @export var skills: Array[Resource] = []
 @export var loot_table: LootTable
 @export_multiline var description: String = ""
