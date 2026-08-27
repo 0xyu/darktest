@@ -57,10 +57,8 @@ func generate_from_table(table, item_level: int = 1) -> Array[EquipmentInstance]
 
 func get_loot_table(enemy: Node):
 	var enemy_type: int = EnemyType.NORMAL
-	var definition_variant: Variant = enemy.get("enemy_definition")
-	if definition_variant is EnemyDefinition:
-		var definition: EnemyDefinition = definition_variant as EnemyDefinition
-		enemy_type = definition.enemy_type
+	if enemy is EnemyController and (enemy as EnemyController).enemy_data != null:
+		enemy_type = (enemy as EnemyController).enemy_data.enemy_type
 	return get_loot_table_for_enemy_type(enemy_type)
 
 

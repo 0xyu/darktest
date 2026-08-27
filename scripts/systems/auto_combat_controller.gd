@@ -214,12 +214,12 @@ func _select_target() -> EnemyController:
 	for enemy in _stage_manager.get_spawned_enemies():
 		if enemy == null or not is_instance_valid(enemy) or enemy.is_defeated():
 			continue
-		if enemy.enemy_stats == null or enemy.enemy_stats.current_hp <= 0:
+		if enemy.enemy_runtime == null or enemy.enemy_runtime.current_hp <= 0:
 			continue
 		var distance: int = _grid_distance(_player.grid_position, enemy.grid_position)
 		if distance > _get_player_attack_range() and (_grid == null or _get_best_destination(enemy.grid_position, _player.movement_points_remaining, _get_player_attack_range()) == _player.grid_position):
 			continue
-		var current_hp: int = enemy.enemy_stats.current_hp
+		var current_hp: int = enemy.enemy_runtime.current_hp
 		if distance < best_distance or (distance == best_distance and current_hp < best_hp):
 			best_target = enemy
 			best_distance = distance
@@ -231,7 +231,7 @@ func _has_living_enemies() -> bool:
 	if _stage_manager == null:
 		return false
 	for enemy in _stage_manager.get_spawned_enemies():
-		if enemy != null and is_instance_valid(enemy) and not enemy.is_defeated() and enemy.enemy_stats != null and enemy.enemy_stats.current_hp > 0:
+		if enemy != null and is_instance_valid(enemy) and not enemy.is_defeated() and enemy.enemy_runtime != null and enemy.enemy_runtime.current_hp > 0:
 			return true
 	return false
 

@@ -15,9 +15,29 @@ signal defeated
 @export var enemy_id: StringName = &"enemy"
 @export var grid_position: Vector2i = Vector2i(1, 1)
 @export_range(1, 999999, 1) var enemy_level: int = 1
-@export var enemy_definition: EnemyDefinition
+@export var enemy_data: EnemyData
 
-var enemy_stats: EnemyStats = EnemyStats.new()
+var enemy_runtime: EnemyRuntime = EnemyRuntime.new()
+
+## Deprecated compatibility accessor. Use enemy_data.
+var enemy_definition: EnemyData:
+	get:
+		return enemy_data
+	set(value):
+		enemy_data = value
+		if _runtime_initialized:
+			_initialize_runtime()
+
+## Deprecated compatibility accessor. Use enemy_runtime.current_stats.
+var enemy_stats: EnemyStats:
+	get:
+		return enemy_runtime.current_stats
+	set(value):
+		if value == null:
+			return
+		enemy_runtime.current_stats = value
+		enemy_runtime.current_hp = value.current_hp
+
 var is_mini_boss: bool = false
 var boss_identifier: StringName = &""
 var boss_display_name: String = ""
@@ -30,6 +50,7 @@ var _summons_used: int = 0
 var _is_enraged: bool = false
 var poisoned: bool = false
 var facing_direction: Vector2i = Vector2i.DOWN
+var _runtime_initialized: bool = false
 
 
 func _ready() -> void:
@@ -37,10 +58,7 @@ func _ready() -> void:
 	if _grid == null:
 		push_error("EnemyController requires a GridMap2D assigned through grid_path.")
 		return
-	if enemy_definition != null and enemy_definition.base_stats != null:
-		enemy_stats = enemy_definition.base_stats.duplicate(true) as EnemyStats
-		enemy_stats.level = maxi(enemy_level, 1)
-		enemy_stats.current_hp = enemy_stats.max_hp
+	_initialize_runtime()
 	_configure_boss()
 	if not _grid.is_walkable(grid_position):
 		grid_position = Vector2i.ZERO
@@ -51,7 +69,8 @@ func _ready() -> void:
 
 
 func take_turn(player: Node, turn_manager: TurnManager) -> void:
-	if _is_defeated or enemy_stats.current_hp <= 0:
+	_sync_legacy_hp_if_needed()
+	if _is_defeated or enemy_runtime.current_hp <= 0:
 		turn_manager.complete_enemy_turn(self)
 		return
 	if _grid == null or player == null:
@@ -63,9 +82,9 @@ func take_turn(player: Node, turn_manager: TurnManager) -> void:
 	if _try_boss_turn(player, turn_manager):
 		return
 	var target_cell: Vector2i = _get_target_cell(player)
-	if _grid_distance(grid_position, target_cell) > enemy_stats.attack_range:
+	if _grid_distance(grid_position, target_cell) > enemy_runtime.current_stats.attack_range:
 		_move_toward_target(target_cell)
-	if _grid_distance(grid_position, target_cell) <= enemy_stats.attack_range:
+	if _grid_distance(grid_position, target_cell) <= enemy_runtime.current_stats.attack_range:
 		attack_requested.emit(self, _target)
 	turn_manager.complete_enemy_turn(self)
 
@@ -78,7 +97,7 @@ func handle_defeat() -> void:
 	if _is_defeated:
 		return
 	_is_defeated = true
-	enemy_stats.current_hp = 0
+	enemy_runtime.set_hp(0)
 	if _grid != null:
 		_grid.clear_occupied(grid_position, enemy_id)
 	process_mode = Node.PROCESS_MODE_DISABLED
@@ -108,8 +127,8 @@ func is_attacked_from_behind(attacker_cell: Vector2i) -> bool:
 func get_display_name() -> String:
 	if is_mini_boss and not boss_display_name.is_empty():
 		return boss_display_name
-	if enemy_definition != null:
-		return enemy_definition.display_name
+	if enemy_data != null:
+		return enemy_data.name
 	return "Enemy"
 
 
@@ -125,13 +144,21 @@ func get_boss_behavior_name() -> String:
 			return ""
 
 
+func _initialize_runtime() -> void:
+	if enemy_data != null and enemy_data.base_stats != null:
+		enemy_runtime.initialize_from_stats(enemy_data.base_stats, enemy_level)
+	else:
+		enemy_runtime.current_hp = enemy_runtime.current_stats.current_hp
+	_runtime_initialized = true
+
+
 func _configure_boss() -> void:
-	if enemy_definition == null or enemy_definition.get_script() != MiniBossDefinitionResource:
+	if enemy_data == null or enemy_data.get_script() != MiniBossDefinitionResource:
 		return
-	_boss_definition = enemy_definition
+	_boss_definition = enemy_data
 	is_mini_boss = true
-	boss_identifier = enemy_definition.definition_id
-	boss_display_name = enemy_definition.display_name
+	boss_identifier = enemy_data.id
+	boss_display_name = enemy_data.name
 	boss_behavior = int(_boss_definition.get("boss_behavior"))
 
 
@@ -164,21 +191,21 @@ func _take_area_attack_turn(player: Node, turn_manager: TurnManager) -> bool:
 
 
 func _update_enrage_state() -> void:
-	if _is_enraged or enemy_stats.max_hp <= 0:
+	if _is_enraged or enemy_runtime.current_stats.max_hp <= 0:
 		return
 	var threshold: float = clampf(float(_boss_definition.get("enrage_health_threshold")), 0.05, 0.95)
-	var health_ratio: float = float(enemy_stats.current_hp) / float(enemy_stats.max_hp)
+	var health_ratio: float = float(enemy_runtime.current_hp) / float(enemy_runtime.current_stats.max_hp)
 	if health_ratio > threshold:
 		return
 	var attack_multiplier: float = maxf(float(_boss_definition.get("enrage_attack_multiplier")), 1.0)
-	enemy_stats.attack = maxi(roundi(float(enemy_stats.attack) * attack_multiplier), 1)
+	enemy_runtime.current_stats.attack = maxi(roundi(float(enemy_runtime.current_stats.attack) * attack_multiplier), 1)
 	_is_enraged = true
 	enraged.emit(self)
 	queue_redraw()
 
 
 func _move_toward_target(target_cell: Vector2i) -> void:
-	var reachable_cells: Array[Vector2i] = _grid.get_reachable_cells(grid_position, enemy_stats.movement_points)
+	var reachable_cells: Array[Vector2i] = _grid.get_reachable_cells(grid_position, enemy_runtime.current_stats.movement_points)
 	var best_cell: Vector2i = grid_position
 	var best_distance: int = _grid_distance(grid_position, target_cell)
 	for candidate in reachable_cells:
@@ -228,6 +255,40 @@ func _direction_to_cell(from_cell: Vector2i, to_cell: Vector2i) -> Vector2i:
 	return facing_direction
 
 
+func initialize_runtime_from_stats(stats: EnemyStats) -> void:
+	## Initializes runtime with an already-scaled stat block without touching data.
+	enemy_runtime.initialize_from_stats(stats, enemy_level)
+	_runtime_initialized = true
+	queue_redraw()
+
+
+func get_current_hp() -> int:
+	_sync_legacy_hp_if_needed()
+	return enemy_runtime.current_hp
+
+
+func get_current_stats() -> EnemyStats:
+	return enemy_runtime.current_stats
+
+
+func set_current_hp(value: int) -> void:
+	enemy_runtime.set_hp(value)
+
+
+func sync_runtime_state() -> void:
+	## Synchronizes only the deprecated EnemyStats.current_hp mirror.
+	_sync_legacy_hp_if_needed()
+
+
+func clamp_current_hp() -> void:
+	enemy_runtime.clamp_current_hp()
+
+
+func _sync_legacy_hp_if_needed() -> void:
+	if enemy_runtime.current_stats.current_hp != enemy_runtime.current_hp:
+		enemy_runtime.current_hp = enemy_runtime.current_stats.current_hp
+
+
 func _draw() -> void:
 	draw_circle(Vector2.ZERO, 22.0, Color("09070d", 0.9))
 	var body_color: Color = Color("8d304d") if is_mini_boss else Color("9d5267")
@@ -236,6 +297,6 @@ func _draw() -> void:
 	draw_line(Vector2(-9, 7), Vector2(9, 7), Color("4a1d2e"), 4.0)
 	if is_mini_boss:
 		draw_arc(Vector2.ZERO, 27.0, 0.0, TAU, 32, Color("d8af5c"), 2.0)
-	var health_ratio: float = clampf(float(enemy_stats.current_hp) / maxi(enemy_stats.max_hp, 1), 0.0, 1.0)
+	var health_ratio: float = clampf(float(enemy_runtime.current_hp) / maxi(enemy_runtime.current_stats.max_hp, 1), 0.0, 1.0)
 	draw_rect(Rect2(-24, -38, 48, 5), Color("26151f"), true)
 	draw_rect(Rect2(-24, -38, 48 * health_ratio, 5), Color("b94d63"), true)

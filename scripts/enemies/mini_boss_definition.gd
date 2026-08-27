@@ -1,5 +1,5 @@
 class_name MiniBossDefinition
-extends EnemyDefinition
+extends EnemyData
 
 ## Behaviour configuration for a guaranteed Mini Boss encounter.
 enum BossBehavior {

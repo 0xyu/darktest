@@ -68,8 +68,8 @@ func resolve_attack(attacker: Node, target: Node, damage_multiplier: float = 1.0
 		result.is_critical = true
 		result.final_damage = maxi(1, roundi(modified_damage * critical_damage))
 
-	var remaining_hp: int = maxi(int(target_stats.get("current_hp")) - result.final_damage, 0)
-	target_stats.set("current_hp", remaining_hp)
+	var remaining_hp: int = maxi(_get_current_hp(target, target_stats) - result.final_damage, 0)
+	_set_current_hp(target, target_stats, remaining_hp)
 	result.target_defeated = remaining_hp <= 0
 	if target.has_method("clamp_current_hp"):
 		target.clamp_current_hp()
@@ -107,7 +107,7 @@ func _is_valid_attack(attacker: Node, target: Node, attack_range_override: int =
 	var target_stats: Resource = _get_combat_stats(target)
 	if attacker_stats == null or target_stats == null:
 		return false
-	if int(attacker_stats.get("current_hp")) <= 0 or int(target_stats.get("current_hp")) <= 0:
+	if _get_current_hp(attacker, attacker_stats) <= 0 or _get_current_hp(target, target_stats) <= 0:
 		return false
 	var attacker_cell: Vector2i = _get_grid_position(attacker)
 	var target_cell: Vector2i = _get_grid_position(target)
@@ -121,10 +121,29 @@ func _get_combat_stats(actor: Node) -> Resource:
 	var player_stats: Variant = actor.get("player_stats")
 	if player_stats is PlayerStats:
 		return player_stats
+	var enemy_runtime: Variant = actor.get("enemy_runtime")
+	if enemy_runtime is EnemyRuntime:
+		return enemy_runtime.current_stats
 	var enemy_stats: Variant = actor.get("enemy_stats")
 	if enemy_stats is EnemyStats:
 		return enemy_stats
 	return null
+
+
+func _get_current_hp(actor: Node, stats: Resource) -> int:
+	if actor is EnemyController:
+		var enemy: EnemyController = actor as EnemyController
+		enemy.sync_runtime_state()
+		return enemy.enemy_runtime.current_hp
+	return int(stats.get("current_hp")) if stats != null else 0
+
+
+func _set_current_hp(actor: Node, stats: Resource, value: int) -> void:
+	if actor is EnemyController:
+		(actor as EnemyController).set_current_hp(value)
+		return
+	if stats != null:
+		stats.set("current_hp", value)
 
 
 func _get_grid_position(actor: Node) -> Vector2i:

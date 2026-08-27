@@ -7,7 +7,6 @@
 script = ExtResource("2_stats")
 level = 1
 max_hp = 180
-current_hp = 180
 attack = 24
 defense = 7
 movement_points = 3
@@ -17,8 +16,8 @@ gold_reward = 75
 
 [resource]
 script = ExtResource("1_definition")
-definition_id = &"ashen_oracle"
-display_name = "Ashen Oracle"
+id = &"ashen_oracle"
+name = "Ashen Oracle"
 enemy_type = 3
 base_stats = SubResource("EnemyStats_ashen_oracle")
 description = "A cinder-eyed oracle whose shockwave reaches across the battlefield."

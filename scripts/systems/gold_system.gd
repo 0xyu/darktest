@@ -49,15 +49,17 @@ func attach_stage_manager(stage_manager: StageManager) -> void:
 func calculate_enemy_gold(enemy: Node) -> int:
 	if enemy == null or not is_instance_valid(enemy):
 		return 0
-	var enemy_stats_variant: Variant = enemy.get("enemy_stats")
-	if not enemy_stats_variant is EnemyStats:
-		return 0
-	var enemy_stats: EnemyStats = enemy_stats_variant as EnemyStats
+	var enemy_stats: EnemyStats
+	if enemy is EnemyController:
+		enemy_stats = (enemy as EnemyController).enemy_runtime.current_stats
+	else:
+		var enemy_stats_variant: Variant = enemy.get("enemy_stats")
+		if not enemy_stats_variant is EnemyStats:
+			return 0
+		enemy_stats = enemy_stats_variant as EnemyStats
 	var enemy_type: int = EnemyType.NORMAL
-	var definition_variant: Variant = enemy.get("enemy_definition")
-	if definition_variant is EnemyDefinition:
-		var definition: EnemyDefinition = definition_variant as EnemyDefinition
-		enemy_type = definition.enemy_type
+	if enemy is EnemyController and (enemy as EnemyController).enemy_data != null:
+		enemy_type = (enemy as EnemyController).enemy_data.enemy_type
 	var reward: float = float(maxi(enemy_stats.gold_reward, 0)) * get_enemy_type_multiplier(enemy_type)
 	if reward <= 0.0 or is_nan(reward):
 		return 0

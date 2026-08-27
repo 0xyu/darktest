@@ -7,7 +7,6 @@
 script = ExtResource("2_stats")
 level = 1
 max_hp = 210
-current_hp = 210
 attack = 21
 defense = 8
 movement_points = 2
@@ -17,8 +16,8 @@ gold_reward = 90
 
 [resource]
 script = ExtResource("1_definition")
-definition_id = &"gravecaller"
-display_name = "Gravecaller"
+id = &"gravecaller"
+name = "Gravecaller"
 enemy_type = 3
 base_stats = SubResource("EnemyStats_gravecaller")
 description = "A grave priest who calls a fresh servant from the dark between turns."

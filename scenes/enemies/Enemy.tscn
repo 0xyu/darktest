@@ -1,8 +1,8 @@
 [gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/enemy_controller.gd" id="1_enemy"]
-[ext_resource type="Resource" path="res://resources/enemies/TrainingEnemy.tres" id="2_definition"]
+[ext_resource type="Resource" path="res://resources/enemies/TrainingEnemy.tres" id="2_data"]
 
 [node name="Enemy" type="Node2D"]
 script = ExtResource("1_enemy")
-enemy_definition = ExtResource("2_definition")
+enemy_data = ExtResource("2_data")

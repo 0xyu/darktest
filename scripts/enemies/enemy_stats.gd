@@ -1,10 +1,14 @@
 class_name EnemyStats
 extends Resource
 
-## Runtime stats for one spawned enemy.
+## Numeric stat block used by EnemyData and copied into EnemyRuntime.
+##
+## current_hp is retained only as a compatibility mirror for the pre-Phase 1
+## API. New gameplay code must use EnemyRuntime.current_hp.
 @export_range(1, 999999, 1) var level: int = 1
 @export var max_hp: int = 50
-@export var current_hp: int = 50
+# Deprecated compatibility mirror; HP is owned by EnemyRuntime.current_hp.
+var current_hp: int = 50
 @export var attack: int = 8
 @export var defense: int = 2
 @export var movement_points: int = 3

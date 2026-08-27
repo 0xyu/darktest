@@ -38,19 +38,20 @@ func attach_combat_system(combat_system: CombatSystem) -> void:
 func calculate_enemy_experience(enemy: Node) -> int:
 	if enemy == null or not is_instance_valid(enemy):
 		return 0
-	var enemy_stats_variant: Variant = enemy.get("enemy_stats")
-	if not enemy_stats_variant is EnemyStats:
-		return 0
-	var enemy_stats: EnemyStats = enemy_stats_variant as EnemyStats
-	var enemy_level: int = maxi(enemy_stats.level, 1)
+	var enemy_stats: EnemyStats
+	var enemy_level: int = 1
 	if enemy is EnemyController:
 		var enemy_controller: EnemyController = enemy as EnemyController
+		enemy_stats = enemy_controller.enemy_runtime.current_stats
 		enemy_level = maxi(enemy_controller.enemy_level, 1)
+	else:
+		var enemy_stats_variant: Variant = enemy.get("enemy_stats")
+		if not enemy_stats_variant is EnemyStats:
+			return 0
+		enemy_stats = enemy_stats_variant as EnemyStats
 	var enemy_type: int = EnemyType.NORMAL
-	var definition_variant: Variant = enemy.get("enemy_definition")
-	if definition_variant is EnemyDefinition:
-		var definition: EnemyDefinition = definition_variant as EnemyDefinition
-		enemy_type = definition.enemy_type
+	if enemy is EnemyController and (enemy as EnemyController).enemy_data != null:
+		enemy_type = (enemy as EnemyController).enemy_data.enemy_type
 	var level_multiplier: float = 1.0 + float(enemy_level - 1) * 0.10
 	var reward: float = float(maxi(enemy_stats.experience_reward, 0)) * level_multiplier
 	reward *= get_enemy_type_multiplier(enemy_type)

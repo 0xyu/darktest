@@ -7,7 +7,6 @@
 script = ExtResource("2_stats")
 level = 1
 max_hp = 240
-current_hp = 240
 attack = 27
 defense = 6
 movement_points = 3
@@ -17,8 +16,8 @@ gold_reward = 110
 
 [resource]
 script = ExtResource("1_definition")
-definition_id = &"bloodbound_warlord"
-display_name = "Bloodbound Warlord"
+id = &"bloodbound_warlord"
+name = "Bloodbound Warlord"
 enemy_type = 3
 base_stats = SubResource("EnemyStats_bloodbound_warlord")
 description = "A warlord who grows more dangerous as the last of his strength burns away."

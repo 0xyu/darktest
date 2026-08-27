@@ -15,12 +15,12 @@ const DEFAULT_MINI_BOSS_PATHS: Array[String] = [
 	"res://resources/enemies/Gravecaller.tres",
 	"res://resources/enemies/BloodboundWarlord.tres",
 ]
-const DEFAULT_ENEMY_DEFINITION_PATH: String = "res://resources/enemies/TrainingEnemy.tres"
+const DEFAULT_ENEMY_DATA_PATH: String = "res://resources/enemies/TrainingEnemy.tres"
 
 @export var grid_path: NodePath
 @export var spawn_parent_path: NodePath = NodePath("..")
 @export var enemy_scene: PackedScene
-@export var enemy_definitions: Array[EnemyDefinition] = []
+@export var enemy_definitions: Array[EnemyData] = []
 @export var mini_boss_definitions: Array[MiniBossDefinition] = []
 @export_range(1, 999999, 1) var starting_stage: int = 1
 @export_range(1, 999, 1) var base_enemy_count: int = 1
@@ -82,9 +82,9 @@ func initialize_stage(new_stage_number: int = -1, requested_special_encounter_ty
 	stage_state.special_encounter_type = current_definition.special_encounter_type
 	stage_state.special_mini_boss_level = current_definition.special_mini_boss_level
 	if current_definition.mini_boss_definition != null:
-		stage_state.encounter_id = current_definition.mini_boss_definition.definition_id
+		stage_state.encounter_id = current_definition.mini_boss_definition.id
 	elif current_definition.special_enemy_definition != null:
-		stage_state.encounter_id = current_definition.special_enemy_definition.definition_id
+		stage_state.encounter_id = current_definition.special_enemy_definition.id
 	_defeated_enemy_ids.clear()
 
 	var spawn_cells: Array[Vector2i] = _get_random_spawn_cells(current_definition.enemy_count)
@@ -112,7 +112,7 @@ func initialize_stage(new_stage_number: int = -1, requested_special_encounter_ty
 			return false
 		spawned_nodes.append(boss)
 	elif current_definition.is_special_encounter:
-		var special_definition: EnemyDefinition = current_definition.special_enemy_definition
+		var special_definition: EnemyData = current_definition.special_enemy_definition
 		var special_level: int = current_definition.special_mini_boss_level if current_definition.special_encounter_type == SpecialEncounterTypeResource.RANDOM_MINI_BOSS else roll_enemy_level(target_stage)
 		var special_id: StringName = StringName("stage_%d_special" % target_stage)
 		var special_enemy := _spawn_enemy(
@@ -127,7 +127,7 @@ func initialize_stage(new_stage_number: int = -1, requested_special_encounter_ty
 		spawned_nodes.append(special_enemy)
 	else:
 		for enemy_index in range(current_definition.enemy_count):
-			var normal_definition: EnemyDefinition = _pick_enemy_definition()
+			var normal_definition: EnemyData = _pick_enemy_definition()
 			var enemy := _spawn_enemy(
 				normal_definition,
 				target_stage,
@@ -244,7 +244,7 @@ func get_spawned_enemies() -> Array[EnemyController]:
 	return _spawned_enemies.duplicate()
 
 
-func _pick_enemy_definition() -> EnemyDefinition:
+func _pick_enemy_definition() -> EnemyData:
 	if enemy_definitions.is_empty():
 		return null
 	return enemy_definitions[_random_number_generator.randi_range(0, enemy_definitions.size() - 1)]
@@ -262,16 +262,24 @@ func _pick_special_encounter_type() -> int:
 	return encounter_types[_random_number_generator.randi_range(0, encounter_types.size() - 1)]
 
 
-func _build_special_enemy_definition(for_stage: int, encounter_type: int) -> EnemyDefinition:
-	var source_definition: EnemyDefinition = _pick_enemy_definition()
+func _build_special_enemy_definition(for_stage: int, encounter_type: int) -> EnemyData:
+	var source_definition: EnemyData = _pick_enemy_definition()
 	if source_definition == null:
-		source_definition = load(DEFAULT_ENEMY_DEFINITION_PATH) as EnemyDefinition
+		source_definition = load(DEFAULT_ENEMY_DATA_PATH) as EnemyData
 	if source_definition == null:
 		return null
-	var special_definition := source_definition.duplicate(true) as EnemyDefinition
+	# This creates encounter configuration, not per-instance runtime state.
+	# Keep the shared base stats and presentation assets referenced by the data.
+	var special_definition := EnemyData.new()
+	special_definition.base_stats = source_definition.base_stats
+	special_definition.portrait = source_definition.portrait
+	special_definition.battle_sprite = source_definition.battle_sprite
+	special_definition.skills = source_definition.skills
+	special_definition.loot_table = source_definition.loot_table
+	special_definition.description = source_definition.description
 	var encounter_name: String = SpecialEncounterTypeResource.get_display_name(encounter_type)
-	special_definition.definition_id = StringName("%s_stage_%d" % [encounter_name.to_lower().replace(" ", "_"), for_stage])
-	special_definition.display_name = "%s %s" % [encounter_name, source_definition.display_name]
+	special_definition.id = StringName("%s_stage_%d" % [encounter_name.to_lower().replace(" ", "_"), for_stage])
+	special_definition.name = "%s %s" % [encounter_name, source_definition.name]
 	special_definition.enemy_type = _get_enemy_type_for_encounter(encounter_type)
 	return special_definition
 
@@ -329,23 +337,22 @@ func _get_enemy_grid_path() -> NodePath:
 	return NodePath("../" + parent_grid_path)
 
 
-func _scale_enemy_definition(enemy: EnemyController, stage_number: int) -> void:
-	if enemy.enemy_definition == null or enemy.enemy_definition.base_stats == null:
+func _scale_enemy_runtime(enemy: EnemyController, stage_number: int) -> void:
+	if enemy.enemy_data == null or enemy.enemy_data.base_stats == null:
 		return
-	var scaled_definition := enemy.enemy_definition.duplicate(true) as EnemyDefinition
-	scaled_definition.base_stats = EnemyScalingSystem.scale_stats(
-		enemy.enemy_definition.base_stats,
+	var scaled_stats: EnemyStats = EnemyScalingSystem.scale_stats(
+		enemy.enemy_data.base_stats,
 		stage_number,
 		hp_growth_rate,
 		attack_growth_rate,
 		defense_growth_rate,
 		gold_growth_rate
 	)
-	enemy.enemy_definition = scaled_definition
+	enemy.initialize_runtime_from_stats(scaled_stats)
 
 
 func _spawn_enemy(
-	enemy_definition: EnemyDefinition,
+	enemy_data: EnemyData,
 	stage_number: int,
 	spawn_cell: Vector2i,
 	generated_id: StringName,
@@ -364,10 +371,10 @@ func _spawn_enemy(
 	enemy.enemy_level = maxi(level, 1)
 	enemy.grid_position = spawn_cell
 	enemy.grid_path = _get_enemy_grid_path()
-	if enemy_definition != null:
-		enemy.enemy_definition = enemy_definition
-	_scale_enemy_definition(enemy, stage_number)
+	if enemy_data != null:
+		enemy.enemy_data = enemy_data
 	_spawn_parent.add_child(enemy)
+	_scale_enemy_runtime(enemy, stage_number)
 	_spawned_enemies.append(enemy)
 	stage_state.spawned_enemy_count += 1
 	if enemy.has_signal("defeated"):
