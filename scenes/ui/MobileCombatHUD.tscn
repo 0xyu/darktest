@@ -1,8 +1,24 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=30 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/mobile_combat_hud.gd" id="1_hud"]
 [ext_resource type="Script" path="res://scripts/ui/loot_presentation.gd" id="2_loot"]
 [ext_resource type="PackedScene" path="res://scenes/ui/EquipmentInventoryPanel.tscn" id="3_inventory"]
+[ext_resource type="Texture2D" path="res://assets/characters/portraits/HP_Portrait_frame_bg.png" id="4_avatar_bg"]
+[ext_resource type="Texture2D" path="res://assets/characters/portraits/Avatar_ref.png" id="5_avatar"]
+[ext_resource type="Texture2D" path="res://assets/characters/portraits/HP_Portrait_frame.png" id="6_avatar_frame"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/Hp_frame.png" id="7_hp_frame"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/Hp_red.png" id="8_hp_red"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/11_top_arrow.png" id="9_move_up"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/11_left_arrow.png" id="10_move_left"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/11_bot_arrow.png" id="11_move_down"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/11_right_arrow.png" id="12_move_right"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/11_cross.png" id="13_end_turn"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/12_potion.png" id="14_potion"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/Icon_Eq_Weapon.png" id="15_attack"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/Hud_icon_inventory.png" id="16_inventory"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/2_options_off.png" id="17_auto_off"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/2_options_on.png" id="18_auto_on"]
+[ext_resource type="PackedScene" path="res://scenes/ui/EnemyBestiaryPanel.tscn" id="19_bestiary"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.0706, 0.0627, 0.102, 0.97)
@@ -56,19 +72,19 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[sub_resource type="StyleBoxFlat" id="StyleBarBackground"]
-bg_color = Color(0.047, 0.039, 0.067, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+[sub_resource type="StyleBoxTexture" id="StyleBarBackground"]
+texture = ExtResource("7_hp_frame")
+texture_margin_left = 6.0
+texture_margin_top = 4.0
+texture_margin_right = 6.0
+texture_margin_bottom = 4.0
 
-[sub_resource type="StyleBoxFlat" id="StyleBarFill"]
-bg_color = Color(0.702, 0.318, 0.376, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+[sub_resource type="StyleBoxTexture" id="StyleBarFill"]
+texture = ExtResource("8_hp_red")
+texture_margin_left = 4.0
+texture_margin_top = 3.0
+texture_margin_right = 4.0
+texture_margin_bottom = 3.0
 
 [node name="MobileCombatHUD" type="CanvasLayer"]
 layer = 10
@@ -193,6 +209,37 @@ theme_override_constants/separation = 5
 [node name="Header" type="HBoxContainer" parent="Root/TopPanel/Margin/Content"]
 layout_mode = 2
 theme_override_constants/separation = 8
+
+[node name="AvatarBox" type="Control" parent="Root/TopPanel/Margin/Content/Header"]
+layout_mode = 2
+custom_minimum_size = Vector2(46, 46)
+mouse_filter = 2
+
+[node name="Background" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox"]
+layout_mode = 0
+offset_right = 46.0
+offset_bottom = 46.0
+mouse_filter = 2
+expand_mode = 1
+texture = ExtResource("4_avatar_bg")
+
+[node name="Portrait" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox"]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = 42.0
+offset_bottom = 42.0
+mouse_filter = 2
+expand_mode = 1
+texture = ExtResource("5_avatar")
+
+[node name="Frame" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox"]
+layout_mode = 0
+offset_right = 46.0
+offset_bottom = 46.0
+mouse_filter = 2
+expand_mode = 1
+texture = ExtResource("6_avatar_frame")
 
 [node name="StageLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header"]
 unique_name_in_owner = true
@@ -357,7 +404,8 @@ theme_override_font_sizes/font_size = 24
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
-text = "▲"
+icon = ExtResource("9_move_up")
+text = ""
 
 [node name="MoveLeftButton" type="Button" parent="Root/BottomPanel/Margin/Content/MoveRow"]
 unique_name_in_owner = true
@@ -368,7 +416,8 @@ theme_override_font_sizes/font_size = 24
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
-text = "◀"
+icon = ExtResource("10_move_left")
+text = ""
 
 [node name="MoveDownButton" type="Button" parent="Root/BottomPanel/Margin/Content/MoveRow"]
 unique_name_in_owner = true
@@ -379,7 +428,8 @@ theme_override_font_sizes/font_size = 24
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
-text = "▼"
+icon = ExtResource("11_move_down")
+text = ""
 
 [node name="MoveRightButton" type="Button" parent="Root/BottomPanel/Margin/Content/MoveRow"]
 unique_name_in_owner = true
@@ -390,7 +440,8 @@ theme_override_font_sizes/font_size = 24
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
-text = "▶"
+icon = ExtResource("12_move_right")
+text = ""
 
 [node name="ActionRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content"]
 layout_mode = 2
@@ -407,6 +458,7 @@ theme_override_font_sizes/font_size = 16
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
+icon = ExtResource("15_attack")
 text = "ATTACK"
 
 [node name="ItemButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow"]
@@ -419,6 +471,7 @@ theme_override_font_sizes/font_size = 16
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
+icon = ExtResource("14_potion")
 text = "POTION 3"
 
 [node name="EndTurnButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow"]
@@ -431,6 +484,7 @@ theme_override_font_sizes/font_size = 16
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
+icon = ExtResource("13_end_turn")
 text = "END TURN"
 
 [node name="AutoButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow"]
@@ -443,15 +497,34 @@ theme_override_font_sizes/font_size = 16
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
+icon = ExtResource("17_auto_off")
 text = "AUTO: OFF"
 
-[node name="InventoryButton" type="Button" parent="Root/BottomPanel/Margin/Content"]
+[node name="UtilityRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="InventoryButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 custom_minimum_size = Vector2(0, 48)
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_font_sizes/font_size = 15
+icon = ExtResource("16_inventory")
 text = "INVENTORY 0"
+
+[node name="BestiaryButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 48)
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+text = "BESTIARY"
 
 [node name="CriticalLabel" type="Label" parent="Root"]
 unique_name_in_owner = true
@@ -498,4 +571,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="InventoryPanel" parent="Root" instance=ExtResource("3_inventory")]
+unique_name_in_owner = true
+
+[node name="EnemyBestiaryPanel" parent="Root" instance=ExtResource("19_bestiary")]
 unique_name_in_owner = true

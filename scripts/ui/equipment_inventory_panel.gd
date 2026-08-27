@@ -5,6 +5,17 @@ extends Control
 ## Item buttons are generated from EquipmentInventory so this UI stays data-driven.
 signal panel_closed
 
+const EMPTY_SLOT_ICON: Texture2D = preload("res://assets/ui/inventory/Icon_Frame.png")
+const EQUIPMENT_ICON_BY_SLOT: Dictionary = {
+	EquipmentSlot.WEAPON: preload("res://assets/items/icons/Icon_Eq_Weapon.png"),
+	EquipmentSlot.HELMET: preload("res://assets/items/icons/Icon_Eq_Head.png"),
+	EquipmentSlot.ARMOR: preload("res://assets/items/icons/Icon_Eq_Chest.png"),
+	EquipmentSlot.GLOVES: preload("res://assets/items/icons/Icon_Eq_Glowes.png"),
+	EquipmentSlot.BOOTS: preload("res://assets/items/icons/Icon_Eq_boots.png"),
+	EquipmentSlot.RING: preload("res://assets/items/icons/Icon_Eq_ring.png"),
+	EquipmentSlot.AMULET: preload("res://assets/items/icons/Icon_Eq_neck.png"),
+}
+
 @onready var _close_button: Button = %CloseButton
 @onready var _equipped_grid: GridContainer = %EquippedGrid
 @onready var _inventory_grid: GridContainer = %InventoryGrid
@@ -26,7 +37,7 @@ func _ready() -> void:
 	_equip_button.pressed.connect(equip_selected_item)
 	_discard_button.pressed.connect(discard_selected_item)
 	_equipped_grid.columns = 4
-	_inventory_grid.columns = 4
+	_inventory_grid.columns = 3
 	_refresh()
 
 
@@ -129,19 +140,27 @@ func _refresh() -> void:
 	_inventory_count_label.text = "INVENTORY %d / %d" % [_inventory.get_item_count(), _inventory.capacity]
 	for slot in range(EquipmentSlot.WEAPON, EquipmentSlot.AMULET + 1):
 		_equipped_grid.add_child(_create_equipped_button(slot, _inventory.get_equipped_item(slot)))
-	for item in _inventory.get_items():
-		_inventory_grid.add_child(_create_inventory_button(item))
+	var inventory_items: Array[EquipmentInstance] = _inventory.get_items()
+	_inventory_grid.columns = 3 if not inventory_items.is_empty() else 1
+	if inventory_items.is_empty():
+		_inventory_grid.add_child(_create_empty_inventory_label())
+	else:
+		for item in inventory_items:
+			_inventory_grid.add_child(_create_inventory_button(item))
 	_refresh_details()
 
 
 func _create_equipped_button(slot: int, item: EquipmentInstance) -> Button:
 	var button := Button.new()
-	button.custom_minimum_size = Vector2(0, 56)
+	button.custom_minimum_size = Vector2(0, 78)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.toggle_mode = true
 	button.text = _format_slot_button_text(slot, item)
+	button.icon = _get_equipment_icon(slot) if item != null else EMPTY_SLOT_ICON
 	button.tooltip_text = item.get_display_name() if item != null else "Empty %s slot" % EquipmentSlot.get_display_name(slot)
+	button.add_theme_font_size_override("font_size", 12)
 	button.add_theme_color_override("font_color", _get_rarity_color(item.get_rarity()) if item != null else Color("8f879d"))
+	_apply_button_style(button, item.get_rarity() if item != null else EquipmentRarity.COMMON, item != null)
 	button.pressed.connect(_on_equipped_slot_pressed.bind(item))
 	button.button_pressed = item != null and item == _selected_item
 	return button
@@ -149,15 +168,32 @@ func _create_equipped_button(slot: int, item: EquipmentInstance) -> Button:
 
 func _create_inventory_button(item: EquipmentInstance) -> Button:
 	var button := Button.new()
-	button.custom_minimum_size = Vector2(0, 62)
+	button.custom_minimum_size = Vector2(0, 88)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.toggle_mode = true
 	button.text = _format_inventory_button_text(item)
+	button.icon = _get_equipment_icon(item.get_slot())
 	button.tooltip_text = _format_item_details(item)
+	button.add_theme_font_size_override("font_size", 12)
 	button.add_theme_color_override("font_color", _get_rarity_color(item.get_rarity()))
+	_apply_button_style(button, item.get_rarity(), true)
 	button.pressed.connect(_on_inventory_item_pressed.bind(item))
 	button.button_pressed = item == _selected_item
 	return button
+
+
+func _create_empty_inventory_label() -> Label:
+	var label := Label.new()
+	label.custom_minimum_size = Vector2(0, 176)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.add_theme_color_override("font_color", Color("62596d"))
+	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.65))
+	label.add_theme_constant_override("shadow_offset_y", 2)
+	label.add_theme_font_size_override("font_size", 13)
+	label.text = "✧\nNO UNCLAIMED RELICS\n\nLoot from combat will appear here."
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return label
 
 
 func _on_equipped_slot_pressed(item: EquipmentInstance) -> void:
@@ -203,12 +239,16 @@ func _format_slot_button_text(slot: int, item: EquipmentInstance) -> String:
 	var slot_name: String = EquipmentSlot.get_display_name(slot).to_upper()
 	if item == null:
 		return "%s\n—" % slot_name
-	return "%s\n%s" % [slot_name, item.get_display_name()]
+	return "%s\n%s\nILVL %d" % [slot_name, item.get_display_name(), item.get_item_level()]
 
 
 func _format_inventory_button_text(item: EquipmentInstance) -> String:
 	var rarity_name: String = EquipmentRarity.get_display_name(item.get_rarity()).to_upper()
-	return "%s\n%s" % [rarity_name.substr(0, 3), item.get_display_name()]
+	return "%s  •  ILVL %d\n%s" % [rarity_name, item.get_item_level(), item.get_display_name().to_upper()]
+
+
+func _get_equipment_icon(slot: int) -> Texture2D:
+	return EQUIPMENT_ICON_BY_SLOT.get(slot) as Texture2D
 
 
 func _format_item_details(item: EquipmentInstance) -> String:
@@ -242,6 +282,41 @@ func _clear_grid(grid: GridContainer) -> void:
 	for child in grid.get_children():
 		grid.remove_child(child)
 		child.queue_free()
+
+
+func _apply_button_style(button: Button, rarity: int, has_item: bool) -> void:
+	var accent: Color = _get_rarity_color(rarity) if has_item else Color("494252")
+	var normal := _make_button_style(Color("12101a") if has_item else Color("0e0d14"), accent.darkened(0.45), 1)
+	var hover := _make_button_style(Color("1c1720"), accent.lightened(0.1), 2)
+	var pressed := _make_button_style(Color("2b1f12"), Color("e1ae58"), 2)
+	var disabled := _make_button_style(Color("0a0910"), Color("211d28"), 1)
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_stylebox_override("focus", hover)
+	button.add_theme_stylebox_override("disabled", disabled)
+	button.add_theme_color_override("font_hover_color", accent.lightened(0.18))
+	button.add_theme_color_override("font_pressed_color", Color("f4d28b"))
+	button.add_theme_color_override("font_disabled_color", Color("4a4552"))
+
+
+func _make_button_style(background: Color, border: Color, border_width: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = border
+	style.border_width_left = border_width
+	style.border_width_top = border_width
+	style.border_width_right = border_width
+	style.border_width_bottom = border_width
+	style.corner_radius_top_left = 3
+	style.corner_radius_top_right = 3
+	style.corner_radius_bottom_right = 3
+	style.corner_radius_bottom_left = 3
+	style.content_margin_left = 8.0
+	style.content_margin_top = 6.0
+	style.content_margin_right = 8.0
+	style.content_margin_bottom = 6.0
+	return style
 
 
 func _get_rarity_color(rarity: int) -> Color:

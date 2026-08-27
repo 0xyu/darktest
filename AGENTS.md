@@ -239,6 +239,49 @@ Do not install or introduce Godot MCP servers, editor plugins, or external depen
 
 Prefer built-in Godot functionality for the MVP.
 
+### Godot MCP Workflow
+
+The project has a connected Godot AI MCP server available during editor and
+runtime work. Prefer Godot MCP over Windows-level Computer Use for Godot-specific
+inspection, testing, and interaction.
+
+Use the following capabilities when the MCP session is connected:
+
+- `session_manage` — list and identify the active Godot editor session.
+- `project_run` — start the main scene, current scene, or a selected scene.
+- `editor_screenshot` — capture the running game with `source="game"`, or the
+  2D editor viewport with `source="viewport_2d"`. With `include_image=true`,
+  the result is an MCP image that can be visually inspected. `user_prompt`
+  may be supplied to describe what should be checked in the image.
+- `game_manage.get_ui_elements` — inspect visible runtime Control nodes,
+  including paths, text, disabled state, and rectangles.
+- `game_manage.input_mouse` — send runtime mouse motion or button events.
+- `game_manage.input_key`, `input_action`, and `input_sequence` — simulate
+  keyboard, project actions, and frame-timed input.
+- `game_manage.get_scene_tree` and `get_node_info` — inspect the runtime tree
+  and node properties.
+- `editor_manage.game_eval` — query or exercise running-game state with
+  GDScript when structured runtime inspection is insufficient.
+- `test_run` and `test_manage` — run and inspect project GDScript smoke tests.
+- `tileset_get_atlas_image` and `tileset_get_atlas_tiles` — inspect TileSet
+  atlas images and occupied atlas cells.
+
+Recommended runtime verification flow:
+
+1. Find and activate the unique project session with `session_manage`.
+2. Start the project with `project_run` and confirm the game helper is live.
+3. Use `game_manage.get_ui_elements` to locate controls instead of guessing
+   coordinates when possible.
+4. Use `game_manage.input_mouse` / `input_action` for one interaction at a
+   time, then re-check the UI or capture a fresh `editor_screenshot`.
+5. Visually inspect the returned MCP image after layout or interaction changes.
+
+The MCP game tools require a Godot editor session with the runtime game helper
+connected. If the game was launched externally without that bridge, stop and
+re-run it through the MCP workflow before concluding that MCP cannot access
+the game. Use Computer Use only for Godot interactions that MCP cannot expose
+or when the task explicitly requires Windows-level control.
+
 ---
 
 ## Asset Rules

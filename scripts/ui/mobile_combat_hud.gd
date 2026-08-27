@@ -9,6 +9,9 @@ signal item_requested
 signal end_turn_requested
 signal auto_toggle_requested
 
+const AUTO_OFF_ICON: Texture2D = preload("res://assets/ui/hud/2_options_off.png")
+const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
+
 @onready var _stage_manager: Node = get_parent().get_node_or_null("StageManager")
 @onready var _turn_manager: Node = get_parent().get_node_or_null("TurnManager")
 @onready var _player: Node = get_parent().get_node_or_null("Player")
@@ -29,10 +32,12 @@ signal auto_toggle_requested
 @onready var _end_turn_button: Button = %EndTurnButton
 @onready var _auto_button: Button = %AutoButton
 @onready var _inventory_button: Button = %InventoryButton
+@onready var _bestiary_button: Button = %BestiaryButton
 @onready var _critical_label: Label = %CriticalLabel
 @onready var _state_banner: PanelContainer = %StateBanner
 @onready var _state_label: Label = %StateLabel
 @onready var _inventory_panel: EquipmentInventoryPanel = %InventoryPanel
+@onready var _bestiary_panel: EnemyBestiaryPanel = %EnemyBestiaryPanel
 @onready var _move_buttons: Array[Button] = [%MoveUpButton, %MoveLeftButton, %MoveDownButton, %MoveRightButton]
 
 var _critical_time_remaining: float = 0.0
@@ -48,6 +53,7 @@ func _ready() -> void:
 	_end_turn_button.pressed.connect(func() -> void: end_turn_requested.emit())
 	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
 	_inventory_button.pressed.connect(_on_inventory_button_pressed)
+	_bestiary_button.pressed.connect(_on_bestiary_button_pressed)
 	_inventory_panel.set_player(_player)
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_refresh()
@@ -70,6 +76,10 @@ func _on_viewport_size_changed() -> void:
 
 func _on_inventory_button_pressed() -> void:
 	_inventory_panel.toggle_inventory()
+
+
+func _on_bestiary_button_pressed() -> void:
+	_bestiary_panel.toggle_bestiary()
 
 
 func _on_move_up_pressed() -> void:
@@ -185,6 +195,7 @@ func set_auto_mode(enabled: bool) -> void:
 	if _auto_button == null:
 		return
 	_auto_button.text = "AUTO: ON" if enabled else "AUTO: OFF"
+	_auto_button.icon = AUTO_ON_ICON if enabled else AUTO_OFF_ICON
 	_auto_button.modulate = Color("89c797") if enabled else Color("f0e7d2")
 
 
