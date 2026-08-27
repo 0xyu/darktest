@@ -86,6 +86,18 @@ texture_margin_top = 3.0
 texture_margin_right = 4.0
 texture_margin_bottom = 3.0
 
+[sub_resource type="StyleBoxFlat" id="StyleEnemySummary"]
+bg_color = Color(0.043, 0.039, 0.067, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.275, 0.22, 0.29, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
 [node name="MobileCombatHUD" type="CanvasLayer"]
 layer = 10
 script = ExtResource("1_hud")
@@ -191,7 +203,7 @@ anchor_right = 1.0
 offset_left = 16.0
 offset_top = 16.0
 offset_right = -16.0
-offset_bottom = 166.0
+offset_bottom = 250.0
 grow_horizontal = 2
 theme_override_styles/panel = SubResource("StylePanel")
 
@@ -203,6 +215,23 @@ theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 10
 
 [node name="Content" type="VBoxContainer" parent="Root/TopPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="EnemySummaryPanel" type="PanelContainer" parent="Root/TopPanel/Margin/Content"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 64)
+theme_override_styles/panel = SubResource("StyleEnemySummary")
+
+[node name="Margin" type="MarginContainer" parent="Root/TopPanel/Margin/Content/EnemySummaryPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 7
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 7
+theme_override_constants/margin_bottom = 5
+
+[node name="EnemySummaryRow" type="HBoxContainer" parent="Root/TopPanel/Margin/Content/EnemySummaryPanel/Margin"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 5
 

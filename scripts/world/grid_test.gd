@@ -125,7 +125,7 @@ func _on_viewport_size_changed() -> void:
 
 func _layout_portrait_grid() -> void:
 	var viewport_size: Vector2 = get_viewport_rect().size
-	var top_reserved: float = clampf(viewport_size.y * 0.14, 180.0, 210.0)
+	var top_reserved: float = clampf(viewport_size.y * 0.20, 230.0, 270.0)
 	var bottom_reserved: float = clampf(viewport_size.y * 0.28, 338.0, 390.0)
 	var side_margin: float = clampf(viewport_size.x * 0.045, 18.0, 36.0)
 	var available_size := Vector2(
