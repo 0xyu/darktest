@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="MiniBossDefinition" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="MiniBossDefinition" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/mini_boss_definition.gd" id="1_definition"]
 [ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="2_stats"]
+[ext_resource type="Texture2D" path="res://assets/enemies/oryx_16bit_fantasy_creatures_trans.png" id="3_atlas"]
 
 [sub_resource type="Resource" id="EnemyStats_ashen_oracle"]
 script = ExtResource("2_stats")
@@ -14,12 +15,17 @@ attack_range = 1
 experience_reward = 100
 gold_reward = 75
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_ashen_oracle"]
+atlas = ExtResource("3_atlas")
+region = Rect2(288, 216, 24, 24)
+
 [resource]
 script = ExtResource("1_definition")
 id = &"ashen_oracle"
 name = "Ashen Oracle"
 enemy_type = 3
 base_stats = SubResource("EnemyStats_ashen_oracle")
+battle_sprite = SubResource("AtlasTexture_ashen_oracle")
 description = "A cinder-eyed oracle whose shockwave reaches across the battlefield."
 boss_behavior = 0
 ability_range = 2

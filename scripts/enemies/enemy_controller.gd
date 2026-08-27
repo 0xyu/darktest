@@ -54,6 +54,7 @@ var _runtime_initialized: bool = false
 
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_grid = get_node_or_null(grid_path) as GridMap2D
 	if _grid == null:
 		push_error("EnemyController requires a GridMap2D assigned through grid_path.")
@@ -290,11 +291,21 @@ func _sync_legacy_hp_if_needed() -> void:
 
 
 func _draw() -> void:
-	draw_circle(Vector2.ZERO, 22.0, Color("09070d", 0.9))
-	var body_color: Color = Color("8d304d") if is_mini_boss else Color("9d5267")
-	draw_circle(Vector2.ZERO, 18.0, body_color)
-	draw_circle(Vector2(0, -5), 7.0, Color("e4c5a1"))
-	draw_line(Vector2(-9, 7), Vector2(9, 7), Color("4a1d2e"), 4.0)
+	draw_circle(Vector2(0, 5), 22.0, Color("09070d", 0.9))
+	var battle_sprite: Texture2D = enemy_data.battle_sprite if enemy_data != null else null
+	if battle_sprite != null:
+		# EnemyData stores an AtlasTexture cut from the 24 px creature sheet.
+		# Scale the cell to fit the 64 px combat grid while keeping pixel edges crisp.
+		var atlas_texture := battle_sprite as AtlasTexture
+		if atlas_texture != null and atlas_texture.atlas != null:
+			draw_texture_rect_region(atlas_texture.atlas, Rect2(-24.0, -27.0, 48.0, 48.0), atlas_texture.region)
+		else:
+			draw_texture_rect(battle_sprite, Rect2(-24.0, -27.0, 48.0, 48.0), false)
+	else:
+		var body_color: Color = Color("8d304d") if is_mini_boss else Color("9d5267")
+		draw_circle(Vector2.ZERO, 18.0, body_color)
+		draw_circle(Vector2(0, -5), 7.0, Color("e4c5a1"))
+		draw_line(Vector2(-9, 7), Vector2(9, 7), Color("4a1d2e"), 4.0)
 	if is_mini_boss:
 		draw_arc(Vector2.ZERO, 27.0, 0.0, TAU, 32, Color("d8af5c"), 2.0)
 	var health_ratio: float = clampf(float(enemy_runtime.current_hp) / maxi(enemy_runtime.current_stats.max_hp, 1), 0.0, 1.0)

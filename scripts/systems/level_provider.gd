@@ -61,7 +61,7 @@ func has_fixed_level(level_id: int) -> bool:
 
 
 func get_enemy_for_summon(_level_id: int, _summon_index: int = 0) -> EnemyData:
-	var pool := _get_enemy_pool()
+	var pool: Array[EnemyData] = _get_enemy_pool()
 	if pool.is_empty():
 		return null
 	return pool[_random_number_generator.randi_range(0, pool.size() - 1)]
@@ -179,7 +179,10 @@ func _get_enemy_pool() -> Array[EnemyData]:
 	if not enemy_pool.is_empty():
 		return enemy_pool
 	var fallback := load(DEFAULT_ENEMY_DATA_PATH) as EnemyData
-	return [fallback] if fallback != null else []
+	var fallback_pool: Array[EnemyData] = []
+	if fallback != null:
+		fallback_pool.append(fallback)
+	return fallback_pool
 
 
 func _pick_mini_boss_definition(rng: RandomNumberGenerator) -> MiniBossDefinition:
@@ -196,7 +199,7 @@ func _pick_mini_boss_definition(rng: RandomNumberGenerator) -> MiniBossDefinitio
 
 
 func _build_special_enemy_definition(for_level: int, encounter_type: int, rng: RandomNumberGenerator) -> EnemyData:
-	var pool := _get_enemy_pool()
+	var pool: Array[EnemyData] = _get_enemy_pool()
 	if pool.is_empty():
 		return null
 	var source_definition: EnemyData = pool[rng.randi_range(0, pool.size() - 1)]

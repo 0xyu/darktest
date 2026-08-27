@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1_data"]
 [ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="2_stats"]
+[ext_resource type="Texture2D" path="res://assets/enemies/oryx_16bit_fantasy_creatures_trans.png" id="3_atlas"]
 
 [sub_resource type="Resource" id="EnemyStats_training"]
 script = ExtResource("2_stats")
@@ -14,10 +15,15 @@ attack_range = 1
 experience_reward = 25
 gold_reward = 10
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_training"]
+atlas = ExtResource("3_atlas")
+region = Rect2(24, 24, 24, 24)
+
 [resource]
 script = ExtResource("1_data")
 id = &"training_wraith"
 name = "Training Wraith"
 enemy_type = 0
 base_stats = SubResource("EnemyStats_training")
+battle_sprite = SubResource("AtlasTexture_training")
 description = "A harmless training enemy for the Phase 6 movement harness."
