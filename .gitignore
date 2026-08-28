@@ -3,3 +3,5 @@
 /android/
 .idea/
 downloadedasset/
+.claude/settings.local.json
+CLAUDE.md
