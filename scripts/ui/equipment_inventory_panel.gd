@@ -1,11 +1,17 @@
 class_name EquipmentInventoryPanel
 extends Control
 
-## Portrait-first equipment management panel for the existing inventory model.
-## Item buttons are generated from EquipmentInventory so this UI stays data-driven.
+## Portrait-first character & inventory panel modeled on the
+## "game ui design/character-inventory-gui.png" mockup.
+## The layout is built in code; frame/tab/icon art is sliced from the shared
+## hud-sprite.jpg sheet. Item cells stay data-driven from EquipmentInventory,
+## and the public select/equip/discard API is unchanged.
 signal panel_closed
 
-const EMPTY_SLOT_ICON: Texture2D = preload("res://assets/ui/inventory/Icon_Frame.png")
+const HUD_TEXTURE: Texture2D = preload("res://assets/ui/hud-sprite.jpg")
+const PORTRAIT_TEXTURE: Texture2D = preload("res://assets/characters/portraits/Avatar_ref.png")
+const KNIGHT_TEXTURE: Texture2D = preload("res://assets/ui/inventory/Knight_equipment.png")
+
 const EQUIPMENT_ICON_BY_SLOT: Dictionary = {
 	EquipmentSlot.WEAPON: preload("res://assets/items/icons/Icon_Eq_Weapon.png"),
 	EquipmentSlot.HELMET: preload("res://assets/items/icons/Icon_Eq_Head.png"),
@@ -16,28 +22,136 @@ const EQUIPMENT_ICON_BY_SLOT: Dictionary = {
 	EquipmentSlot.AMULET: preload("res://assets/items/icons/Icon_Eq_neck.png"),
 }
 
-@onready var _close_button: Button = %CloseButton
-@onready var _equipped_grid: GridContainer = %EquippedGrid
-@onready var _inventory_grid: GridContainer = %InventoryGrid
-@onready var _inventory_count_label: Label = %InventoryCount
-@onready var _item_name_label: Label = %ItemName
-@onready var _item_details_label: Label = %ItemDetails
-@onready var _comparison_label: Label = %ComparisonLabel
-@onready var _equip_button: Button = %EquipButton
-@onready var _discard_button: Button = %DiscardButton
+## Atlas regions inside the 1200x800 hud-sprite.jpg sheet.
+const REGION_PORTRAIT_RING := Rect2(5, 3, 165, 192)
+const REGION_COIN := Rect2(178, 15, 46, 46)
+const REGION_CLOSE := Rect2(394, 10, 60, 58)
+const REGION_TAB_CHARACTER := Rect2(500, 100, 136, 52)
+const REGION_TAB_EQUIPMENT := Rect2(638, 102, 120, 50)
+const REGION_TAB_ITEMS := Rect2(760, 102, 120, 50)
+const REGION_FRAME_BRONZE := Rect2(722, 500, 112, 100)
+const REGION_FRAME_GREEN := Rect2(168, 150, 96, 96)
+const REGION_FRAME_BLUE := Rect2(168, 256, 96, 96)
+const REGION_FRAME_PURPLE := Rect2(168, 362, 96, 96)
+const REGION_STAT_ATTACK := Rect2(318, 170, 145, 48)
+const REGION_STAT_DEFENSE := Rect2(318, 224, 145, 48)
+const REGION_STAT_HP := Rect2(318, 278, 145, 48)
+const REGION_DETAILS_BUTTON := Rect2(304, 376, 170, 58)
+const REGION_PEDESTAL := Rect2(328, 582, 274, 214)
+
+const LEFT_SLOTS: Array[int] = [
+	EquipmentSlot.WEAPON,
+	EquipmentSlot.HELMET,
+	EquipmentSlot.ARMOR,
+	EquipmentSlot.GLOVES,
+	EquipmentSlot.BOOTS,
+]
+const RIGHT_SLOTS: Array[int] = [EquipmentSlot.AMULET, EquipmentSlot.RING]
+
+const COLOR_GOLD := Color("e8c465")
+const COLOR_GOLD_BRIGHT := Color("f4d28b")
+const COLOR_TEXT := Color("d8cfdf")
+const COLOR_MUTED := Color("8f879d")
+const COLOR_GREEN := Color("82d49b")
+const COLOR_RED := Color("d46a78")
+
+enum Tab { CHARACTER, EQUIPMENT, ITEMS }
+
+## Clickable square cell painted from hud-sprite.jpg slices (frame + icon +
+## corner text). Used for both equipment slots and bag items.
+class InventoryCell extends Control:
+	signal cell_pressed(cell: InventoryCell)
+
+	const SHEET: Texture2D = preload("res://assets/ui/hud-sprite.jpg")
+
+	var item: EquipmentInstance = null
+	var icon: Texture2D = null
+	var frame_region: Rect2 = Rect2()
+	var frame_tint: Color = Color.WHITE
+	var has_content: bool = false
+	var selected: bool = false
+	var corner_text: String = ""
+	var corner_color: Color = Color("82d49b")
+	var _hover: bool = false
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			accept_event()
+			cell_pressed.emit(self)
+
+	func _notification(what: int) -> void:
+		match what:
+			NOTIFICATION_MOUSE_ENTER:
+				_hover = true
+				queue_redraw()
+			NOTIFICATION_MOUSE_EXIT:
+				_hover = false
+				queue_redraw()
+
+	func _draw() -> void:
+		var rect := Rect2(Vector2.ZERO, size)
+		var tint := frame_tint
+		if not has_content:
+			tint = Color(tint.r, tint.g, tint.b, 0.55)
+		draw_texture_rect_region(SHEET, rect, frame_region, tint)
+		if _hover:
+			draw_rect(Rect2(3, 3, size.x - 6, size.y - 6), Color(1, 1, 1, 0.07))
+		if icon != null:
+			var icon_size := size * 0.62
+			var icon_rect := Rect2((size - icon_size) * 0.5, icon_size)
+			var icon_modulate := Color.WHITE if has_content else Color(1, 1, 1, 0.4)
+			draw_texture_rect(icon, icon_rect, false, icon_modulate)
+		if corner_text != "":
+			var font := get_theme_font(&"font", &"Label")
+			draw_string(font, Vector2(size.x - 32, size.y - 8), corner_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, corner_color)
+		if selected:
+			draw_rect(rect, Color("f2c15e"), false, 2.0)
+
 
 var _player: PlayerController
 var _inventory: EquipmentInventory
 var _selected_item: EquipmentInstance
 var _refresh_scheduled: bool = false
+var _active_tab: int = Tab.CHARACTER
+
+# Header
+var _header_power_label: Label
+var _header_gold_label: Label
+var _header_level_label: Label
+
+# Tabs
+var _tab_buttons: Array[TextureButton] = []
+
+# Sections
+var _character_section: Control
+var _equipment_section: Control
+var _equipment_grid: GridContainer
+var _left_slot_column: VBoxContainer
+var _right_slot_column: VBoxContainer
+var _inventory_section: Control
+var _inventory_grid: GridContainer
+var _inventory_count_label: Label
+var _details_section: Control
+
+# Character stats
+var _attack_value_label: Label
+var _defense_value_label: Label
+var _hp_value_label: Label
+var _detailed_stats_box: Control
+var _detailed_stats_labels: Dictionary = {}
+var _details_toggle: TextureButton
+
+# Item details
+var _item_name_label: Label
+var _item_details_label: Label
+var _comparison_label: Label
+var _equip_button: Button
+var _discard_button: Button
 
 
 func _ready() -> void:
-	_close_button.pressed.connect(hide_inventory)
-	_equip_button.pressed.connect(equip_selected_item)
-	_discard_button.pressed.connect(discard_selected_item)
-	_equipped_grid.columns = 4
-	_inventory_grid.columns = 3
+	_build_ui()
+	_set_tab(Tab.CHARACTER)
 	_refresh()
 
 
@@ -68,7 +182,10 @@ func hide_inventory() -> void:
 
 
 func toggle_inventory() -> void:
-	show_inventory() if not visible else hide_inventory()
+	if visible:
+		hide_inventory()
+	else:
+		show_inventory()
 
 
 func select_item(item: EquipmentInstance) -> bool:
@@ -104,6 +221,11 @@ func discard_selected_item() -> bool:
 	return discarded
 
 
+func _process(_delta: float) -> void:
+	if visible:
+		_refresh_dynamic()
+
+
 func _on_inventory_changed() -> void:
 	if _selected_item != null and not _inventory.has_item(_selected_item):
 		_selected_item = null
@@ -127,133 +249,618 @@ func _run_scheduled_refresh() -> void:
 	_refresh()
 
 
+# ---------------------------------------------------------------------------
+# UI construction
+# ---------------------------------------------------------------------------
+
+func _build_ui() -> void:
+	var backdrop := ColorRect.new()
+	backdrop.color = Color(0.012, 0.01, 0.018, 0.92)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_add_full_rect(backdrop)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	_add_full_rect(margin)
+
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 6)
+	margin.add_child(content)
+
+	content.add_child(_build_header())
+	content.add_child(_build_tab_row())
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	content.add_child(scroll)
+
+	var scroll_content := VBoxContainer.new()
+	scroll_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll_content.add_theme_constant_override("separation", 8)
+	scroll.add_child(scroll_content)
+
+	_character_section = _build_character_section()
+	scroll_content.add_child(_character_section)
+
+	_equipment_section = _build_equipment_section()
+	scroll_content.add_child(_equipment_section)
+
+	_inventory_section = _build_inventory_section()
+	scroll_content.add_child(_inventory_section)
+
+	_details_section = _build_details_section()
+	scroll_content.add_child(_details_section)
+
+
+func _add_full_rect(node: Control) -> void:
+	node.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(node)
+
+
+func _build_header() -> HBoxContainer:
+	var header := HBoxContainer.new()
+	header.custom_minimum_size = Vector2(0, 92)
+	header.add_theme_constant_override("separation", 10)
+
+	# Portrait ring + avatar + level badge.
+	var portrait := Control.new()
+	portrait.custom_minimum_size = Vector2(80, 92)
+	header.add_child(portrait)
+
+	var ring := TextureRect.new()
+	ring.texture = _atlas(REGION_PORTRAIT_RING)
+	ring.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ring.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+	portrait.add_child(ring)
+
+	var avatar := TextureRect.new()
+	avatar.texture = PORTRAIT_TEXTURE
+	avatar.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	avatar.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	avatar.anchor_left = 0.5
+	avatar.anchor_top = 0.42
+	avatar.anchor_right = 0.5
+	avatar.anchor_bottom = 0.42
+	avatar.offset_left = -27
+	avatar.offset_top = -30
+	avatar.offset_right = 27
+	avatar.offset_bottom = 26
+	portrait.add_child(avatar)
+
+	var badge := PanelContainer.new()
+	var badge_style := StyleBoxFlat.new()
+	badge_style.bg_color = Color("141018")
+	badge_style.border_color = Color("c99b4a")
+	badge_style.set_border_width_all(2)
+	badge_style.set_corner_radius_all(11)
+	badge.add_theme_stylebox_override("panel", badge_style)
+	badge.anchor_left = 0.5
+	badge.anchor_top = 1.0
+	badge.anchor_right = 0.5
+	badge.anchor_bottom = 1.0
+	badge.offset_left = -16
+	badge.offset_top = -22
+	badge.offset_right = 16
+	badge.offset_bottom = 2
+	portrait.add_child(badge)
+
+	_header_level_label = Label.new()
+	_header_level_label.text = "1"
+	_header_level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_header_level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_header_level_label.add_theme_color_override("font_color", COLOR_GOLD_BRIGHT)
+	_header_level_label.add_theme_font_size_override("font_size", 13)
+	badge.add_child(_header_level_label)
+
+	# Name + combat power block.
+	var name_block := VBoxContainer.new()
+	name_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_block.add_theme_constant_override("separation", 4)
+	header.add_child(name_block)
+
+	var class_label := Label.new()
+	class_label.text = "战士"
+	class_label.add_theme_color_override("font_color", COLOR_GOLD_BRIGHT)
+	class_label.add_theme_font_size_override("font_size", 22)
+	name_block.add_child(class_label)
+
+	var power_row := HBoxContainer.new()
+	power_row.add_theme_constant_override("separation", 5)
+	name_block.add_child(power_row)
+
+	var power_icon := TextureRect.new()
+	power_icon.texture = _atlas(REGION_STAT_ATTACK)
+	power_icon.custom_minimum_size = Vector2(20, 20)
+	power_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	power_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	power_row.add_child(power_icon)
+
+	_header_power_label = Label.new()
+	_header_power_label.text = "0"
+	_header_power_label.add_theme_color_override("font_color", COLOR_GOLD)
+	_header_power_label.add_theme_font_size_override("font_size", 15)
+	power_row.add_child(_header_power_label)
+
+	# Gold block.
+	var gold_row := HBoxContainer.new()
+	gold_row.add_theme_constant_override("separation", 6)
+	gold_row.alignment = BoxContainer.ALIGNMENT_END
+	header.add_child(gold_row)
+
+	var coin := TextureRect.new()
+	coin.texture = _atlas(REGION_COIN)
+	coin.custom_minimum_size = Vector2(30, 30)
+	coin.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	gold_row.add_child(coin)
+
+	_header_gold_label = Label.new()
+	_header_gold_label.text = "0"
+	_header_gold_label.add_theme_color_override("font_color", COLOR_TEXT)
+	_header_gold_label.add_theme_font_size_override("font_size", 16)
+	gold_row.add_child(_header_gold_label)
+
+	# Close button.
+	var close_button := TextureButton.new()
+	close_button.texture_normal = _atlas(REGION_CLOSE)
+	close_button.custom_minimum_size = Vector2(46, 44)
+	close_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	close_button.pressed.connect(hide_inventory)
+	header.add_child(close_button)
+
+	return header
+
+
+func _build_tab_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 4)
+	var regions: Array[Rect2] = [REGION_TAB_CHARACTER, REGION_TAB_EQUIPMENT, REGION_TAB_ITEMS]
+	for tab_index in regions.size():
+		var button := TextureButton.new()
+		button.texture_normal = _atlas(regions[tab_index])
+		button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+		button.custom_minimum_size = Vector2(150, 52)
+		button.pressed.connect(_set_tab.bind(tab_index))
+		row.add_child(button)
+		_tab_buttons.append(button)
+	return row
+
+
+func _set_tab(tab: int) -> void:
+	_active_tab = tab
+	if _character_section != null:
+		_character_section.visible = tab == Tab.CHARACTER
+	if _equipment_section != null:
+		_equipment_section.visible = tab == Tab.EQUIPMENT
+	if _inventory_section != null:
+		_inventory_section.visible = tab != Tab.EQUIPMENT
+	for index in _tab_buttons.size():
+		var active: bool = index == tab
+		_tab_buttons[index].modulate = Color(1.25, 1.1, 0.8) if active else Color(0.6, 0.57, 0.54)
+	_request_refresh()
+
+
+func _build_character_section() -> Control:
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 8)
+
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 10)
+	section.add_child(body)
+
+	_left_slot_column = VBoxContainer.new()
+	_left_slot_column.add_theme_constant_override("separation", 8)
+	body.add_child(_left_slot_column)
+
+	var stage := Control.new()
+	stage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stage.custom_minimum_size = Vector2(0, 330)
+	body.add_child(stage)
+
+	var pedestal := TextureRect.new()
+	pedestal.texture = _atlas(REGION_PEDESTAL)
+	pedestal.anchor_left = 0.5
+	pedestal.anchor_right = 0.5
+	pedestal.anchor_top = 1.0
+	pedestal.anchor_bottom = 1.0
+	pedestal.offset_left = -140
+	pedestal.offset_right = 140
+	pedestal.offset_top = -190
+	pedestal.offset_bottom = 18
+	stage.add_child(pedestal)
+
+	var knight := TextureRect.new()
+	knight.texture = KNIGHT_TEXTURE
+	knight.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	knight.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	knight.anchor_left = 0.5
+	knight.anchor_top = 0.5
+	knight.anchor_right = 0.5
+	knight.anchor_bottom = 0.5
+	knight.offset_left = -70
+	knight.offset_top = -150
+	knight.offset_right = 70
+	knight.offset_bottom = 40
+	stage.add_child(knight)
+
+	_right_slot_column = VBoxContainer.new()
+	_right_slot_column.add_theme_constant_override("separation", 8)
+	body.add_child(_right_slot_column)
+
+	# Primary stats row: attack / defense / life + detailed stats toggle.
+	var stats_row := HBoxContainer.new()
+	stats_row.add_theme_constant_override("separation", 14)
+	section.add_child(stats_row)
+
+	_attack_value_label = _build_stat_block(stats_row, REGION_STAT_ATTACK)
+	_defense_value_label = _build_stat_block(stats_row, REGION_STAT_DEFENSE)
+	_hp_value_label = _build_stat_block(stats_row, REGION_STAT_HP)
+
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stats_row.add_child(spacer)
+
+	_details_toggle = TextureButton.new()
+	_details_toggle.texture_normal = _atlas(REGION_DETAILS_BUTTON)
+	_details_toggle.custom_minimum_size = Vector2(150, 50)
+	_details_toggle.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	_details_toggle.size_flags_vertical = Control.SIZE_SHRINK_END
+	_details_toggle.pressed.connect(_toggle_detailed_stats)
+	stats_row.add_child(_details_toggle)
+
+	_detailed_stats_box = _build_detailed_stats_box()
+	_detailed_stats_box.visible = false
+	section.add_child(_detailed_stats_box)
+
+	return section
+
+
+func _build_stat_block(parent: Control, region: Rect2) -> Label:
+	var block := VBoxContainer.new()
+	block.add_theme_constant_override("separation", 2)
+	parent.add_child(block)
+
+	var plate := TextureRect.new()
+	plate.texture = _atlas(region)
+	plate.custom_minimum_size = Vector2(132, 44)
+	plate.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	plate.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	block.add_child(plate)
+
+	var value := Label.new()
+	value.text = "0"
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	value.add_theme_color_override("font_color", COLOR_TEXT)
+	value.add_theme_font_size_override("font_size", 17)
+	block.add_child(value)
+	return value
+
+
+func _build_detailed_stats_box() -> Control:
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("171320")
+	style.border_color = Color("4a3a28")
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(4)
+	style.set_content_margin_all(10)
+	panel.add_theme_stylebox_override("panel", style)
+
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 18)
+	grid.add_theme_constant_override("v_separation", 6)
+	panel.add_child(grid)
+
+	var entries: Array[Array] = [
+		["critical_chance", "暴击率"],
+		["critical_damage", "暴击伤害"],
+		["dodge", "闪避"],
+		["life_steal", "吸血"],
+		["movement", "移动"],
+		["attack_range", "射程"],
+	]
+	for entry in entries:
+		var label := Label.new()
+		label.text = "%s 0" % entry[1]
+		label.add_theme_color_override("font_color", COLOR_MUTED)
+		label.add_theme_font_size_override("font_size", 13)
+		grid.add_child(label)
+		_detailed_stats_labels[entry[0]] = label
+	return panel
+
+
+func _build_equipment_section() -> Control:
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 8)
+
+	var hint := Label.new()
+	hint.text = "装备部位  •  点击已装备部位查看属性"
+	hint.add_theme_color_override("font_color", COLOR_MUTED)
+	hint.add_theme_font_size_override("font_size", 12)
+	section.add_child(hint)
+
+	_equipment_grid = GridContainer.new()
+	_equipment_grid.columns = 7
+	_equipment_grid.add_theme_constant_override("h_separation", 6)
+	_equipment_grid.add_theme_constant_override("v_separation", 6)
+	section.add_child(_equipment_grid)
+	return section
+
+
+func _build_inventory_section() -> Control:
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 6)
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 8)
+	section.add_child(header)
+
+	var title := Label.new()
+	title.text = "物品"
+	title.add_theme_color_override("font_color", COLOR_GOLD)
+	title.add_theme_font_size_override("font_size", 17)
+	header.add_child(title)
+
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(spacer)
+
+	_inventory_count_label = Label.new()
+	_inventory_count_label.text = "0/0"
+	_inventory_count_label.add_theme_color_override("font_color", COLOR_TEXT)
+	_inventory_count_label.add_theme_font_size_override("font_size", 14)
+	header.add_child(_inventory_count_label)
+
+	_inventory_grid = GridContainer.new()
+	_inventory_grid.columns = 6
+	_inventory_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_inventory_grid.add_theme_constant_override("h_separation", 8)
+	_inventory_grid.add_theme_constant_override("v_separation", 8)
+	section.add_child(_inventory_grid)
+	return section
+
+
+func _build_details_section() -> Control:
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("120e18", 0.98)
+	style.border_color = Color("56401f", 0.9)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(4)
+	style.content_margin_left = 12
+	style.content_margin_top = 10
+	style.content_margin_right = 12
+	style.content_margin_bottom = 10
+	panel.add_theme_stylebox_override("panel", style)
+
+	var details := VBoxContainer.new()
+	details.add_theme_constant_override("separation", 5)
+	panel.add_child(details)
+
+	_item_name_label = Label.new()
+	_item_name_label.text = "选择一件物品"
+	_item_name_label.add_theme_color_override("font_color", COLOR_GOLD)
+	_item_name_label.add_theme_font_size_override("font_size", 18)
+	_item_name_label.clip_text = true
+	details.add_child(_item_name_label)
+
+	_item_details_label = Label.new()
+	_item_details_label.text = "点击背包或装备部位以查看属性。"
+	_item_details_label.add_theme_color_override("font_color", COLOR_TEXT)
+	_item_details_label.add_theme_font_size_override("font_size", 12)
+	_item_details_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	details.add_child(_item_details_label)
+
+	_comparison_label = Label.new()
+	_comparison_label.text = ""
+	_comparison_label.add_theme_color_override("font_color", COLOR_MUTED)
+	_comparison_label.add_theme_font_size_override("font_size", 12)
+	_comparison_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	details.add_child(_comparison_label)
+
+	var button_row := HBoxContainer.new()
+	button_row.add_theme_constant_override("separation", 8)
+	button_row.custom_minimum_size = Vector2(0, 40)
+	details.add_child(button_row)
+
+	_equip_button = Button.new()
+	_equip_button.text = "装备"
+	_equip_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_equip_button.add_theme_font_size_override("font_size", 14)
+	_equip_button.add_theme_color_override("font_color", Color("f8e0a0"))
+	_equip_button.add_theme_color_override("font_disabled_color", Color("4a4552"))
+	_apply_button_style(_equip_button, true)
+	_equip_button.pressed.connect(_on_equip_pressed)
+	button_row.add_child(_equip_button)
+
+	_discard_button = _create_discard_button(button_row)
+	return panel
+
+
+func _create_discard_button(parent: HBoxContainer) -> Button:
+	var button := Button.new()
+	button.text = "丢弃"
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.add_theme_font_size_override("font_size", 14)
+	button.add_theme_color_override("font_color", Color("c9bdb4"))
+	button.add_theme_color_override("font_disabled_color", Color("4a4552"))
+	_apply_button_style(button, false)
+	button.pressed.connect(_on_discard_pressed)
+	parent.add_child(button)
+	return button
+
+
+# ---------------------------------------------------------------------------
+# Refresh
+# ---------------------------------------------------------------------------
+
 func _refresh() -> void:
 	if not is_node_ready():
 		return
-	_clear_grid(_equipped_grid)
+	_rebuild_slot_columns()
+	_rebuild_equipment_grid()
+	_rebuild_inventory_grid()
+	_refresh_details()
+	_refresh_dynamic()
+
+
+func _rebuild_slot_columns() -> void:
+	_clear_grid(_left_slot_column)
+	_clear_grid(_right_slot_column)
+	for slot in LEFT_SLOTS:
+		_left_slot_column.add_child(_create_slot_cell(slot, Vector2(80, 80)))
+	for slot in RIGHT_SLOTS:
+		_right_slot_column.add_child(_create_slot_cell(slot, Vector2(80, 80)))
+
+
+func _rebuild_equipment_grid() -> void:
+	_clear_grid(_equipment_grid)
+	for slot in range(EquipmentSlot.WEAPON, EquipmentSlot.AMULET + 1):
+		_equipment_grid.add_child(_create_slot_cell(slot, Vector2(88, 88)))
+
+
+func _rebuild_inventory_grid() -> void:
 	_clear_grid(_inventory_grid)
 	if _inventory == null:
-		_inventory_count_label.text = "INVENTORY 0 / 0"
-		_clear_details()
+		_inventory_count_label.text = "0/0"
 		return
-
-	_inventory_count_label.text = "INVENTORY %d / %d" % [_inventory.get_item_count(), _inventory.capacity]
-	for slot in range(EquipmentSlot.WEAPON, EquipmentSlot.AMULET + 1):
-		_equipped_grid.add_child(_create_equipped_button(slot, _inventory.get_equipped_item(slot)))
-	var inventory_items: Array[EquipmentInstance] = _inventory.get_items()
-	_inventory_grid.columns = 3 if not inventory_items.is_empty() else 1
-	if inventory_items.is_empty():
-		_inventory_grid.add_child(_create_empty_inventory_label())
-	else:
-		for item in inventory_items:
-			_inventory_grid.add_child(_create_inventory_button(item))
-	_refresh_details()
-
-
-func _create_equipped_button(slot: int, item: EquipmentInstance) -> Button:
-	var button := Button.new()
-	button.custom_minimum_size = Vector2(0, 78)
-	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.toggle_mode = true
-	button.text = _format_slot_button_text(slot, item)
-	button.icon = _get_equipment_icon(slot) if item != null else EMPTY_SLOT_ICON
-	button.tooltip_text = item.get_display_name() if item != null else "Empty %s slot" % EquipmentSlot.get_display_name(slot)
-	button.add_theme_font_size_override("font_size", 12)
-	button.add_theme_color_override("font_color", _get_rarity_color(item.get_rarity()) if item != null else Color("8f879d"))
-	_apply_button_style(button, item.get_rarity() if item != null else EquipmentRarity.COMMON, item != null)
-	button.pressed.connect(_on_equipped_slot_pressed.bind(item))
-	button.button_pressed = item != null and item == _selected_item
-	return button
+	_inventory_count_label.text = "%d/%d" % [_inventory.get_item_count(), _inventory.capacity]
+	var items: Array[EquipmentInstance] = _inventory.get_items()
+	if items.is_empty():
+		var empty := Label.new()
+		empty.custom_minimum_size = Vector2(0, 120)
+		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		empty.text = "暂无战利品\n战斗掉落的装备会出现在这里"
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		empty.add_theme_color_override("font_color", Color("62596d"))
+		empty.add_theme_font_size_override("font_size", 13)
+		_inventory_grid.add_child(empty)
+		return
+	for item in items:
+		_inventory_grid.add_child(_create_item_cell(item))
 
 
-func _create_inventory_button(item: EquipmentInstance) -> Button:
-	var button := Button.new()
-	button.custom_minimum_size = Vector2(0, 88)
-	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.toggle_mode = true
-	button.text = _format_inventory_button_text(item)
-	button.icon = _get_equipment_icon(item.get_slot())
-	button.tooltip_text = _format_item_details(item)
-	button.add_theme_font_size_override("font_size", 12)
-	button.add_theme_color_override("font_color", _get_rarity_color(item.get_rarity()))
-	_apply_button_style(button, item.get_rarity(), true)
-	button.pressed.connect(_on_inventory_item_pressed.bind(item))
-	button.button_pressed = item == _selected_item
-	return button
-
-
-func _create_empty_inventory_label() -> Label:
-	var label := Label.new()
-	label.custom_minimum_size = Vector2(0, 176)
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.add_theme_color_override("font_color", Color("62596d"))
-	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.65))
-	label.add_theme_constant_override("shadow_offset_y", 2)
-	label.add_theme_font_size_override("font_size", 13)
-	label.text = "✧\nNO UNCLAIMED RELICS\n\nLoot from combat will appear here."
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	return label
-
-
-func _on_equipped_slot_pressed(item: EquipmentInstance) -> void:
+func _create_slot_cell(slot: int, cell_size: Vector2) -> InventoryCell:
+	var item: EquipmentInstance = _inventory.get_equipped_item(slot) if _inventory != null else null
+	var cell := InventoryCell.new()
+	cell.custom_minimum_size = cell_size
+	cell.item = item
+	cell.icon = EQUIPMENT_ICON_BY_SLOT.get(slot) as Texture2D
+	cell.has_content = item != null
+	cell.selected = item != null and item == _selected_item
 	if item != null:
-		select_item(item)
+		cell.frame_region = _frame_region_for(item.get_rarity())
+		cell.frame_tint = _frame_tint_for(item.get_rarity())
+		cell.corner_text = "+%d" % item.get_item_level()
+		cell.tooltip_text = "%s  •  %s" % [item.get_display_name(), _format_item_details(item)]
+	else:
+		cell.frame_region = REGION_FRAME_BRONZE
+		cell.tooltip_text = "空%s部位" % EquipmentSlot.get_display_name(slot)
+	cell.cell_pressed.connect(_on_slot_cell_pressed)
+	return cell
 
 
-func _on_inventory_item_pressed(item: EquipmentInstance) -> void:
+func _create_item_cell(item: EquipmentInstance) -> InventoryCell:
+	var cell := InventoryCell.new()
+	cell.custom_minimum_size = Vector2(96, 96)
+	cell.icon = EQUIPMENT_ICON_BY_SLOT.get(item.get_slot()) as Texture2D
+	cell.has_content = true
+	cell.selected = item == _selected_item
+	cell.frame_region = _frame_region_for(item.get_rarity())
+	cell.frame_tint = _frame_tint_for(item.get_rarity())
+	cell.corner_text = "%d" % item.get_item_level()
+	cell.corner_color = _get_rarity_color(item.get_rarity())
+	cell.tooltip_text = "%s  •  %s" % [item.get_display_name(), _format_item_details(item)]
+	cell.cell_pressed.connect(_on_item_cell_pressed.bind(item))
+	return cell
+
+
+func _on_slot_cell_pressed(cell: InventoryCell) -> void:
+	if cell.item != null:
+		select_item(cell.item)
+
+
+func _on_item_cell_pressed(item: EquipmentInstance) -> void:
 	select_item(item)
+
+
+func _on_equip_pressed() -> void:
+	equip_selected_item()
+
+
+func _on_discard_pressed() -> void:
+	discard_selected_item()
+
+
+func _toggle_detailed_stats() -> void:
+	_detailed_stats_box.visible = not _detailed_stats_box.visible
+
+
+func _refresh_dynamic() -> void:
+	if _player == null:
+		return
+	var stats: PlayerStats = _player.player_stats
+	var progression: PlayerProgression = _player.player_progression
+	if progression != null:
+		_header_gold_label.text = _format_number(progression.gold)
+		_header_level_label.text = str(maxi(progression.level, 1))
+	if stats == null:
+		return
+	_header_power_label.text = _format_number(_get_combat_power(stats))
+	_attack_value_label.text = str(stats.attack)
+	_defense_value_label.text = str(stats.defense)
+	_hp_value_label.text = _format_number(stats.max_hp)
+	_detailed_stats_labels["critical_chance"].text = "暴击率 %.0f%%" % (stats.critical_chance * 100.0)
+	_detailed_stats_labels["critical_damage"].text = "暴击伤害 %.0f%%" % (stats.critical_damage * 100.0)
+	_detailed_stats_labels["dodge"].text = "闪避 %.0f%%" % (stats.dodge * 100.0)
+	_detailed_stats_labels["life_steal"].text = "吸血 %.0f%%" % (stats.life_steal * 100.0)
+	_detailed_stats_labels["movement"].text = "移动 %d" % stats.movement_points
+	_detailed_stats_labels["attack_range"].text = "射程 %d" % stats.attack_range
+
+
+func _get_combat_power(stats: PlayerStats) -> int:
+	return roundi(stats.attack * 2.0 + stats.defense * 2.0 + stats.max_hp * 0.5)
 
 
 func _refresh_details() -> void:
 	if _selected_item == null or _inventory == null:
-		_clear_details()
+		_item_name_label.text = "选择一件物品"
+		_item_name_label.modulate = Color.WHITE
+		_item_details_label.text = "点击背包或装备部位以查看属性。"
+		_comparison_label.text = ""
+		_equip_button.disabled = true
+		_discard_button.disabled = true
 		return
 	var rarity: int = _selected_item.get_rarity()
 	_item_name_label.text = _selected_item.get_display_name()
 	_item_name_label.modulate = _get_rarity_color(rarity)
 	_item_details_label.text = _format_item_details(_selected_item)
-	var current_item: EquipmentInstance = _inventory.get_equipped_item(_selected_item.get_slot())
 	if _selected_item.is_equipped:
-		_comparison_label.text = "EQUIPPED  •  CURRENT ITEM"
-		_comparison_label.modulate = Color("89c797")
+		_comparison_label.text = "已装备"
+		_comparison_label.modulate = COLOR_GREEN
 	else:
 		var comparison: EquipmentComparison = _inventory.create_comparison(_selected_item)
+		var current_item: EquipmentInstance = _inventory.get_equipped_item(_selected_item.get_slot())
 		_comparison_label.text = _format_comparison(comparison, current_item)
-		_comparison_label.modulate = Color("89c797") if comparison != null and comparison.is_upgrade() else Color("d46a78")
+		_comparison_label.modulate = COLOR_GREEN if comparison != null and comparison.is_upgrade() else COLOR_RED
 	_equip_button.disabled = _selected_item.is_equipped
 	_discard_button.disabled = _selected_item.is_equipped
 
 
-func _clear_details() -> void:
-	_item_name_label.text = "SELECT AN ITEM"
-	_item_name_label.modulate = Color("b9afc6")
-	_item_details_label.text = "Choose equipment to inspect its affixes."
-	_comparison_label.text = "COMPARISON  •  NO ITEM SELECTED"
-	_comparison_label.modulate = Color("8f879d")
-	_equip_button.disabled = true
-	_discard_button.disabled = true
-
-
-func _format_slot_button_text(slot: int, item: EquipmentInstance) -> String:
-	var slot_name: String = EquipmentSlot.get_display_name(slot).to_upper()
-	if item == null:
-		return "%s\n—" % slot_name
-	return "%s\n%s\nILVL %d" % [slot_name, item.get_display_name(), item.get_item_level()]
-
-
-func _format_inventory_button_text(item: EquipmentInstance) -> String:
-	var rarity_name: String = EquipmentRarity.get_display_name(item.get_rarity()).to_upper()
-	return "%s  •  ILVL %d\n%s" % [rarity_name, item.get_item_level(), item.get_display_name().to_upper()]
-
-
-func _get_equipment_icon(slot: int) -> Texture2D:
-	return EQUIPMENT_ICON_BY_SLOT.get(slot) as Texture2D
-
+# ---------------------------------------------------------------------------
+# Formatting & styling helpers
+# ---------------------------------------------------------------------------
 
 func _format_item_details(item: EquipmentInstance) -> String:
 	var lines: Array[String] = [
-		"%s  •  ITEM LEVEL %d" % [EquipmentSlot.get_display_name(item.get_slot()).to_upper(), item.get_item_level()],
+		"%s  •  物品等级 %d" % [EquipmentSlot.get_display_name(item.get_slot()), item.get_item_level()],
 	]
 	for affix in item.affixes:
 		if affix == null:
@@ -265,64 +872,54 @@ func _format_item_details(item: EquipmentInstance) -> String:
 
 func _format_comparison(comparison: EquipmentComparison, current_item: EquipmentInstance) -> String:
 	if comparison == null:
-		return "COMPARISON  •  NO BASELINE\nThis slot is empty."
-	var current_name: String = current_item.get_display_name() if current_item != null else "EMPTY SLOT"
-	var lines: Array[String] = ["COMPARE  •  %s" % current_name]
+		return "对比  •  当前部位为空"
+	var current_name: String = current_item.get_display_name() if current_item != null else "空部位"
+	var lines: Array[String] = ["对比  •  %s" % current_name]
 	var rows: Array[Dictionary] = comparison.get_stat_rows()
 	if rows.is_empty():
-		lines.append("No stat changes")
+		lines.append("无属性变化")
 	else:
 		for row in rows:
 			lines.append("%s  %s" % [row["display_name"], row["formatted_delta"]])
-	lines.append("POWER  %s" % ("+%.1f" % comparison.score_delta if comparison.score_delta >= 0.0 else "%.1f" % comparison.score_delta))
+	lines.append("强度  %s" % ("+%.1f" % comparison.score_delta if comparison.score_delta >= 0.0 else "%.1f" % comparison.score_delta))
 	return "\n".join(lines)
 
 
-func _clear_grid(grid: GridContainer) -> void:
-	for child in grid.get_children():
-		grid.remove_child(child)
-		child.queue_free()
+func _format_number(value: int) -> String:
+	var text_value: String = str(maxi(value, 0))
+	var formatted: String = ""
+	while text_value.length() > 3:
+		formatted = "," + text_value.substr(text_value.length() - 3, 3) + formatted
+		text_value = text_value.substr(0, text_value.length() - 3)
+	return text_value + formatted
 
 
-func _apply_button_style(button: Button, rarity: int, has_item: bool) -> void:
-	var accent: Color = _get_rarity_color(rarity) if has_item else Color("494252")
-	var normal := _make_button_style(Color("12101a") if has_item else Color("0e0d14"), accent.darkened(0.45), 1)
-	var hover := _make_button_style(Color("1c1720"), accent.lightened(0.1), 2)
-	var pressed := _make_button_style(Color("2b1f12"), Color("e1ae58"), 2)
-	var disabled := _make_button_style(Color("0a0910"), Color("211d28"), 1)
-	button.add_theme_stylebox_override("normal", normal)
-	button.add_theme_stylebox_override("hover", hover)
-	button.add_theme_stylebox_override("pressed", pressed)
-	button.add_theme_stylebox_override("focus", hover)
-	button.add_theme_stylebox_override("disabled", disabled)
-	button.add_theme_color_override("font_hover_color", accent.lightened(0.18))
-	button.add_theme_color_override("font_pressed_color", Color("f4d28b"))
-	button.add_theme_color_override("font_disabled_color", Color("4a4552"))
+func _frame_region_for(rarity: int) -> Rect2:
+	match rarity:
+		EquipmentRarity.UNCOMMON:
+			return REGION_FRAME_GREEN
+		EquipmentRarity.RARE:
+			return REGION_FRAME_BLUE
+		EquipmentRarity.EPIC:
+			return REGION_FRAME_PURPLE
+		_:
+			return REGION_FRAME_BRONZE
 
 
-func _make_button_style(background: Color, border: Color, border_width: int) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_color = border
-	style.border_width_left = border_width
-	style.border_width_top = border_width
-	style.border_width_right = border_width
-	style.border_width_bottom = border_width
-	style.corner_radius_top_left = 3
-	style.corner_radius_top_right = 3
-	style.corner_radius_bottom_right = 3
-	style.corner_radius_bottom_left = 3
-	style.content_margin_left = 8.0
-	style.content_margin_top = 6.0
-	style.content_margin_right = 8.0
-	style.content_margin_bottom = 6.0
-	return style
+func _frame_tint_for(rarity: int) -> Color:
+	match rarity:
+		EquipmentRarity.LEGENDARY:
+			return Color(1.3, 1.05, 0.55)
+		EquipmentRarity.MYTHIC:
+			return Color(1.25, 0.6, 0.95)
+		_:
+			return Color.WHITE
 
 
 func _get_rarity_color(rarity: int) -> Color:
 	match rarity:
 		EquipmentRarity.UNCOMMON:
-			return Color("82d49b")
+			return COLOR_GREEN
 		EquipmentRarity.RARE:
 			return Color("71a9ed")
 		EquipmentRarity.EPIC:
@@ -333,3 +930,44 @@ func _get_rarity_color(rarity: int) -> Color:
 			return Color("f078b2")
 		_:
 			return Color("b9afc6")
+
+
+func _apply_button_style(button: Button, gold: bool) -> void:
+	var accent := Color("745325") if gold else Color("3f3a48")
+	var normal := _make_button_style(Color("241708") if gold else Color("12101a"), accent, 1)
+	var hover := _make_button_style(Color("362412") if gold else Color("1c1720"), accent.lightened(0.25), 2)
+	var pressed := _make_button_style(Color("2b1f12"), Color("e1ae58"), 2)
+	var disabled := _make_button_style(Color("0a0910"), Color("211d28"), 1)
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_stylebox_override("focus", hover)
+	button.add_theme_stylebox_override("disabled", disabled)
+
+
+func _make_button_style(background: Color, border: Color, border_width: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = border
+	style.set_border_width_all(border_width)
+	style.set_corner_radius_all(3)
+	style.content_margin_left = 8.0
+	style.content_margin_top = 6.0
+	style.content_margin_right = 8.0
+	style.content_margin_bottom = 6.0
+	return style
+
+
+func _clear_grid(grid: Control) -> void:
+	if grid == null:
+		return
+	for child in grid.get_children():
+		grid.remove_child(child)
+		child.queue_free()
+
+
+func _atlas(region: Rect2) -> AtlasTexture:
+	var texture := AtlasTexture.new()
+	texture.atlas = HUD_TEXTURE
+	texture.region = region
+	return texture
