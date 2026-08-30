@@ -1,0 +1,278 @@
+class_name DevelopmentPanel
+extends Control
+
+## Developer / QA panel exposing the deterministic UI-testing fixtures
+## (res://tests/fixtures/ui_fixture.gd). Hidden by default; toggled by the
+## DEV button on the combat HUD. All actions operate on the live player's
+## inventory in memory — nothing is persisted to disk.
+
+signal panel_closed
+## Emitted after any action mutates the player's data/inventory, so the HUD
+## can re-sync panels bound to the (possibly replaced) inventory object.
+signal data_changed
+
+const UIFixtureScript = preload("res://tests/fixtures/ui_fixture.gd")
+
+const SLOT_COUNT: int = 7  # EquipmentSlot.WEAPON .. AMULET
+
+const RARITY_ORDER: Array[int] = [
+	EquipmentRarity.COMMON,
+	EquipmentRarity.UNCOMMON,
+	EquipmentRarity.RARE,
+	EquipmentRarity.EPIC,
+	EquipmentRarity.LEGENDARY,
+	EquipmentRarity.MYTHIC,
+]
+
+const COLOR_TEXT := Color("d8cfdf")
+const COLOR_MUTED := Color("8f879d")
+const COLOR_GOLD := Color("e8c465")
+const COLOR_RED := Color("d46a78")
+
+const COLOR_RARITY := {
+	EquipmentRarity.COMMON: Color("b9afc6"),
+	EquipmentRarity.UNCOMMON: Color("82d49b"),
+	EquipmentRarity.RARE: Color("71a9ed"),
+	EquipmentRarity.EPIC: Color("b995ef"),
+	EquipmentRarity.LEGENDARY: Color("e8af4f"),
+	EquipmentRarity.MYTHIC: Color("f078b2"),
+}
+
+var _player: PlayerController
+var _slot_rotation: Dictionary = {}
+var _status_label: Label
+
+
+func _ready() -> void:
+	_slot_rotation.clear()
+	for rarity in RARITY_ORDER:
+		_slot_rotation[rarity] = EquipmentSlot.WEAPON
+	_build_ui()
+
+
+func set_player(player: PlayerController) -> void:
+	_player = player
+
+
+func show_panel() -> void:
+	visible = true
+
+
+func hide_panel() -> void:
+	visible = false
+	panel_closed.emit()
+
+
+func toggle_panel() -> void:
+	if visible:
+		hide_panel()
+	else:
+		show_panel()
+
+
+# ---------------------------------------------------------------------------
+# Actions (wired to UIFixture)
+# ---------------------------------------------------------------------------
+
+## Generates one fresh item of the given rarity at the player's level and
+## drops it straight into the player's inventory. The equipment slot rotates
+## on each click so repeated clicks fill the bag with varied slots.
+func _generate_item(rarity: int) -> void:
+	var player := _get_player()
+	if player == null:
+		_set_status("No player available")
+		return
+	var level: int = player.get_level() if player.has_method("get_level") else 1
+	var slot: int = int(_slot_rotation.get(rarity, EquipmentSlot.WEAPON))
+	_slot_rotation[rarity] = (slot + 1) % SLOT_COUNT
+	var item := UIFixtureScript.create_equipment(rarity, slot, level)
+	if player.add_equipment(item):
+		_set_status("Added  •  %s (lvl %d, %d affix)" % [
+			item.get_display_name(),
+			item.get_item_level(),
+			item.affixes.size(),
+		])
+		data_changed.emit()
+	else:
+		_set_status("Could not add item — inventory full?")
+
+
+func _fill_demo_inventory() -> void:
+	var player := _get_player()
+	if player == null:
+		_set_status("No player available")
+		return
+	var added: int = 0
+	for item in UIFixtureScript.create_rarity_set():
+		if player.add_equipment(item):
+			added += 1
+	_set_status("Added %d demo items (one per rarity)" % added)
+	data_changed.emit()
+
+
+func _apply_demo_character() -> void:
+	var player := _get_player()
+	if player == null:
+		_set_status("No player available")
+		return
+	UIFixtureScript.apply_character_to_player(player)
+	var level: int = player.player_progression.level if player.player_progression != null else 0
+	_set_status("Demo character applied (level %d, %d items)" % [level, player.get_inventory().get_item_count()])
+	data_changed.emit()
+
+
+func _clear_inventory() -> void:
+	var player := _get_player()
+	if player == null:
+		_set_status("No player available")
+		return
+	var inventory: EquipmentInventory = player.get_inventory()
+	var removed: int = 0
+	for item in inventory.get_items():
+		if not item.is_equipped and inventory.remove_item(item):
+			removed += 1
+	_set_status("Removed %d bag item(s)" % removed)
+	data_changed.emit()
+
+
+func _get_player() -> PlayerController:
+	if _player != null and is_instance_valid(_player):
+		return _player
+	return null
+
+
+func _set_status(text: String) -> void:
+	if _status_label != null:
+		_status_label.text = text
+
+
+# ---------------------------------------------------------------------------
+# UI construction
+# ---------------------------------------------------------------------------
+
+func _build_ui() -> void:
+	var backdrop := ColorRect.new()
+	backdrop.color = Color(0.012, 0.01, 0.018, 0.85)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_add_full_rect(backdrop)
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(420, 0)
+	panel.add_theme_stylebox_override("panel", _panel_style())
+	add_child(panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 14)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 14)
+	panel.add_child(margin)
+
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 10)
+	margin.add_child(content)
+
+	content.add_child(_build_header())
+	content.add_child(_section_title("GENERATE ITEM"))
+	content.add_child(_build_rarity_grid())
+	content.add_child(_section_title("FIXTURES"))
+	content.add_child(_build_fixture_actions())
+
+	_status_label = Label.new()
+	_status_label.text = "Ready"
+	_status_label.add_theme_color_override("font_color", COLOR_MUTED)
+	_status_label.add_theme_font_size_override("font_size", 12)
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(_status_label)
+
+
+func _add_full_rect(node: Control) -> void:
+	node.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(node)
+
+
+func _build_header() -> HBoxContainer:
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 8)
+
+	var title := Label.new()
+	title.text = "DEVELOPMENT"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_color_override("font_color", COLOR_GOLD)
+	title.add_theme_font_size_override("font_size", 20)
+	header.add_child(title)
+
+	var close := Button.new()
+	close.text = "✕"
+	close.custom_minimum_size = Vector2(44, 40)
+	close.add_theme_font_size_override("font_size", 16)
+	close.add_theme_color_override("font_color", COLOR_TEXT)
+	close.pressed.connect(hide_panel)
+	header.add_child(close)
+	return header
+
+
+func _build_rarity_grid() -> GridContainer:
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	for rarity in RARITY_ORDER:
+		var color: Color = COLOR_RARITY.get(rarity, COLOR_TEXT)
+		grid.add_child(_make_button(EquipmentRarity.get_display_name(rarity), color, _generate_item.bind(rarity)))
+	return grid
+
+
+func _build_fixture_actions() -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.add_child(_make_button("FILL DEMO INVENTORY", Color("c9bdb4"), _fill_demo_inventory))
+	box.add_child(_make_button("APPLY DEMO CHARACTER", Color("e8af4f"), _apply_demo_character))
+	box.add_child(_make_button("CLEAR BAG", COLOR_RED, _clear_inventory))
+	return box
+
+
+func _section_title(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_color_override("font_color", COLOR_GOLD)
+	label.add_theme_font_size_override("font_size", 13)
+	return label
+
+
+func _make_button(text: String, accent: Color, callback: Callable) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.add_theme_font_size_override("font_size", 14)
+	button.add_theme_color_override("font_color", accent)
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_stylebox_override("normal", _button_style(Color(0.145, 0.125, 0.196), accent.darkened(0.5), 1))
+	button.add_theme_stylebox_override("hover", _button_style(Color(0.231, 0.192, 0.29), accent, 2))
+	button.add_theme_stylebox_override("pressed", _button_style(Color(0.341, 0.259, 0.149), accent.lightened(0.2), 2))
+	button.pressed.connect(callback)
+	return button
+
+
+func _button_style(background: Color, border: Color, border_width: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = border
+	style.set_border_width_all(border_width)
+	style.set_corner_radius_all(6)
+	style.content_margin_left = 10.0
+	style.content_margin_top = 7.0
+	style.content_margin_right = 10.0
+	style.content_margin_bottom = 7.0
+	return style
+
+
+func _panel_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.07, 0.062, 0.10, 0.98)
+	style.border_color = Color("6c5331")
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(8)
+	return style

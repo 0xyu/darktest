@@ -36,11 +36,13 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _auto_stage_button: Button = %AutoStageButton
 @onready var _inventory_button: Button = %InventoryButton
 @onready var _bestiary_button: Button = %BestiaryButton
+@onready var _dev_button: Button = %DevButton
 @onready var _critical_label: Label = %CriticalLabel
 @onready var _state_banner: PanelContainer = %StateBanner
 @onready var _state_label: Label = %StateLabel
 @onready var _inventory_panel: EquipmentInventoryPanel = %InventoryPanel
 @onready var _bestiary_panel: EnemyBestiaryPanel = %EnemyBestiaryPanel
+@onready var _development_panel: DevelopmentPanel = %DevelopmentPanel
 @onready var _move_buttons: Array[Button] = [%MoveUpButton, %MoveLeftButton, %MoveDownButton, %MoveRightButton]
 
 var _critical_time_remaining: float = 0.0
@@ -65,7 +67,10 @@ func _ready() -> void:
 	_auto_stage_button.pressed.connect(func() -> void: auto_stage_toggle_requested.emit())
 	_inventory_button.pressed.connect(_on_inventory_button_pressed)
 	_bestiary_button.pressed.connect(_on_bestiary_button_pressed)
+	_dev_button.pressed.connect(_on_dev_button_pressed)
 	_inventory_panel.set_player(_player)
+	_development_panel.set_player(_player)
+	_development_panel.data_changed.connect(_on_dev_data_changed)
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_refresh()
 
@@ -91,6 +96,17 @@ func _on_inventory_button_pressed() -> void:
 
 func _on_bestiary_button_pressed() -> void:
 	_bestiary_panel.toggle_bestiary()
+
+
+func _on_dev_button_pressed() -> void:
+	_development_panel.toggle_panel()
+
+
+func _on_dev_data_changed() -> void:
+	# The dev panel can replace the player's inventory object (demo character),
+	# which orphans panels still bound to the old object. Re-bind and refresh.
+	_inventory_panel.set_player(_player)
+	_refresh()
 
 
 func _on_move_up_pressed() -> void:

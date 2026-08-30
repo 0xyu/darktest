@@ -770,6 +770,7 @@ func _create_slot_cell(slot: int, cell_size: Vector2) -> InventoryCell:
 func _create_item_cell(item: EquipmentInstance) -> InventoryCell:
 	var cell := InventoryCell.new()
 	cell.custom_minimum_size = Vector2(96, 96)
+	cell.item = item
 	cell.icon = EQUIPMENT_ICON_BY_SLOT.get(item.get_slot()) as Texture2D
 	cell.has_content = true
 	cell.selected = item == _selected_item
@@ -778,7 +779,7 @@ func _create_item_cell(item: EquipmentInstance) -> InventoryCell:
 	cell.corner_text = "%d" % item.get_item_level()
 	cell.corner_color = _get_rarity_color(item.get_rarity())
 	cell.tooltip_text = "%s  •  %s" % [item.get_display_name(), _format_item_details(item)]
-	cell.cell_pressed.connect(_on_item_cell_pressed.bind(item))
+	cell.cell_pressed.connect(_on_item_cell_pressed)
 	return cell
 
 
@@ -787,8 +788,9 @@ func _on_slot_cell_pressed(cell: InventoryCell) -> void:
 		select_item(cell.item)
 
 
-func _on_item_cell_pressed(item: EquipmentInstance) -> void:
-	select_item(item)
+func _on_item_cell_pressed(cell: InventoryCell) -> void:
+	if cell.item != null:
+		select_item(cell.item)
 
 
 func _on_equip_pressed() -> void:

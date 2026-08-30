@@ -215,6 +215,15 @@ After meaningful changes:
 
 For systems that support tests, add focused tests rather than broad end-to-end tests first.
 
+### UI Testing Fixtures
+
+A deterministic fixture system exists for UI testing — see `docs/testing-fixtures.md`.
+Use `UIFixture` (at `res://tests/fixtures/ui_fixture.gd`) to build equipment,
+inventory, and character data instead of hand-crafting it via `game_eval`. In the
+running game, the **DEV** button on the combat HUD opens a development panel that
+generates items/characters straight into the player's inventory. Fixture tests live
+in `res://tests/test_ui_fixture.gd`.
+
 ---
 
 ## Git Rules

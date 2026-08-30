@@ -108,6 +108,20 @@ func test_inventory_is_repeatable() -> void:
 	assert_eq(inventory_a.get_item_count(), inventory_b.get_item_count())
 	assert_eq(inventory_a.get_equipped_items().size(), inventory_b.get_equipped_items().size())
 	assert_gt(inventory_a.get_equipped_items().size(), 0, "demo inventory should have equipped items")
+	# Rarity set (6) + two generic extras must all fit — a duplicate
+	# instance_id would silently drop an item and change the count.
+	var expected_count: int = UIFixtureScript.create_rarity_set().size() + 2
+	assert_eq(inventory_a.get_item_count(), expected_count, "all generated items should be added")
+
+
+func test_generated_items_have_unique_ids() -> void:
+	var inventory := UIFixtureScript.create_empty_inventory()
+	var first := UIFixtureScript.create_equipment(EquipmentRarity.RARE, EquipmentSlot.WEAPON, 10)
+	var second := UIFixtureScript.create_equipment(EquipmentRarity.RARE, EquipmentSlot.WEAPON, 10)
+	assert_ne(first.instance_id, second.instance_id, "repeated generic items need distinct ids")
+	assert_true(inventory.add_item(first), "first generated item should be accepted")
+	assert_true(inventory.add_item(second), "second generated item should be accepted")
+	assert_eq(inventory.get_item_count(), 2)
 
 
 func test_affix_count_matches_rarity() -> void:

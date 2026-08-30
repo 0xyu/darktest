@@ -40,7 +40,7 @@ static func create_equipment(
 	var safe_rarity: int = clampi(rarity, EquipmentRarity.COMMON, EquipmentRarity.MYTHIC)
 	var safe_slot: int = slot if EquipmentSlot.is_valid(slot) else EquipmentSlot.WEAPON
 	var safe_level: int = maxi(item_level, 1)
-	return _create_equipment_named(
+	var item := _create_equipment_named(
 		"fixture_item_%d" % _next_instance_id,
 		safe_rarity,
 		safe_slot,
@@ -48,6 +48,8 @@ static func create_equipment(
 		unique_effect_id,
 		affixes if not affixes.is_empty() else _build_default_affixes(safe_level, safe_rarity)
 	)
+	_next_instance_id += 1
+	return item
 
 
 ## Creates a raw affix with an explicit value. `is_percentage` and
