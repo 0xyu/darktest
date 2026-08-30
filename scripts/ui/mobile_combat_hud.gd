@@ -8,6 +8,7 @@ signal attack_requested
 signal item_requested
 signal end_turn_requested
 signal auto_toggle_requested
+signal auto_stage_toggle_requested
 
 const AUTO_OFF_ICON: Texture2D = preload("res://assets/ui/hud/2_options_off.png")
 const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
@@ -32,6 +33,7 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _item_button: Button = %ItemButton
 @onready var _end_turn_button: Button = %EndTurnButton
 @onready var _auto_button: Button = %AutoButton
+@onready var _auto_stage_button: Button = %AutoStageButton
 @onready var _inventory_button: Button = %InventoryButton
 @onready var _bestiary_button: Button = %BestiaryButton
 @onready var _critical_label: Label = %CriticalLabel
@@ -60,6 +62,7 @@ func _ready() -> void:
 	_item_button.pressed.connect(func() -> void: item_requested.emit())
 	_end_turn_button.pressed.connect(func() -> void: end_turn_requested.emit())
 	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
+	_auto_stage_button.pressed.connect(func() -> void: auto_stage_toggle_requested.emit())
 	_inventory_button.pressed.connect(_on_inventory_button_pressed)
 	_bestiary_button.pressed.connect(_on_bestiary_button_pressed)
 	_inventory_panel.set_player(_player)
@@ -303,6 +306,7 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 		_end_turn_button.text = "END TURN"
 		_end_turn_button.disabled = not player_turn
 	_auto_button.disabled = phase == TurnState.DEFEAT
+	_auto_stage_button.disabled = phase == TurnState.DEFEAT
 	_state_banner.visible = phase == TurnState.VICTORY or phase == TurnState.DEFEAT
 	_state_label.text = "VICTORY" if phase == TurnState.VICTORY else "DEFEAT"
 	_state_label.modulate = Color("89c797") if phase == TurnState.VICTORY else Color("d46a78")
@@ -317,6 +321,14 @@ func set_auto_mode(enabled: bool) -> void:
 	_auto_button.text = "AUTO: ON" if enabled else "AUTO: OFF"
 	_auto_button.icon = AUTO_ON_ICON if enabled else AUTO_OFF_ICON
 	_auto_button.modulate = Color("89c797") if enabled else Color("f0e7d2")
+
+
+func set_auto_stage_mode(enabled: bool) -> void:
+	if _auto_stage_button == null:
+		return
+	_auto_stage_button.text = "AUTO STAGE: ON" if enabled else "AUTO STAGE: OFF"
+	_auto_stage_button.icon = AUTO_ON_ICON if enabled else AUTO_OFF_ICON
+	_auto_stage_button.modulate = Color("89c797") if enabled else Color("f0e7d2")
 
 
 func present_loot(items: Array[EquipmentInstance], new_best_items: Array[EquipmentInstance] = [], source_name: String = "") -> void:

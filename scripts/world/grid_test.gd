@@ -21,11 +21,6 @@ var _defeat_retry_scheduled: bool = false
 
 
 func _ready() -> void:
-	grid.blocked_cells = [
-		Vector2i(4, 1), Vector2i(4, 2), Vector2i(4, 3),
-		Vector2i(8, 4), Vector2i(8, 5), Vector2i(8, 6),
-		Vector2i(2, 6), Vector2i(3, 6), Vector2i(4, 6),
-	]
 	grid.queue_redraw()
 	player.reset_movement_points()
 	player.moved.connect(_on_player_moved)
@@ -57,9 +52,12 @@ func _ready() -> void:
 	hud.item_requested.connect(_on_hud_item_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
 	hud.auto_toggle_requested.connect(_on_hud_auto_toggle_requested)
+	hud.auto_stage_toggle_requested.connect(_on_hud_auto_stage_toggle_requested)
 	auto_combat.attach_systems(player, turn_manager, combat_system, stage_manager, grid)
 	auto_combat.auto_mode_changed.connect(_on_auto_mode_changed)
+	auto_combat.auto_stage_changed.connect(_on_auto_stage_changed)
 	auto_combat.auto_action_taken.connect(_on_auto_action_taken)
+	hud.set_auto_stage_mode(auto_combat.is_auto_stage_enabled())
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_layout_portrait_grid()
 	stage_manager.initialize_stage(1)
@@ -106,9 +104,19 @@ func _on_hud_auto_toggle_requested() -> void:
 	auto_combat.toggle_auto()
 
 
+func _on_hud_auto_stage_toggle_requested() -> void:
+	auto_combat.toggle_auto_stage()
+
+
 func _on_auto_mode_changed(enabled: bool) -> void:
 	hud.set_auto_mode(enabled)
 	_last_move_text = "AUTO MODE %s" % ("ENABLED" if enabled else "DISABLED")
+	queue_redraw()
+
+
+func _on_auto_stage_changed(enabled: bool) -> void:
+	hud.set_auto_stage_mode(enabled)
+	_last_move_text = "AUTO STAGE %s" % ("NEXT STAGE" if enabled else "STAY & REFRESH")
 	queue_redraw()
 
 

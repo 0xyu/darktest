@@ -287,6 +287,18 @@ The player should be able to stop auto mode at any time.
 
 Auto mode must never permanently soft-lock combat.
 
+## 4.1 Auto Stage Toggle
+
+AUTO STAGE controls what AUTO does after a victory:
+
+```text
+AUTO STAGE ON   →  advance to the next stage
+AUTO STAGE OFF  →  stay on the cleared stage and refresh its monsters
+```
+
+The toggle only affects auto combat. In manual mode the player always advances
+with the NEXT STAGE button regardless of the toggle.
+
 ---
 
 # 5. Stage System
@@ -1056,6 +1068,9 @@ Defeat
 ```
 
 The game should allow an MVP-friendly retry flow.
+
+On defeat the player retreats to the previous stage. If AUTO combat was enabled
+before the defeat, it stays enabled and resumes automatically on that stage.
 
 Avoid heavy punishment until the core game loop is proven fun.
 

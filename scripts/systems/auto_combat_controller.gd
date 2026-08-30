@@ -6,6 +6,7 @@ extends Node
 ## next automatic decision is made.
 signal auto_mode_changed(enabled: bool)
 signal auto_action_taken(description: String)
+signal auto_stage_changed(enabled: bool)
 
 @export var player_path: NodePath = NodePath("../Player")
 @export var turn_manager_path: NodePath = NodePath("../TurnManager")
@@ -15,6 +16,10 @@ signal auto_action_taken(description: String)
 @export var use_healing_items: bool = true
 @export_range(0.05, 0.95, 0.05) var healing_item_threshold: float = 0.35
 @export_range(0.01, 2.0, 0.01) var action_delay_seconds: float = 0.05
+
+## When true, AUTO advances to the next stage on victory. When false, AUTO
+## stays on the cleared stage and refreshes its enemies for repeat farming.
+var auto_stage_enabled: bool = true
 
 var _player: PlayerController
 var _turn_manager: TurnManager
@@ -73,6 +78,21 @@ func is_auto_enabled() -> bool:
 
 func stop_auto() -> void:
 	set_auto_enabled(false)
+
+
+func set_auto_stage_enabled(enabled: bool) -> void:
+	if auto_stage_enabled == enabled:
+		return
+	auto_stage_enabled = enabled
+	auto_stage_changed.emit(auto_stage_enabled)
+
+
+func is_auto_stage_enabled() -> bool:
+	return auto_stage_enabled
+
+
+func toggle_auto_stage() -> void:
+	set_auto_stage_enabled(not auto_stage_enabled)
 
 
 func _resolve_dependencies() -> void:
@@ -136,21 +156,27 @@ func _advance_after_victory(token: int) -> void:
 		return
 	if _turn_manager == null or _turn_manager.get_phase() != TurnState.VICTORY:
 		return
-	if _stage_manager == null or not _stage_manager.start_next_stage():
+	if _stage_manager == null:
+		return
+	var stage_started: bool
+	if auto_stage_enabled:
+		stage_started = _stage_manager.start_next_stage()
+	else:
+		stage_started = _stage_manager.initialize_stage(_stage_manager.stage_state.stage_number)
+	if not stage_started:
 		stop_auto()
 		auto_action_taken.emit("AUTO stopped: next stage could not start")
 
 
 func _on_combat_defeat() -> void:
-	if _auto_enabled:
-		stop_auto()
-		auto_action_taken.emit("AUTO stopped: player defeated")
+	# AUTO stays enabled through the defeat retreat so the idle loop resumes
+	# automatically on the previous stage.
+	pass
 
 
 func _on_player_defeated() -> void:
-	if _auto_enabled:
-		stop_auto()
-		auto_action_taken.emit("AUTO stopped: player defeated")
+	# Fires before combat_defeat from handle_defeat(); AUTO stays enabled.
+	pass
 
 
 func _schedule_decision() -> void:
