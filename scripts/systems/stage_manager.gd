@@ -16,6 +16,9 @@ signal stage_generation_failed(stage_number: int, reason: String)
 @export var level_manager_path: NodePath = NodePath("../LevelManager")
 @export var enemy_scene: PackedScene
 @export_range(1, 999999, 1) var starting_stage: int = 1
+## Random per-spawn stat variance around the scaled base values.
+## 0.15 means stats may vary by up to +/-15 percent.
+@export_range(0.0, 1.0, 0.01) var enemy_stat_variance: float = 0.15
 
 var stage_state: StageState = StageState.new()
 var current_definition: StageDefinition
@@ -207,8 +210,25 @@ func _scale_enemy_runtime(enemy: EnemyController, stage_number: int, entry: Stag
 	scaled_stats.max_hp = _multiply_stat(scaled_stats.max_hp, difficulty_multiplier * hp_multiplier)
 	scaled_stats.attack = _multiply_stat(scaled_stats.attack, difficulty_multiplier * attack_multiplier)
 	scaled_stats.defense = _multiply_stat(scaled_stats.defense, difficulty_multiplier * defense_multiplier)
+	_apply_stat_variance(scaled_stats)
 	scaled_stats.current_hp = scaled_stats.max_hp
 	enemy.initialize_runtime_from_stats(scaled_stats)
+
+
+func _apply_stat_variance(stats: EnemyStats) -> void:
+	if enemy_stat_variance <= 0.0:
+		return
+	stats.max_hp = _apply_variance_to_value(stats.max_hp)
+	stats.attack = _apply_variance_to_value(stats.attack)
+	stats.defense = _apply_variance_to_value(stats.defense)
+
+
+func _apply_variance_to_value(value: int) -> int:
+	if value <= 0:
+		return value
+	var variance: float = clampf(enemy_stat_variance, 0.0, 1.0)
+	var multiplier: float = 1.0 + _random_number_generator.randf_range(-variance, variance)
+	return maxi(roundi(float(value) * multiplier), 1)
 
 
 func _multiply_stat(value: int, multiplier: float) -> int:

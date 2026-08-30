@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://txxvjvnvrl5h"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_vjwml"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_6fwhq"]
+
+[sub_resource type="Resource" id="Resource_kimrk"]
+script = ExtResource("1_vjwml")
+level = 8
+max_hp = 219
+attack = 28
+defense = 1
+movement_points = 2
+experience_reward = 159
+gold_reward = 46
+
+[resource]
+script = ExtResource("2_6fwhq")
+id = &"enemy_atlas_16_02"
+name = "Withered Fiend"
+base_stats = SubResource("Resource_kimrk")
+character_sprite_id = &"character_atlas_16_02"
+description = "A wretched creature drawn to the player by the scent of blood."

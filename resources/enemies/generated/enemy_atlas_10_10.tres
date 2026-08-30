@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://c5jpk64ugcogq"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_8nkh0"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_1llgf"]
+
+[sub_resource type="Resource" id="Resource_i138j"]
+script = ExtResource("1_8nkh0")
+level = 10
+max_hp = 225
+attack = 20
+defense = 8
+experience_reward = 192
+gold_reward = 43
+
+[resource]
+script = ExtResource("2_1llgf")
+id = &"enemy_atlas_10_10"
+name = "Grim Fiend"
+base_stats = SubResource("Resource_i138j")
+character_sprite_id = &"character_atlas_10_10"
+description = "It crawls from the rift, clawing at the living."

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://fdc0k6j87cet"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_jhccy"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_yay2t"]
+
+[sub_resource type="Resource" id="Resource_gtcff"]
+script = ExtResource("1_jhccy")
+level = 3
+max_hp = 114
+attack = 24
+defense = 4
+movement_points = 2
+experience_reward = 73
+gold_reward = 39
+
+[resource]
+script = ExtResource("2_yay2t")
+id = &"enemy_atlas_17_19"
+name = "Pale Fiend"
+base_stats = SubResource("Resource_gtcff")
+character_sprite_id = &"character_atlas_17_19"
+description = "A wretched creature drawn to the player by the scent of blood."

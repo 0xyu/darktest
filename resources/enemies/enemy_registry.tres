@@ -1,0 +1,143 @@
+[gd_resource type="Resource" script_class="Registry" format=3 uid="uid://n2oynqns6qvy"]
+
+[ext_resource type="Script" uid="uid://dqtv77mng5dyh" path="res://addons/yard/registry.gd" id="1_dykom"]
+
+[resource]
+script = ExtResource("1_dykom")
+_version = 2
+_scan_rulesets = Array[Dictionary]([{
+&"allowed_file_extensions": Array[String]([]),
+&"class_restrictions": Array[StringName]([&"EnemyData"]),
+&"recursive_scan": true,
+&"scan_directories": Array[String](["res://resources/enemies/generated"]),
+&"scan_regex_exclude": "",
+&"scan_regex_include": ""
+}])
+_uids_to_string_ids = Dictionary[StringName, StringName]({
+&"uid://32gvygjg5340": &"enemy_atlas_06_19",
+&"uid://5m1wwsp8mcba": &"enemy_atlas_08_02",
+&"uid://64ds3wl76m7j": &"enemy_atlas_09_08",
+&"uid://7tr4g1ecgw12": &"enemy_atlas_01_09",
+&"uid://ba1iqdi74hsht": &"enemy_atlas_13_18",
+&"uid://bkn1bld3vad4i": &"enemy_atlas_06_10",
+&"uid://blmvix0d7simm": &"enemy_atlas_08_13",
+&"uid://bn4gj300evrna": &"enemy_atlas_03_11",
+&"uid://bovm1tcouuymu": &"enemy_atlas_14_16",
+&"uid://bwbwxxm0bertc": &"enemy_atlas_11_09",
+&"uid://c2pwvvdhqqspi": &"enemy_atlas_03_04",
+&"uid://c4vl0fc8ocm1d": &"enemy_atlas_11_02",
+&"uid://c5jpk64ugcogq": &"enemy_atlas_10_10",
+&"uid://ck3cxisy82v71": &"enemy_atlas_01_14",
+&"uid://clurewg3b1f4x": &"enemy_atlas_17_17",
+&"uid://d0oc4p6ifkko6": &"enemy_atlas_01_07",
+&"uid://d1st74rxuudhi": &"enemy_atlas_09_19",
+&"uid://d3rbi3rgl2ep": &"enemy_atlas_08_01",
+&"uid://dud04dh73pet": &"enemy_atlas_04_13",
+&"uid://fdc0k6j87cet": &"enemy_atlas_17_19",
+&"uid://tgtmnqii3jdb": &"enemy_atlas_15_04",
+&"uid://txxvjvnvrl5h": &"enemy_atlas_16_02",
+&"uid://whmfo2tqand1": &"enemy_atlas_12_19",
+&"uid://wqtq0ijr26fu": &"enemy_atlas_17_07"
+})
+_string_ids_to_uids = Dictionary[StringName, StringName]({
+&"enemy_atlas_01_07": &"uid://d0oc4p6ifkko6",
+&"enemy_atlas_01_09": &"uid://7tr4g1ecgw12",
+&"enemy_atlas_01_14": &"uid://ck3cxisy82v71",
+&"enemy_atlas_03_04": &"uid://c2pwvvdhqqspi",
+&"enemy_atlas_03_11": &"uid://bn4gj300evrna",
+&"enemy_atlas_04_13": &"uid://dud04dh73pet",
+&"enemy_atlas_06_10": &"uid://bkn1bld3vad4i",
+&"enemy_atlas_06_19": &"uid://32gvygjg5340",
+&"enemy_atlas_08_01": &"uid://d3rbi3rgl2ep",
+&"enemy_atlas_08_02": &"uid://5m1wwsp8mcba",
+&"enemy_atlas_08_13": &"uid://blmvix0d7simm",
+&"enemy_atlas_09_08": &"uid://64ds3wl76m7j",
+&"enemy_atlas_09_19": &"uid://d1st74rxuudhi",
+&"enemy_atlas_10_10": &"uid://c5jpk64ugcogq",
+&"enemy_atlas_11_02": &"uid://c4vl0fc8ocm1d",
+&"enemy_atlas_11_09": &"uid://bwbwxxm0bertc",
+&"enemy_atlas_12_19": &"uid://whmfo2tqand1",
+&"enemy_atlas_13_18": &"uid://ba1iqdi74hsht",
+&"enemy_atlas_14_16": &"uid://bovm1tcouuymu",
+&"enemy_atlas_15_04": &"uid://tgtmnqii3jdb",
+&"enemy_atlas_16_02": &"uid://txxvjvnvrl5h",
+&"enemy_atlas_17_07": &"uid://wqtq0ijr26fu",
+&"enemy_atlas_17_17": &"uid://clurewg3b1f4x",
+&"enemy_atlas_17_19": &"uid://fdc0k6j87cet"
+})
+_property_index = Dictionary[StringName, Dictionary]({
+&"base_stats.level": {
+1: {
+&"enemy_atlas_01_14": true,
+&"enemy_atlas_06_10": true,
+&"enemy_atlas_14_16": true,
+&"enemy_atlas_17_07": true
+},
+2: {
+&"enemy_atlas_12_19": true
+},
+3: {
+&"enemy_atlas_03_11": true,
+&"enemy_atlas_17_19": true
+},
+4: {
+&"enemy_atlas_08_02": true,
+&"enemy_atlas_09_19": true,
+&"enemy_atlas_17_17": true
+},
+5: {
+&"enemy_atlas_01_09": true,
+&"enemy_atlas_11_09": true,
+&"enemy_atlas_13_18": true
+},
+7: {
+&"enemy_atlas_01_07": true
+},
+8: {
+&"enemy_atlas_03_04": true,
+&"enemy_atlas_04_13": true,
+&"enemy_atlas_16_02": true
+},
+9: {
+&"enemy_atlas_06_19": true,
+&"enemy_atlas_15_04": true
+},
+10: {
+&"enemy_atlas_08_13": true,
+&"enemy_atlas_09_08": true,
+&"enemy_atlas_10_10": true
+},
+11: {
+&"enemy_atlas_08_01": true,
+&"enemy_atlas_11_02": true
+}
+},
+&"enemy_type": {
+0: {
+&"enemy_atlas_01_07": true,
+&"enemy_atlas_01_09": true,
+&"enemy_atlas_01_14": true,
+&"enemy_atlas_03_04": true,
+&"enemy_atlas_03_11": true,
+&"enemy_atlas_04_13": true,
+&"enemy_atlas_06_10": true,
+&"enemy_atlas_06_19": true,
+&"enemy_atlas_08_01": true,
+&"enemy_atlas_08_02": true,
+&"enemy_atlas_08_13": true,
+&"enemy_atlas_09_08": true,
+&"enemy_atlas_09_19": true,
+&"enemy_atlas_10_10": true,
+&"enemy_atlas_11_02": true,
+&"enemy_atlas_11_09": true,
+&"enemy_atlas_12_19": true,
+&"enemy_atlas_13_18": true,
+&"enemy_atlas_14_16": true,
+&"enemy_atlas_15_04": true,
+&"enemy_atlas_16_02": true,
+&"enemy_atlas_17_07": true,
+&"enemy_atlas_17_17": true,
+&"enemy_atlas_17_19": true
+}
+}
+})

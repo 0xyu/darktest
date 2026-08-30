@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://scripts/systems/auto_combat_controller.gd" id="12_auto"]
 [ext_resource type="Script" path="res://scripts/systems/level_manager.gd" id="13_level_manager"]
 [ext_resource type="Script" path="res://scripts/systems/level_provider.gd" id="14_level_provider"]
+[ext_resource type="Resource" path="res://resources/enemies/enemy_registry.tres" id="15_enemy_registry"]
 
 [node name="GridTest" type="Node2D"]
 script = ExtResource("1_test")
@@ -40,6 +41,7 @@ script = ExtResource("13_level_manager")
 
 [node name="LevelProvider" type="Node" parent="LevelManager"]
 script = ExtResource("14_level_provider")
+enemy_registry = ExtResource("15_enemy_registry")
 
 [node name="StageManager" type="Node" parent="."]
 script = ExtResource("7_stage")

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://bovm1tcouuymu"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_wrht5"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_fk02q"]
+
+[sub_resource type="Resource" id="Resource_agbj2"]
+script = ExtResource("1_wrht5")
+max_hp = 83
+attack = 24
+defense = 1
+movement_points = 2
+gold_reward = 40
+
+[resource]
+script = ExtResource("2_fk02q")
+id = &"enemy_atlas_14_16"
+name = "Rotting Fiend"
+base_stats = SubResource("Resource_agbj2")
+character_sprite_id = &"character_atlas_14_16"
+description = "A wretched creature drawn to the player by the scent of blood."

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://bn4gj300evrna"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_l0ph8"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_b4qoy"]
+
+[sub_resource type="Resource" id="Resource_x4l7t"]
+script = ExtResource("1_l0ph8")
+level = 3
+max_hp = 136
+attack = 28
+defense = 1
+movement_points = 2
+experience_reward = 74
+gold_reward = 48
+
+[resource]
+script = ExtResource("2_b4qoy")
+id = &"enemy_atlas_03_11"
+name = "Dread Brute"
+base_stats = SubResource("Resource_x4l7t")
+character_sprite_id = &"character_atlas_03_11"
+description = "Something once mortal, now hollowed out by the dark."

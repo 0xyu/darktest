@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://ba1iqdi74hsht"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_r1clm"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_ve7n4"]
+
+[sub_resource type="Resource" id="Resource_66eux"]
+script = ExtResource("1_r1clm")
+level = 5
+max_hp = 149
+attack = 26
+defense = 4
+movement_points = 2
+experience_reward = 106
+gold_reward = 32
+
+[resource]
+script = ExtResource("2_ve7n4")
+id = &"enemy_atlas_13_18"
+name = "Foul Fiend"
+base_stats = SubResource("Resource_66eux")
+character_sprite_id = &"character_atlas_13_18"
+description = "A minor horror of the deeper stages."

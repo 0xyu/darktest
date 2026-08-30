@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://c2pwvvdhqqspi"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_g2c3u"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_26fvj"]
+
+[sub_resource type="Resource" id="Resource_a1bhk"]
+script = ExtResource("1_g2c3u")
+level = 8
+max_hp = 221
+attack = 16
+defense = 6
+experience_reward = 154
+gold_reward = 30
+
+[resource]
+script = ExtResource("2_26fvj")
+id = &"enemy_atlas_03_04"
+name = "Withered Fiend"
+base_stats = SubResource("Resource_a1bhk")
+character_sprite_id = &"character_atlas_03_04"
+description = "Twisted by the curse, it knows only hunger and hate."

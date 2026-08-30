@@ -21,6 +21,9 @@ const DEFAULT_FIXED_LEVEL_PATHS: Array[String] = [
 @export var fixed_level_configs: Array[LevelConfig] = []
 @export var templates: Array[LevelTemplate] = []
 @export var enemy_pool: Array[EnemyData] = []
+## Optional YARD registry used as the random enemy pool. Overrides enemy_pool
+## when assigned; falls back to enemy_pool / TrainingEnemy when absent.
+@export var enemy_registry: Registry
 @export var mini_boss_definitions: Array[MiniBossDefinition] = []
 @export_range(1, 999, 1) var base_enemy_count: int = 1
 @export_range(1, 999, 1) var enemy_count_growth_interval: int = 3
@@ -176,6 +179,9 @@ func _build_template_entries(template: LevelTemplate, level_id: int, rng: Random
 
 
 func _get_enemy_pool() -> Array[EnemyData]:
+	var registry_pool := _get_enemy_pool_from_registry()
+	if not registry_pool.is_empty():
+		return registry_pool
 	if not enemy_pool.is_empty():
 		return enemy_pool
 	var fallback := load(DEFAULT_ENEMY_DATA_PATH) as EnemyData
@@ -183,6 +189,21 @@ func _get_enemy_pool() -> Array[EnemyData]:
 	if fallback != null:
 		fallback_pool.append(fallback)
 	return fallback_pool
+
+
+## Loads only normal-tier entries from the assigned YARD registry so that
+## boss/special entries in the same registry never spawn as random enemies.
+func _get_enemy_pool_from_registry() -> Array[EnemyData]:
+	if enemy_registry == null or enemy_registry.is_empty():
+		return []
+	if not enemy_registry.is_property_indexed(&"enemy_type"):
+		return []
+	var pool: Array[EnemyData] = []
+	for string_id in enemy_registry.filter_by_value(&"enemy_type", EnemyType.NORMAL):
+		var enemy := enemy_registry.load_entry(string_id) as EnemyData
+		if enemy != null:
+			pool.append(enemy)
+	return pool
 
 
 func _pick_mini_boss_definition(rng: RandomNumberGenerator) -> MiniBossDefinition:

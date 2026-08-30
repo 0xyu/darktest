@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://c4vl0fc8ocm1d"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_4tryg"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_iinfp"]
+
+[sub_resource type="Resource" id="Resource_dneqc"]
+script = ExtResource("1_4tryg")
+level = 11
+max_hp = 125
+attack = 27
+defense = 7
+movement_points = 2
+experience_reward = 217
+gold_reward = 69
+
+[resource]
+script = ExtResource("2_iinfp")
+id = &"enemy_atlas_11_02"
+name = "Cursed Wretch"
+base_stats = SubResource("Resource_dneqc")
+character_sprite_id = &"character_atlas_11_02"
+description = "Something once mortal, now hollowed out by the dark."

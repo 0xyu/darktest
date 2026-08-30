@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://ck3cxisy82v71"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_5fviw"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_7imwu"]
+
+[sub_resource type="Resource" id="Resource_gst6h"]
+script = ExtResource("1_5fviw")
+max_hp = 59
+attack = 18
+defense = 6
+movement_points = 2
+experience_reward = 30
+gold_reward = 15
+
+[resource]
+script = ExtResource("2_7imwu")
+id = &"enemy_atlas_01_14"
+name = "Dread Shade"
+base_stats = SubResource("Resource_gst6h")
+character_sprite_id = &"character_atlas_01_14"
+description = "A wretched creature drawn to the player by the scent of blood."

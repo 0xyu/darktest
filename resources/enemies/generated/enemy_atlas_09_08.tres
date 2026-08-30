@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://64ds3wl76m7j"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_v54cm"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_lo2al"]
+
+[sub_resource type="Resource" id="Resource_4mwv5"]
+script = ExtResource("1_v54cm")
+level = 10
+max_hp = 185
+attack = 23
+movement_points = 2
+experience_reward = 199
+gold_reward = 59
+
+[resource]
+script = ExtResource("2_lo2al")
+id = &"enemy_atlas_09_08"
+name = "Dread Stalker"
+base_stats = SubResource("Resource_4mwv5")
+character_sprite_id = &"character_atlas_09_08"
+description = "Something once mortal, now hollowed out by the dark."

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://tgtmnqii3jdb"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_uvk5n"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_jxovf"]
+
+[sub_resource type="Resource" id="Resource_3drdt"]
+script = ExtResource("1_uvk5n")
+level = 9
+max_hp = 189
+attack = 27
+defense = 4
+movement_points = 2
+experience_reward = 173
+gold_reward = 49
+
+[resource]
+script = ExtResource("2_jxovf")
+id = &"enemy_atlas_15_04"
+name = "Hollow Shade"
+base_stats = SubResource("Resource_3drdt")
+character_sprite_id = &"character_atlas_15_04"
+description = "It crawls from the rift, clawing at the living."

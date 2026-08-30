@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://blmvix0d7simm"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_dkyks"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_g23go"]
+
+[sub_resource type="Resource" id="Resource_b7gt4"]
+script = ExtResource("1_dkyks")
+level = 10
+max_hp = 171
+attack = 30
+defense = 4
+movement_points = 2
+experience_reward = 193
+gold_reward = 53
+
+[resource]
+script = ExtResource("2_g23go")
+id = &"enemy_atlas_08_13"
+name = "Blighted Brute"
+base_stats = SubResource("Resource_b7gt4")
+character_sprite_id = &"character_atlas_08_13"
+description = "It crawls from the rift, clawing at the living."

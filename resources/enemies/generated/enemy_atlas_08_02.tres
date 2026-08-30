@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://5m1wwsp8mcba"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_5bnv5"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_18n3i"]
+
+[sub_resource type="Resource" id="Resource_xym8o"]
+script = ExtResource("1_5bnv5")
+level = 4
+max_hp = 177
+attack = 17
+defense = 4
+movement_points = 2
+experience_reward = 78
+gold_reward = 50
+
+[resource]
+script = ExtResource("2_18n3i")
+id = &"enemy_atlas_08_02"
+name = "Withered Wretch"
+base_stats = SubResource("Resource_xym8o")
+character_sprite_id = &"character_atlas_08_02"
+description = "Twisted by the curse, it knows only hunger and hate."
