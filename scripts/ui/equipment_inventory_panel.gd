@@ -273,27 +273,18 @@ func _build_ui() -> void:
 	content.add_child(_build_header())
 	content.add_child(_build_tab_row())
 
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	content.add_child(scroll)
-
-	var scroll_content := VBoxContainer.new()
-	scroll_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll_content.add_theme_constant_override("separation", 8)
-	scroll.add_child(scroll_content)
-
+	# Character info and equipment stay fixed; only the item list scrolls.
 	_character_section = _build_character_section()
-	scroll_content.add_child(_character_section)
+	content.add_child(_character_section)
 
 	_equipment_section = _build_equipment_section()
-	scroll_content.add_child(_equipment_section)
+	content.add_child(_equipment_section)
 
 	_inventory_section = _build_inventory_section()
-	scroll_content.add_child(_inventory_section)
+	content.add_child(_inventory_section)
 
 	_details_section = _build_details_section()
-	scroll_content.add_child(_details_section)
+	content.add_child(_details_section)
 
 
 func _add_full_rect(node: Control) -> void:
@@ -595,6 +586,7 @@ func _build_equipment_section() -> Control:
 
 func _build_inventory_section() -> Control:
 	var section := VBoxContainer.new()
+	section.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	section.add_theme_constant_override("separation", 6)
 
 	var header := HBoxContainer.new()
@@ -617,12 +609,18 @@ func _build_inventory_section() -> Control:
 	_inventory_count_label.add_theme_font_size_override("font_size", 14)
 	header.add_child(_inventory_count_label)
 
+	# Only the item list scrolls; the character/equipment/details stay fixed.
+	var item_scroll := ScrollContainer.new()
+	item_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	item_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	section.add_child(item_scroll)
+
 	_inventory_grid = GridContainer.new()
 	_inventory_grid.columns = 6
 	_inventory_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_inventory_grid.add_theme_constant_override("h_separation", 8)
 	_inventory_grid.add_theme_constant_override("v_separation", 8)
-	section.add_child(_inventory_grid)
+	item_scroll.add_child(_inventory_grid)
 	return section
 
 
