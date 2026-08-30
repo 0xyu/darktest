@@ -73,6 +73,29 @@ static func create_affix_scaled(
 	return _create_scaled_affix(stat_id, maxi(item_level, 1), clampi(rarity, EquipmentRarity.COMMON, EquipmentRarity.MYTHIC))
 
 
+## A deterministic consumable potion. Slot stays invalid (-1) so it can never
+## be equipped or matched by slot filtering.
+static func create_potion(item_level: int = 1, rarity: int = EquipmentRarity.COMMON) -> EquipmentInstance:
+	var safe_level: int = maxi(item_level, 1)
+	var safe_rarity: int = clampi(rarity, EquipmentRarity.COMMON, EquipmentRarity.MYTHIC)
+	var definition := EquipmentDefinition.new()
+	definition.definition_id = StringName("fixture_potion_%d" % _next_instance_id)
+	definition.slot = -1
+	definition.is_consumable = true
+	definition.heal_ratio = 0.35
+	definition.rarity = safe_rarity
+	definition.item_level = safe_level
+	definition.display_name = "生命药水"
+	definition.description = "回复最大生命的 35%。"
+
+	var instance := EquipmentInstance.new()
+	instance.instance_id = StringName("fixture_potion_%d" % _next_instance_id)
+	instance.definition = definition
+	instance.affixes = []
+	_next_instance_id += 1
+	return instance
+
+
 ## A curated one-of-every-rarity set with fixed instance ids: Common, Uncommon,
 ## Rare, Epic, Legendary (with unique effect), and Mythic (with unique effect).
 static func create_rarity_set() -> Array[EquipmentInstance]:
@@ -107,6 +130,7 @@ static func create_inventory() -> EquipmentInventory:
 		inventory.add_item(item)
 	inventory.add_item(create_equipment(EquipmentRarity.RARE, EquipmentSlot.WEAPON, 12))
 	inventory.add_item(create_equipment(EquipmentRarity.EPIC, EquipmentSlot.AMULET, 22))
+	inventory.add_item(create_potion(1, EquipmentRarity.COMMON))
 	var legendary: EquipmentInstance = _find_item_by_rarity(rarity_set, EquipmentRarity.LEGENDARY)
 	var mythic: EquipmentInstance = _find_item_by_rarity(rarity_set, EquipmentRarity.MYTHIC)
 	if legendary != null:

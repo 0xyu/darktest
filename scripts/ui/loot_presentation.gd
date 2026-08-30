@@ -160,6 +160,14 @@ func _apply_panel_style(rarity: int, rarity_color: Color) -> void:
 
 
 func _format_item_details(item: EquipmentInstance) -> String:
+	if item.is_consumable():
+		var consumable_lines: Array[String] = [
+			"CONSUMABLE  •  ITEM LEVEL %d" % item.get_item_level(),
+			"HEAL %.0f%% MAX HP" % (item.get_heal_ratio() * 100.0),
+		]
+		if item.definition != null and not item.definition.description.is_empty():
+			consumable_lines.append(item.definition.description)
+		return "\n".join(consumable_lines)
 	var lines: Array[String] = [
 		"%s  •  ITEM LEVEL %d" % [EquipmentSlot.get_display_name(item.get_slot()).to_upper(), item.get_item_level()],
 	]

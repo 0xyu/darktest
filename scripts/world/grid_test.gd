@@ -172,6 +172,7 @@ func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
 	if stage_state.is_special_encounter:
 		encounter_label = SpecialEncounterTypeResource.get_display_name(stage_state.special_encounter_type).to_upper()
 	_last_move_text = "%s // %s started" % [stage_manager.current_definition.display_name, encounter_label]
+	hud.log_event("log.stage_start", {"stage": stage_state.stage_number})
 	queue_redraw()
 
 
@@ -183,6 +184,7 @@ func _on_enemy_spawned(enemy: Node) -> void:
 	_register_enemy(enemy_controller)
 	turn_manager.add_enemy(enemy_controller)
 	_last_move_text = "%s summoned" % enemy_controller.get_display_name()
+	hud.log_event("log.enemy_summoned", {"name": enemy_controller.get_display_name()})
 	queue_redraw()
 
 
@@ -198,6 +200,7 @@ func _register_enemy(enemy: EnemyController) -> void:
 
 func _on_stage_completed(stage_state: StageState) -> void:
 	_last_move_text = "STAGE %d CLEARED — SPACE FOR NEXT STAGE" % stage_state.stage_number
+	hud.log_event("log.stage_clear", {"stage": stage_state.stage_number})
 	turn_manager.set_victory()
 	queue_redraw()
 
@@ -239,11 +242,13 @@ func _on_experience_awarded(amount: int, _current_experience: int, _required_exp
 
 func _on_level_up(new_level: int, _max_hp_gain: int, _attack_gain: int, _defense_gain: int) -> void:
 	_last_move_text = "LEVEL UP — Player reached level %d" % new_level
+	hud.log_event("log.level_up", {"level": new_level})
 	queue_redraw()
 
 
 func _on_gold_awarded(amount: int, _current_gold: int, source_name: String) -> void:
 	_last_move_text = "Gained %d Gold%s" % [amount, " from %s" % source_name if not source_name.is_empty() else ""]
+	hud.log_event("log.gold_gained", {"amount": amount})
 	queue_redraw()
 
 
@@ -263,6 +268,8 @@ func _on_loot_dropped(_enemy: Node, loot: Array[EquipmentInstance]) -> void:
 		_last_move_text = "Loot added: %s (%d/%d)" % [", ".join(loot_names), player.get_inventory().get_item_count(), player.get_inventory().capacity]
 	else:
 		_last_move_text = "Loot added %d/%d — inventory full" % [added_count, loot.size()]
+	if not loot_names.is_empty():
+		hud.log_event("log.loot_found", {"items": ", ".join(loot_names)})
 	hud.present_loot(loot, new_best_items, str(_enemy.get("enemy_id")) if _enemy != null else "")
 	queue_redraw()
 
@@ -275,12 +282,19 @@ func _on_equipment_effect_triggered(_effect_id: StringName, description: String)
 func _on_actor_died(actor: Node) -> void:
 	if actor == player:
 		_last_move_text = "PLAYER DEFEATED"
+		hud.log_event("log.player_defeated")
 		turn_manager.set_defeat()
 		if not _defeat_retry_scheduled:
 			_defeat_retry_scheduled = true
 			call_deferred("_retry_previous_stage_after_defeat")
 	else:
+		var enemy := actor as EnemyController
 		_last_move_text = "Enemy defeated"
+		if enemy != null:
+			hud.log_event("log.kill_exp", {
+				"name": enemy.get_display_name(),
+				"amount": experience_system.calculate_enemy_experience(enemy),
+			})
 		_select_next_target()
 	queue_redraw()
 

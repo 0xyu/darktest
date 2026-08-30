@@ -12,6 +12,8 @@ const HUD_TEXTURE: Texture2D = preload("res://assets/ui/hud-sprite.jpg")
 const PORTRAIT_TEXTURE: Texture2D = preload("res://assets/characters/portraits/Avatar_ref.png")
 const KNIGHT_TEXTURE: Texture2D = preload("res://assets/ui/inventory/Knight_equipment.png")
 
+const ItemPopupScript = preload("res://scripts/ui/item_popup.gd")
+
 const EQUIPMENT_ICON_BY_SLOT: Dictionary = {
 	EquipmentSlot.WEAPON: preload("res://assets/items/icons/Icon_Eq_Weapon.png"),
 	EquipmentSlot.HELMET: preload("res://assets/items/icons/Icon_Eq_Head.png"),
@@ -105,6 +107,8 @@ class InventoryCell extends Control:
 			var icon_rect := Rect2((size - icon_size) * 0.5, icon_size)
 			var icon_modulate := Color.WHITE if has_content else Color(1, 1, 1, 0.4)
 			draw_texture_rect(icon, icon_rect, false, icon_modulate)
+		elif item != null and item.is_consumable():
+			_draw_potion(size)
 		if corner_text != "":
 			var font := get_theme_font(&"font", &"Label")
 			draw_string(font, Vector2(size.x - 32, size.y - 8), corner_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, corner_color)
@@ -112,6 +116,15 @@ class InventoryCell extends Control:
 			draw_rect(rect, Color("f2c15e"), false, 2.0)
 		if filter_active:
 			draw_rect(Rect2(1, 1, size.x - 2, size.y - 2), Color("6cc6f0"), false, 2.0)
+
+	## Simple potion bottle drawn for consumables (which have no slot icon).
+	func _draw_potion(cell_size: Vector2) -> void:
+		var body_rect := Rect2(cell_size.x * 0.28, cell_size.y * 0.32, cell_size.x * 0.44, cell_size.y * 0.46)
+		var neck_rect := Rect2(cell_size.x * 0.42, cell_size.y * 0.18, cell_size.x * 0.16, cell_size.y * 0.16)
+		draw_rect(neck_rect, Color(1, 1, 1, 0.28))
+		draw_rect(body_rect, Color("d4697f"))
+		var highlight := Rect2(body_rect.position + Vector2(5, 5), Vector2(body_rect.size.x * 0.22, body_rect.size.y * 0.26))
+		draw_rect(highlight, Color(1, 1, 1, 0.4))
 
 
 var _player: PlayerController
@@ -141,7 +154,6 @@ var _inventory_grid: GridContainer
 var _inventory_count_label: Label
 var _filter_row: Control
 var _filter_label: Label
-var _details_section: Control
 
 # Character stats
 var _attack_value_label: Label
@@ -151,12 +163,8 @@ var _detailed_stats_box: Control
 var _detailed_stats_labels: Dictionary = {}
 var _details_toggle: TextureButton
 
-# Item details
-var _item_name_label: Label
-var _item_details_label: Label
-var _comparison_label: Label
-var _equip_button: Button
-var _discard_button: Button
+# Item popup (modal dialog shown on item click)
+var _item_popup: Control
 
 
 func _ready() -> void:
@@ -293,8 +301,10 @@ func _build_ui() -> void:
 	_inventory_section = _build_inventory_section()
 	content.add_child(_inventory_section)
 
-	_details_section = _build_details_section()
-	content.add_child(_details_section)
+	# Modal item dialog sits on top of everything; hidden until an item click.
+	_item_popup = ItemPopupScript.new()
+	_item_popup.visible = false
+	add_child(_item_popup)
 
 
 func _add_full_rect(node: Control) -> void:
@@ -657,76 +667,6 @@ func _build_filter_row() -> HBoxContainer:
 	return row
 
 
-func _build_details_section() -> Control:
-	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color("120e18", 0.98)
-	style.border_color = Color("56401f", 0.9)
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(4)
-	style.content_margin_left = 12
-	style.content_margin_top = 10
-	style.content_margin_right = 12
-	style.content_margin_bottom = 10
-	panel.add_theme_stylebox_override("panel", style)
-
-	var details := VBoxContainer.new()
-	details.add_theme_constant_override("separation", 5)
-	panel.add_child(details)
-
-	_item_name_label = Label.new()
-	_item_name_label.text = "选择一件物品"
-	_item_name_label.add_theme_color_override("font_color", COLOR_GOLD)
-	_item_name_label.add_theme_font_size_override("font_size", 18)
-	_item_name_label.clip_text = true
-	details.add_child(_item_name_label)
-
-	_item_details_label = Label.new()
-	_item_details_label.text = "点击背包或装备部位以查看属性。"
-	_item_details_label.add_theme_color_override("font_color", COLOR_TEXT)
-	_item_details_label.add_theme_font_size_override("font_size", 12)
-	_item_details_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	details.add_child(_item_details_label)
-
-	_comparison_label = Label.new()
-	_comparison_label.text = ""
-	_comparison_label.add_theme_color_override("font_color", COLOR_MUTED)
-	_comparison_label.add_theme_font_size_override("font_size", 12)
-	_comparison_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	details.add_child(_comparison_label)
-
-	var button_row := HBoxContainer.new()
-	button_row.add_theme_constant_override("separation", 8)
-	button_row.custom_minimum_size = Vector2(0, 40)
-	details.add_child(button_row)
-
-	_equip_button = Button.new()
-	_equip_button.text = "装备"
-	_equip_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_equip_button.add_theme_font_size_override("font_size", 14)
-	_equip_button.add_theme_color_override("font_color", Color("f8e0a0"))
-	_equip_button.add_theme_color_override("font_disabled_color", Color("4a4552"))
-	_apply_button_style(_equip_button, true)
-	_equip_button.pressed.connect(_on_equip_pressed)
-	button_row.add_child(_equip_button)
-
-	_discard_button = _create_discard_button(button_row)
-	return panel
-
-
-func _create_discard_button(parent: HBoxContainer) -> Button:
-	var button := Button.new()
-	button.text = "丢弃"
-	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.add_theme_font_size_override("font_size", 14)
-	button.add_theme_color_override("font_color", Color("c9bdb4"))
-	button.add_theme_color_override("font_disabled_color", Color("4a4552"))
-	_apply_button_style(button, false)
-	button.pressed.connect(_on_discard_pressed)
-	parent.add_child(button)
-	return button
-
-
 # ---------------------------------------------------------------------------
 # Refresh
 # ---------------------------------------------------------------------------
@@ -738,7 +678,6 @@ func _refresh() -> void:
 	_rebuild_equipment_grid()
 	_rebuild_inventory_grid()
 	_refresh_filter_row()
-	_refresh_details()
 	_refresh_dynamic()
 
 
@@ -822,11 +761,14 @@ func _create_item_cell(item: EquipmentInstance) -> InventoryCell:
 
 func _on_slot_cell_pressed(cell: InventoryCell) -> void:
 	# Clicking a slot filters the item list to items equippable in it; clicking
-	# the same slot again (or the clear button) removes the filter.
+	# the same slot again (or the clear button) removes the filter. A slot that
+	# already holds an item also opens its popup so the equipped item can be
+	# inspected.
 	if cell.slot >= 0:
 		_filter_slot = -1 if _filter_slot == cell.slot else cell.slot
 	if cell.item != null:
 		select_item(cell.item)
+		_open_item_popup(cell.item)
 	_request_refresh()
 
 
@@ -848,14 +790,13 @@ func _refresh_filter_row() -> void:
 func _on_item_cell_pressed(cell: InventoryCell) -> void:
 	if cell.item != null:
 		select_item(cell.item)
+		_open_item_popup(cell.item)
 
 
-func _on_equip_pressed() -> void:
-	equip_selected_item()
-
-
-func _on_discard_pressed() -> void:
-	discard_selected_item()
+func _open_item_popup(item: EquipmentInstance) -> void:
+	if item == null or _player == null or _item_popup == null:
+		return
+	_item_popup.call("open_for", _player, item)
 
 
 func _toggle_detailed_stats() -> void:
@@ -888,36 +829,13 @@ func _get_combat_power(stats: PlayerStats) -> int:
 	return roundi(stats.attack * 2.0 + stats.defense * 2.0 + stats.max_hp * 0.5)
 
 
-func _refresh_details() -> void:
-	if _selected_item == null or _inventory == null:
-		_item_name_label.text = "选择一件物品"
-		_item_name_label.modulate = Color.WHITE
-		_item_details_label.text = "点击背包或装备部位以查看属性。"
-		_comparison_label.text = ""
-		_equip_button.disabled = true
-		_discard_button.disabled = true
-		return
-	var rarity: int = _selected_item.get_rarity()
-	_item_name_label.text = _selected_item.get_display_name()
-	_item_name_label.modulate = _get_rarity_color(rarity)
-	_item_details_label.text = _format_item_details(_selected_item)
-	if _selected_item.is_equipped:
-		_comparison_label.text = "已装备"
-		_comparison_label.modulate = COLOR_GREEN
-	else:
-		var comparison: EquipmentComparison = _inventory.create_comparison(_selected_item)
-		var current_item: EquipmentInstance = _inventory.get_equipped_item(_selected_item.get_slot())
-		_comparison_label.text = _format_comparison(comparison, current_item)
-		_comparison_label.modulate = COLOR_GREEN if comparison != null and comparison.is_upgrade() else COLOR_RED
-	_equip_button.disabled = _selected_item.is_equipped
-	_discard_button.disabled = _selected_item.is_equipped
-
-
 # ---------------------------------------------------------------------------
 # Formatting & styling helpers
 # ---------------------------------------------------------------------------
 
 func _format_item_details(item: EquipmentInstance) -> String:
+	if item.is_consumable():
+		return "消耗品  •  物品等级 %d\n回复最大生命的 %.0f%%" % [item.get_item_level(), item.get_heal_ratio() * 100.0]
 	var lines: Array[String] = [
 		"%s  •  物品等级 %d" % [EquipmentSlot.get_display_name(item.get_slot()), item.get_item_level()],
 	]
@@ -926,21 +844,6 @@ func _format_item_details(item: EquipmentInstance) -> String:
 			continue
 		var value_text: String = "%+.0f%%" % (affix.value * 100.0) if affix.is_percentage else "%+d" % roundi(affix.value)
 		lines.append("%s  %s" % [affix.display_name, value_text])
-	return "\n".join(lines)
-
-
-func _format_comparison(comparison: EquipmentComparison, current_item: EquipmentInstance) -> String:
-	if comparison == null:
-		return "对比  •  当前部位为空"
-	var current_name: String = current_item.get_display_name() if current_item != null else "空部位"
-	var lines: Array[String] = ["对比  •  %s" % current_name]
-	var rows: Array[Dictionary] = comparison.get_stat_rows()
-	if rows.is_empty():
-		lines.append("无属性变化")
-	else:
-		for row in rows:
-			lines.append("%s  %s" % [row["display_name"], row["formatted_delta"]])
-	lines.append("强度  %s" % ("+%.1f" % comparison.score_delta if comparison.score_delta >= 0.0 else "%.1f" % comparison.score_delta))
 	return "\n".join(lines)
 
 

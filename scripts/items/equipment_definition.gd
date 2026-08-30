@@ -10,6 +10,10 @@ extends Resource
 @export var base_affixes: Array[EquipmentAffix] = []
 @export var unique_effect_id: StringName = &""
 @export_multiline var description: String = ""
+## Consumable items (e.g. potions) live in the bag as slot-less equipment.
+## `slot` should stay invalid (-1) so they can never be equipped or filtered.
+@export var is_consumable: bool = false
+@export_range(0.0, 1.0, 0.01) var heal_ratio: float = 0.0
 
 
 func get_slot_name() -> String:

@@ -97,6 +97,22 @@ func _generate_item(rarity: int) -> void:
 		_set_status("Could not add item — inventory full?")
 
 
+## Drops one deterministic healing potion into the player's bag for quick
+## manual testing of the consumable popup flow.
+func _generate_potion() -> void:
+	var player := _get_player()
+	if player == null:
+		_set_status("No player available")
+		return
+	var level: int = player.get_level() if player.has_method("get_level") else 1
+	var potion := UIFixtureScript.create_potion(level, EquipmentRarity.COMMON)
+	if player.add_equipment(potion):
+		_set_status("Added  •  %s (lvl %d)" % [potion.get_display_name(), potion.get_item_level()])
+		data_changed.emit()
+	else:
+		_set_status("Could not add potion — inventory full?")
+
+
 func _fill_demo_inventory() -> void:
 	var player := _get_player()
 	if player == null:
@@ -229,6 +245,7 @@ func _build_rarity_grid() -> GridContainer:
 func _build_fixture_actions() -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
+	box.add_child(_make_button("ADD POTION", Color("82d49b"), _generate_potion))
 	box.add_child(_make_button("FILL DEMO INVENTORY", Color("c9bdb4"), _fill_demo_inventory))
 	box.add_child(_make_button("APPLY DEMO CHARACTER", Color("e8af4f"), _apply_demo_character))
 	box.add_child(_make_button("CLEAR BAG", COLOR_RED, _clear_inventory))

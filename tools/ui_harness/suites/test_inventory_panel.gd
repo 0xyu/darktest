@@ -113,9 +113,10 @@ func test_cell_interaction_emit() -> void:
 	click_cell(cell)
 	await flush_frames()
 	expect(_panel.call("get_selected_item") == expected_item, "clicking a cell selects its item")
-	var name_label: Label = _panel_get("_item_name_label")
-	if name_label is Label:
-		expect_contains(name_label.text, expected_item.get_display_name(), "details show the selected item name")
+	var popup: Control = _panel_get("_item_popup")
+	expect(popup != null and popup.visible, "clicking a cell opens the item popup")
+	if popup != null:
+		expect(popup.call("get_item") == expected_item, "popup shows the clicked item")
 
 
 func test_click_cell_via_synthetic_input() -> void:
@@ -193,16 +194,16 @@ func test_slot_filter_toggles() -> void:
 
 func test_apply_character_rebind() -> void:
 	await _mount_panel_with_player()
-	expect_eq(_panel_get("_inventory_count_label").text, "8/60", "panel bound to the first fixture inventory")
+	expect_eq(_panel_get("_inventory_count_label").text, "9/60", "panel bound to the first fixture inventory")
 	# apply_character_to_player REPLACES the inventory object, orphaning the panel.
 	UIFixtureScript.apply_character_to_player(_player)
 	var fresh: EquipmentInventory = _player.get_inventory()
 	expect(fresh.remove_item(fresh.get_items()[0]), "one item removed from the fresh inventory")
 	await flush_frames()
-	expect_eq(_panel_get("_inventory_count_label").text, "8/60", "panel still reads the stale (orphaned) inventory")
+	expect_eq(_panel_get("_inventory_count_label").text, "9/60", "panel still reads the stale (orphaned) inventory")
 	_panel.call("set_player", _player)
 	await flush_frames()
-	expect_eq(_panel_get("_inventory_count_label").text, "7/60", "re-binding set_player refreshes to the fresh inventory")
+	expect_eq(_panel_get("_inventory_count_label").text, "8/60", "re-binding set_player refreshes to the fresh inventory")
 
 
 # ---------------------------------------------------------------------------

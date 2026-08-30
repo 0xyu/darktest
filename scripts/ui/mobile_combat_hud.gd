@@ -43,6 +43,7 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _inventory_panel: EquipmentInventoryPanel = %InventoryPanel
 @onready var _bestiary_panel: EnemyBestiaryPanel = %EnemyBestiaryPanel
 @onready var _development_panel: DevelopmentPanel = %DevelopmentPanel
+@onready var _combat_log: CombatLogPanel = %CombatLogPanel
 @onready var _move_buttons: Array[Button] = [%MoveUpButton, %MoveLeftButton, %MoveDownButton, %MoveRightButton]
 
 var _critical_time_remaining: float = 0.0
@@ -71,6 +72,9 @@ func _ready() -> void:
 	_inventory_panel.set_player(_player)
 	_development_panel.set_player(_player)
 	_development_panel.data_changed.connect(_on_dev_data_changed)
+	_inventory_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
+	_bestiary_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
+	_development_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_refresh()
 
@@ -100,6 +104,17 @@ func _on_bestiary_button_pressed() -> void:
 
 func _on_dev_button_pressed() -> void:
 	_development_panel.toggle_panel()
+
+
+## The combat log only belongs on the combat screen. Hide it while any overlay
+## panel (inventory / bestiary / development) is open so it never covers them.
+## visibility_changed fires on every show/hide path (button, ui_cancel, ...).
+func _on_overlay_panel_visibility_changed() -> void:
+	if _combat_log == null:
+		return
+	_combat_log.visible = not (
+		_inventory_panel.visible or _bestiary_panel.visible or _development_panel.visible
+	)
 
 
 func _on_dev_data_changed() -> void:
@@ -357,6 +372,18 @@ func show_critical_indicator(damage: int) -> void:
 	_critical_label.visible = true
 	_critical_label.modulate = Color("f2c15e")
 	_critical_time_remaining = 0.8
+
+
+## Appends a localized event to the bottom-left combat log.
+func log_event(key: String, values: Dictionary = {}) -> void:
+	if _combat_log != null:
+		_combat_log.append(key, values)
+
+
+## Switches the combat log's language ("en" / "zh_Hant").
+func set_log_locale(locale: String) -> void:
+	if _combat_log != null:
+		_combat_log.set_locale(locale)
 
 
 func _get_encounter_text(stage_state: StageState) -> String:

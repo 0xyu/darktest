@@ -10,6 +10,7 @@ signal experience_gained(amount: int, current_experience: int, required_experien
 signal level_up(new_level: int)
 signal equipment_effect_triggered(effect_id: StringName, description: String)
 signal healing_item_used(remaining_items: int, amount_healed: int)
+signal item_used(item: EquipmentInstance, amount_healed: int)
 
 @export var grid_path: NodePath
 @export var player_id: StringName = &"player"
@@ -107,6 +108,24 @@ func use_healing_item() -> bool:
 	healing_item_count -= 1
 	healing_item_used.emit(healing_item_count, player_stats.current_hp - previous_hp)
 	queue_redraw()
+	return true
+
+
+## Uses a consumable item from the bag: heals by its heal_ratio, then removes
+## the item. Rejects potions that are already at full HP, mirroring
+## `use_healing_item()`.
+func use_item(item: EquipmentInstance) -> bool:
+	var inventory := get_inventory()
+	if item == null or not item.is_consumable() or not inventory.has_item(item):
+		return false
+	if player_stats == null or player_stats.current_hp <= 0 or player_stats.current_hp >= player_stats.max_hp:
+		return false
+	var previous_hp: int = player_stats.current_hp
+	var heal_amount: int = maxi(roundi(float(player_stats.max_hp) * clampf(item.get_heal_ratio(), 0.0, 1.0)), 1)
+	player_stats.current_hp = mini(player_stats.current_hp + heal_amount, player_stats.max_hp)
+	if not inventory.remove_item(item):
+		return false
+	item_used.emit(item, player_stats.current_hp - previous_hp)
 	return true
 
 

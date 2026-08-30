@@ -5,6 +5,9 @@ const LootTableResource = preload("res://scripts/systems/loot_table.gd")
 const EquipmentGeneratorResource = preload("res://scripts/systems/equipment_generator.gd")
 
 ## Selects a stage-aware loot table and creates equipment instances from it.
+## A dropped item becomes a consumable potion at this chance instead of gear.
+const CONSUMABLE_DROP_CHANCE: float = 0.15
+
 var normal_table
 var elite_table
 var special_table
@@ -39,7 +42,7 @@ func generate_loot(enemy: Node, stage_number: int = 1) -> Array[EquipmentInstanc
 	for _index in range(drop_count):
 		var item_level: int = _get_item_level(enemy, stage_number)
 		var rarity: int = table.roll_rarity(_random_number_generator)
-		result.append(_equipment_generator.generate_equipment(item_level, -1, rarity))
+		result.append(_generate_drop(item_level, rarity))
 	return result
 
 
@@ -51,8 +54,14 @@ func generate_from_table(table, item_level: int = 1) -> Array[EquipmentInstance]
 	if drop_count == 0 and _random_number_generator.randf() <= clampf(table.drop_chance, 0.0, 1.0):
 		drop_count = 1
 	for _index in range(drop_count):
-		result.append(_equipment_generator.generate_equipment(maxi(item_level, 1), -1, table.roll_rarity(_random_number_generator)))
+		result.append(_generate_drop(maxi(item_level, 1), table.roll_rarity(_random_number_generator)))
 	return result
+
+
+func _generate_drop(item_level: int, rarity: int) -> EquipmentInstance:
+	if _random_number_generator.randf() <= CONSUMABLE_DROP_CHANCE:
+		return _equipment_generator.generate_potion(item_level, rarity)
+	return _equipment_generator.generate_equipment(item_level, -1, rarity)
 
 
 func get_loot_table(enemy: Node):

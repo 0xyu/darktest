@@ -32,6 +32,17 @@ func get_item_level() -> int:
 	return maxi(definition.item_level, 1)
 
 
+## Consumable items (potions) can be used from the bag instead of equipped.
+func is_consumable() -> bool:
+	return definition != null and definition.is_consumable
+
+
+func get_heal_ratio() -> float:
+	if definition == null:
+		return 0.0
+	return definition.heal_ratio
+
+
 func get_affix_value(stat_id: StringName) -> float:
 	var total: float = 0.0
 	for affix in affixes:

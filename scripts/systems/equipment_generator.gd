@@ -34,6 +34,29 @@ func generate_equipment(item_level: int = 1, slot: int = -1, rarity: int = -1) -
 	return instance
 
 
+## Creates a consumable healing potion as a slot-less item (slot -1), so it
+## can never be equipped or filtered into an equipment slot.
+func generate_potion(item_level: int = 1, rarity: int = EquipmentRarity.COMMON) -> EquipmentInstance:
+	var safe_level: int = maxi(item_level, 1)
+	var selected_rarity: int = rarity if EquipmentRarity.is_valid(rarity) else EquipmentRarity.COMMON
+	var definition := EquipmentDefinition.new()
+	definition.definition_id = StringName("potion_%d" % _next_instance_id)
+	definition.slot = -1
+	definition.is_consumable = true
+	definition.heal_ratio = 0.35
+	definition.rarity = selected_rarity
+	definition.item_level = safe_level
+	definition.display_name = "生命药水"
+	definition.description = "回复最大生命的 %.0f%%。" % (definition.heal_ratio * 100.0)
+
+	var instance := EquipmentInstance.new()
+	instance.instance_id = StringName("potion_%d" % _next_instance_id)
+	instance.definition = definition
+	instance.affixes = []
+	_next_instance_id += 1
+	return instance
+
+
 func _roll_unique_effect_id(rarity: int) -> StringName:
 	if rarity == EquipmentRarity.MYTHIC:
 		return _random_unique_effect_id()
