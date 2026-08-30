@@ -70,6 +70,10 @@ class InventoryCell extends Control:
 	var frame_tint: Color = Color.WHITE
 	var has_content: bool = false
 	var selected: bool = false
+	## Equipment slot this cell represents (only slot cells set this; item cells keep -1).
+	var slot: int = -1
+	## Highlight the cell as the currently-filtered equipment slot.
+	var filter_active: bool = false
 	var corner_text: String = ""
 	var corner_color: Color = Color("82d49b")
 	var _hover: bool = false
@@ -106,6 +110,8 @@ class InventoryCell extends Control:
 			draw_string(font, Vector2(size.x - 32, size.y - 8), corner_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, corner_color)
 		if selected:
 			draw_rect(rect, Color("f2c15e"), false, 2.0)
+		if filter_active:
+			draw_rect(Rect2(1, 1, size.x - 2, size.y - 2), Color("6cc6f0"), false, 2.0)
 
 
 var _player: PlayerController
@@ -113,6 +119,8 @@ var _inventory: EquipmentInventory
 var _selected_item: EquipmentInstance
 var _refresh_scheduled: bool = false
 var _active_tab: int = Tab.CHARACTER
+## Equipment slot the item list is filtered to; -1 means no filter.
+var _filter_slot: int = -1
 
 # Header
 var _header_power_label: Label
@@ -131,6 +139,8 @@ var _right_slot_column: VBoxContainer
 var _inventory_section: Control
 var _inventory_grid: GridContainer
 var _inventory_count_label: Label
+var _filter_row: Control
+var _filter_label: Label
 var _details_section: Control
 
 # Character stats
@@ -609,6 +619,9 @@ func _build_inventory_section() -> Control:
 	_inventory_count_label.add_theme_font_size_override("font_size", 14)
 	header.add_child(_inventory_count_label)
 
+	_filter_row = _build_filter_row()
+	section.add_child(_filter_row)
+
 	# Only the item list scrolls; the character/equipment/details stay fixed.
 	var item_scroll := ScrollContainer.new()
 	item_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -622,6 +635,26 @@ func _build_inventory_section() -> Control:
 	_inventory_grid.add_theme_constant_override("v_separation", 8)
 	item_scroll.add_child(_inventory_grid)
 	return section
+
+
+func _build_filter_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.visible = false
+
+	_filter_label = Label.new()
+	_filter_label.add_theme_color_override("font_color", COLOR_MUTED)
+	_filter_label.add_theme_font_size_override("font_size", 12)
+	row.add_child(_filter_label)
+
+	var clear_button := Button.new()
+	clear_button.text = "清除筛选"
+	clear_button.add_theme_font_size_override("font_size", 11)
+	clear_button.add_theme_color_override("font_color", Color("c9bdb4"))
+	_apply_button_style(clear_button, false)
+	clear_button.pressed.connect(_clear_filter)
+	row.add_child(clear_button)
+	return row
 
 
 func _build_details_section() -> Control:
@@ -704,6 +737,7 @@ func _refresh() -> void:
 	_rebuild_slot_columns()
 	_rebuild_equipment_grid()
 	_rebuild_inventory_grid()
+	_refresh_filter_row()
 	_refresh_details()
 	_refresh_dynamic()
 
@@ -728,13 +762,16 @@ func _rebuild_inventory_grid() -> void:
 	if _inventory == null:
 		_inventory_count_label.text = "0/0"
 		return
-	_inventory_count_label.text = "%d/%d" % [_inventory.get_item_count(), _inventory.capacity]
-	var items: Array[EquipmentInstance] = _inventory.get_items()
+	var filtering: bool = EquipmentSlot.is_valid(_filter_slot)
+	var items: Array[EquipmentInstance] = (
+		_inventory.get_items_for_slot(_filter_slot) if filtering else _inventory.get_items()
+	)
+	_inventory_count_label.text = "%d/%d" % [items.size(), _inventory.capacity]
 	if items.is_empty():
 		var empty := Label.new()
 		empty.custom_minimum_size = Vector2(0, 120)
 		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		empty.text = "暂无战利品\n战斗掉落的装备会出现在这里"
+		empty.text = "该部位暂无可用装备" if filtering else "暂无战利品\n战斗掉落的装备会出现在这里"
 		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		empty.add_theme_color_override("font_color", Color("62596d"))
@@ -761,6 +798,8 @@ func _create_slot_cell(slot: int, cell_size: Vector2) -> InventoryCell:
 	else:
 		cell.frame_region = REGION_FRAME_BRONZE
 		cell.tooltip_text = "空%s部位" % EquipmentSlot.get_display_name(slot)
+	cell.slot = slot
+	cell.filter_active = _filter_slot == slot
 	cell.cell_pressed.connect(_on_slot_cell_pressed)
 	return cell
 
@@ -782,8 +821,28 @@ func _create_item_cell(item: EquipmentInstance) -> InventoryCell:
 
 
 func _on_slot_cell_pressed(cell: InventoryCell) -> void:
+	# Clicking a slot filters the item list to items equippable in it; clicking
+	# the same slot again (or the clear button) removes the filter.
+	if cell.slot >= 0:
+		_filter_slot = -1 if _filter_slot == cell.slot else cell.slot
 	if cell.item != null:
 		select_item(cell.item)
+	_request_refresh()
+
+
+func _clear_filter() -> void:
+	if _filter_slot >= 0:
+		_filter_slot = -1
+		_request_refresh()
+
+
+func _refresh_filter_row() -> void:
+	if _filter_row == null or _filter_label == null:
+		return
+	var filtering: bool = EquipmentSlot.is_valid(_filter_slot)
+	_filter_row.visible = filtering
+	if filtering:
+		_filter_label.text = "筛选部位: %s   •  再次点击该部位或清除筛选以查看全部物品" % EquipmentSlot.get_display_name(_filter_slot)
 
 
 func _on_item_cell_pressed(cell: InventoryCell) -> void:
