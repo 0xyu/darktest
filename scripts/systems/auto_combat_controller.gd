@@ -201,6 +201,9 @@ func _run_auto_turn(token: int) -> void:
 	if _player == null or _player.is_defeated():
 		stop_auto()
 		return
+	if _player.movement_points_remaining <= 0:
+		_end_player_turn("AUTO: movement exhausted")
+		return
 
 	var target: EnemyController = _select_target()
 	if target == null:

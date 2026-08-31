@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SubHeroData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/sub_hero/sub_hero_data.gd" id="1_data"]
+
+[resource]
+script = ExtResource("1_data")
+id = &"dark_servant"
+display_name = "Dark Servant"
+quality = 0
+attack_damage = 14
+attack_interval = 3.0
+target_rule = 0
+tags = [&"DPS"]

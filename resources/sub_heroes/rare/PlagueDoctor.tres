@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SubHeroData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/sub_hero/sub_hero_data.gd" id="1_data"]
+
+[resource]
+script = ExtResource("1_data")
+id = &"plague_doctor"
+display_name = "Plague Doctor"
+quality = 1
+attack_damage = 13
+attack_interval = 2.4
+target_rule = 0
+tags = [&"DPS", &"Support", &"Poison"]

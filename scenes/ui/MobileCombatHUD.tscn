@@ -8,10 +8,6 @@
 [ext_resource type="Texture2D" path="res://assets/characters/portraits/HP_Portrait_frame.png" id="6_avatar_frame"]
 [ext_resource type="Texture2D" path="res://assets/ui/hud/Hp_frame.png" id="7_hp_frame"]
 [ext_resource type="Texture2D" path="res://assets/ui/hud/Hp_red.png" id="8_hp_red"]
-[ext_resource type="Texture2D" path="res://assets/ui/hud/11_top_arrow.png" id="9_move_up"]
-[ext_resource type="Texture2D" path="res://assets/ui/hud/11_left_arrow.png" id="10_move_left"]
-[ext_resource type="Texture2D" path="res://assets/ui/hud/11_bot_arrow.png" id="11_move_down"]
-[ext_resource type="Texture2D" path="res://assets/ui/hud/11_right_arrow.png" id="12_move_right"]
 [ext_resource type="Texture2D" path="res://assets/ui/hud/11_cross.png" id="13_end_turn"]
 [ext_resource type="Texture2D" path="res://assets/ui/hud/12_potion.png" id="14_potion"]
 [ext_resource type="Texture2D" path="res://assets/items/icons/Icon_Eq_Weapon.png" id="15_attack"]
@@ -46,10 +42,10 @@ corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
-content_margin_left = 8.0
-content_margin_top = 6.0
-content_margin_right = 8.0
-content_margin_bottom = 6.0
+content_margin_left = 5.0
+content_margin_top = 3.0
+content_margin_right = 5.0
+content_margin_bottom = 3.0
 
 [sub_resource type="StyleBoxFlat" id="StyleButtonHover"]
 bg_color = Color(0.231, 0.192, 0.29, 1)
@@ -388,7 +384,7 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 16.0
-offset_top = -420.0
+offset_top = -300.0
 offset_right = -16.0
 offset_bottom = -16.0
 grow_horizontal = 2
@@ -416,65 +412,6 @@ text = "Awaiting input"
 text_overrun_behavior = 3
 vertical_alignment = 1
 
-[node name="MoveHintLabel" type="Label" parent="Root/BottomPanel/Margin/Content"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
-theme_override_font_sizes/font_size = 11
-text = "MOVE  •  1 TAP = 1 CELL"
-
-[node name="MoveRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 58)
-theme_override_constants/separation = 6
-
-[node name="MoveUpButton" type="Button" parent="Root/BottomPanel/Margin/Content/MoveRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 24
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-icon = ExtResource("9_move_up")
-text = ""
-
-[node name="MoveLeftButton" type="Button" parent="Root/BottomPanel/Margin/Content/MoveRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 24
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-icon = ExtResource("10_move_left")
-text = ""
-
-[node name="MoveDownButton" type="Button" parent="Root/BottomPanel/Margin/Content/MoveRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 24
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-icon = ExtResource("11_move_down")
-text = ""
-
-[node name="MoveRightButton" type="Button" parent="Root/BottomPanel/Margin/Content/MoveRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 24
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-icon = ExtResource("12_move_right")
-text = ""
-
 [node name="SkillHintLabel" type="Label" parent="Root/BottomPanel/Margin/Content"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
@@ -483,7 +420,7 @@ text = "SKILLS  •  ONE ACTION PER TURN"
 
 [node name="SkillRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 58)
+custom_minimum_size = Vector2(0, 44)
 theme_override_constants/separation = 8
 
 [node name="WhirlwindButton" type="Button" parent="Root/BottomPanel/Margin/Content/SkillRow"]
@@ -527,7 +464,7 @@ tooltip_text = "Powerful single-target attack with a one-cell range."
 
 [node name="ActionRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 72)
+custom_minimum_size = Vector2(0, 50)
 theme_override_constants/separation = 8
 
 [node name="AttackButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow"]
@@ -536,7 +473,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
@@ -549,7 +486,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
@@ -562,7 +499,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
@@ -575,7 +512,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
@@ -590,9 +527,9 @@ theme_override_constants/separation = 8
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(0, 38)
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 12
 icon = ExtResource("16_inventory")
 text = "INVENTORY 0"
 
@@ -600,9 +537,9 @@ text = "INVENTORY 0"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(0, 38)
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
@@ -612,10 +549,10 @@ text = "SKILLS 0"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(0, 38)
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
@@ -626,9 +563,9 @@ text = "AUTO STAGE: OFF"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(0, 38)
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
@@ -637,9 +574,9 @@ text = "BESTIARY"
 [node name="DevButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(96, 48)
+custom_minimum_size = Vector2(72, 38)
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")

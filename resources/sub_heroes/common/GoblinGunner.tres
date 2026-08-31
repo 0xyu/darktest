@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SubHeroData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/sub_hero/sub_hero_data.gd" id="1_data"]
+
+[resource]
+script = ExtResource("1_data")
+id = &"goblin_gunner"
+display_name = "Goblin Gunner"
+quality = 0
+attack_damage = 6
+attack_interval = 1.2
+target_rule = 0
+tags = [&"DPS"]

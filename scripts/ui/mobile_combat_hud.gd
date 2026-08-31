@@ -50,7 +50,6 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _development_panel: DevelopmentPanel = %DevelopmentPanel
 @onready var _skill_panel: SkillPanel = %SkillPanel
 @onready var _combat_log: CombatLogPanel = %CombatLogPanel
-@onready var _move_buttons: Array[Button] = [%MoveUpButton, %MoveLeftButton, %MoveDownButton, %MoveRightButton]
 
 var _critical_time_remaining: float = 0.0
 var _enemy_summary_signature: String = ""
@@ -63,10 +62,6 @@ const ENEMY_SUMMARY_MUTED_COLOR := Color("9d93ae")
 
 
 func _ready() -> void:
-	_move_buttons[0].pressed.connect(_on_move_up_pressed)
-	_move_buttons[1].pressed.connect(_on_move_left_pressed)
-	_move_buttons[2].pressed.connect(_on_move_down_pressed)
-	_move_buttons[3].pressed.connect(_on_move_right_pressed)
 	_attack_button.pressed.connect(func() -> void: attack_requested.emit())
 	_whirlwind_button.pressed.connect(func() -> void: skill_requested.emit(SkillCatalog.WHIRLWIND))
 	_arcane_bolt_button.pressed.connect(func() -> void: skill_requested.emit(SkillCatalog.ARCANE_BOLT))
@@ -332,10 +327,6 @@ func _update_target(target: Node) -> void:
 func _update_buttons(player_stats: PlayerStats) -> void:
 	var player_turn: bool = _turn_manager.get_phase() == TurnState.PLAYER_TURN
 	var input_enabled: bool = bool(_player.get("is_selected")) and bool(_player.call("is_input_enabled"))
-	var movement_remaining: int = int(_player.get("movement_points_remaining"))
-	var can_move: bool = player_turn and input_enabled and movement_remaining > 0
-	for button in _move_buttons:
-		button.disabled = not can_move
 	var can_attack: bool = player_turn and input_enabled and _get_target() != null
 	_attack_button.disabled = not can_attack
 	var can_use_skill: bool = player_turn and input_enabled
