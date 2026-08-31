@@ -3,14 +3,17 @@ extends Control
 
 ## Modal item dialog opened by the inventory panel when an item is clicked.
 ##
-## Shows the item's name/details and, depending on the item kind, the relevant
-## actions:
+## Shows the item's name/details and, depending on the item kind and where it
+## lives, the relevant actions:
 ##   - Consumables (potions): a Use button (no comparison / no equip).
 ##   - Equipment: an Equip button plus a side-by-side comparison against the item
 ##     currently equipped in that slot (current slot item on the left, clicked
 ##     item on the right). Equipping closes the dialog; an already-equipped item
 ##     opened from a slot shows "已装备".
-## Discard and Close are always available for bag items.
+##   - Bag items: a 放入仓库 (store) button moves them to the warehouse.
+##   - Warehouse items (opened with from_storage): a 取出 (withdraw) button moves
+##     them back to the bag.
+## Discard and Close are always available for bag/warehouse items.
 ##
 ## The layout is code-built to match the inventory panel's dark-fantasy styling.
 ## It is instantiated by EquipmentInventoryPanel via `preload()` so a cold
@@ -24,6 +27,7 @@ const COLOR_RED := Color("d46a78")
 
 var _player: PlayerController
 var _item: EquipmentInstance
+var _from_storage: bool = false
 
 var _backdrop: ColorRect
 var _panel_container: PanelContainer
@@ -37,6 +41,8 @@ var _clicked_details_label: Label
 var _comparison_label: Label
 var _use_button: Button
 var _equip_button: Button
+var _store_button: Button
+var _withdraw_button: Button
 var _discard_button: Button
 var _close_button: Button
 
@@ -55,10 +61,13 @@ func _ready() -> void:
 
 
 ## Opens the dialog for `item`. `player` provides the inventory/equip/use/
-## discard actions; the dialog refreshes itself after each action.
-func open_for(player: PlayerController, item: EquipmentInstance) -> void:
+## discard/storage actions; the dialog refreshes itself after each action.
+## `from_storage` marks items clicked inside the warehouse, which swap the
+## Equip/Store actions for a single Withdraw action.
+func open_for(player: PlayerController, item: EquipmentInstance, from_storage: bool = false) -> void:
 	_player = player
 	_item = item
+	_from_storage = from_storage
 	_refresh()
 	visible = true
 
@@ -158,6 +167,14 @@ func _build_ui() -> void:
 	_equip_button.pressed.connect(_on_equip_pressed)
 	button_row.add_child(_equip_button)
 
+	_store_button = _make_action_button("放入仓库", false)
+	_store_button.pressed.connect(_on_store_pressed)
+	button_row.add_child(_store_button)
+
+	_withdraw_button = _make_action_button("取出", true)
+	_withdraw_button.pressed.connect(_on_withdraw_pressed)
+	button_row.add_child(_withdraw_button)
+
 	_discard_button = _make_action_button("丢弃", false)
 	_discard_button.pressed.connect(_on_discard_pressed)
 	button_row.add_child(_discard_button)
@@ -189,6 +206,10 @@ func _refresh() -> void:
 	_name_label.text = _item.get_display_name()
 	_name_label.modulate = _get_rarity_color(rarity)
 
+	if _from_storage:
+		_show_storage_item()
+		return
+
 	if _item.is_consumable():
 		_name_label.visible = true
 		_details_label.visible = true
@@ -200,6 +221,9 @@ func _refresh() -> void:
 		_use_button.visible = true
 		_use_button.disabled = _is_heal_unavailable()
 		_equip_button.visible = false
+		_store_button.visible = true
+		_store_button.disabled = _is_storage_full()
+		_withdraw_button.visible = false
 		_discard_button.disabled = false
 		return
 
@@ -215,6 +239,8 @@ func _refresh() -> void:
 		_comparison_label.modulate = COLOR_GREEN
 		_comparison_label.visible = true
 		_equip_button.disabled = true
+		_store_button.visible = false
+		_withdraw_button.visible = false
 		_discard_button.disabled = true
 		return
 
@@ -249,7 +275,38 @@ func _refresh() -> void:
 		_comparison_label.text = ""
 		_comparison_label.visible = false
 	_equip_button.disabled = false
+	_store_button.visible = true
+	_store_button.disabled = _is_storage_full()
+	_withdraw_button.visible = false
 	_discard_button.disabled = false
+
+
+## Warehouse view: item details + a single Withdraw action (no equip/use/store).
+func _show_storage_item() -> void:
+	_name_label.visible = true
+	_details_label.visible = true
+	_comparison_section.visible = false
+	_panel_container.custom_minimum_size = Vector2(360, 0)
+	_details_label.text = (
+		_format_consumable_details(_item) if _item.is_consumable() else _format_equipment_details(_item)
+	)
+	_comparison_label.text = "仓库物品"
+	_comparison_label.modulate = COLOR_MUTED
+	_comparison_label.visible = true
+	_use_button.visible = false
+	_equip_button.visible = false
+	_store_button.visible = false
+	_withdraw_button.visible = true
+	_withdraw_button.disabled = _is_bag_full()
+	_discard_button.disabled = false
+
+
+func _is_bag_full() -> bool:
+	return _player == null or _player.get_inventory() == null or _player.get_inventory().get_remaining_capacity() <= 0
+
+
+func _is_storage_full() -> bool:
+	return _player == null or _player.get_storage() == null or _player.get_storage().get_remaining_capacity() <= 0
 
 
 func _is_heal_unavailable() -> bool:
@@ -284,8 +341,21 @@ func _on_equip_pressed() -> void:
 		close()
 
 
+func _on_store_pressed() -> void:
+	if _player != null and _player.move_to_storage(_item):
+		close()
+
+
+func _on_withdraw_pressed() -> void:
+	if _player != null and _player.move_to_bag(_item):
+		close()
+
+
 func _on_discard_pressed() -> void:
-	if _player != null and _player.discard_item(_item):
+	if _player == null:
+		return
+	var discarded: bool = _player.discard_storage_item(_item) if _from_storage else _player.discard_item(_item)
+	if discarded:
 		close()
 
 

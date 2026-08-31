@@ -62,6 +62,13 @@ func start_combat(enemies: Array[Node]) -> void:
 	_is_paused = false
 	_is_running = true
 	combat_state_changed.emit(true)
+	# Pre-start a full countdown for the first attack. The first swing still
+	# waits a full interval, but the UI bar (and CHARGING label) now reflect
+	# that wait instead of showing an empty bar + READY. combat_state_changed
+	# above resets the bars first; emitting afterwards fills them.
+	for state in _active_states:
+		if state.data != null and state.instance != null:
+			cooldown_started.emit(state.instance.hero_id, maxf(state.data.attack_interval, 0.1))
 
 
 func stop_combat() -> void:

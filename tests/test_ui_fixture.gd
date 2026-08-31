@@ -108,10 +108,16 @@ func test_inventory_is_repeatable() -> void:
 	assert_eq(inventory_a.get_item_count(), inventory_b.get_item_count())
 	assert_eq(inventory_a.get_equipped_items().size(), inventory_b.get_equipped_items().size())
 	assert_gt(inventory_a.get_equipped_items().size(), 0, "demo inventory should have equipped items")
-	# Rarity set (6) + two generic extras must all fit — a duplicate
+	# Rarity set (6) + two generic extras + a potion must all fit — a duplicate
 	# instance_id would silently drop an item and change the count.
-	var expected_count: int = UIFixtureScript.create_rarity_set().size() + 2
-	assert_eq(inventory_a.get_item_count(), expected_count, "all generated items should be added")
+	var raw_count: int = UIFixtureScript.create_rarity_set().size() + 3
+	assert_eq(inventory_a.get_items().size(), raw_count, "all generated items should be owned")
+	# Equipped gear no longer occupies a bag slot.
+	assert_eq(
+		inventory_a.get_item_count(),
+		inventory_a.get_items().size() - inventory_a.get_equipped_items().size(),
+		"bag count excludes equipped items"
+	)
 
 
 func test_generated_items_have_unique_ids() -> void:
@@ -169,3 +175,43 @@ func test_apply_character_to_player() -> void:
 	# Equipped fixture items must raise derived stats above base stats.
 	var base_attack: int = UIFixtureScript.create_player_stats().attack
 	assert_true(player.player_stats.attack > base_attack, "equipped fixture bonuses should raise attack")
+
+
+func test_storage_overflow_and_retrieve() -> void:
+	var player := PlayerController.new()
+	track(player)
+	var bag := UIFixtureScript.create_empty_inventory(2)
+	player.set_equipment_inventory(bag)
+	var storage := UIFixtureScript.create_storage(2)
+	player.storage_inventory = storage
+
+	var first := UIFixtureScript.create_equipment(EquipmentRarity.COMMON, EquipmentSlot.WEAPON, 1)
+	var second := UIFixtureScript.create_equipment(EquipmentRarity.COMMON, EquipmentSlot.HELMET, 1)
+	var third := UIFixtureScript.create_equipment(EquipmentRarity.COMMON, EquipmentSlot.ARMOR, 1)
+	assert_true(player.add_equipment(first), "first item fills the bag")
+	assert_true(player.add_equipment(second), "second item fills the bag")
+	assert_false(player.add_equipment(third), "bag is full once capacity is reached")
+	assert_true(player.add_to_storage(third), "overflow item goes to the warehouse")
+	assert_eq(storage.get_item_count(), 1, "warehouse holds the overflow item")
+	assert_false(player.move_to_bag(third), "cannot withdraw while the bag is full")
+
+	bag.remove_item(second)
+	assert_true(player.move_to_bag(third), "withdraw succeeds once a bag slot frees")
+	assert_eq(storage.get_item_count(), 0, "warehouse is empty after withdraw")
+	assert_true(bag.has_item(third), "withdrawn item is back in the bag")
+
+	# Equipped items no longer occupy bag slots.
+	assert_true(player.equip_item(first), "equip the first item")
+	assert_eq(bag.get_item_count(), 1, "equipped item no longer counts toward bag capacity")
+	assert_eq(bag.get_remaining_capacity(), 1, "one bag slot frees after equipping")
+	var fourth := UIFixtureScript.create_equipment(EquipmentRarity.COMMON, EquipmentSlot.BOOTS, 1)
+	assert_true(player.add_equipment(fourth), "bag accepts a new item into the freed slot")
+	var fifth := UIFixtureScript.create_equipment(EquipmentRarity.COMMON, EquipmentSlot.GLOVES, 1)
+	assert_false(player.add_equipment(fifth), "bag rejects once bag slots are full again")
+	assert_true(player.add_to_storage(fifth), "second overflow goes to the warehouse")
+	assert_eq(storage.get_item_count(), 1, "warehouse holds the second overflow item")
+
+	# Manual store: bag item -> warehouse; equipped item cannot be stored.
+	assert_true(player.move_to_storage(third), "bag item can be moved to the warehouse")
+	assert_eq(storage.get_item_count(), 2, "warehouse holds both stored items")
+	assert_false(player.move_to_storage(first), "equipped item cannot be stored")

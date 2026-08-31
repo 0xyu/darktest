@@ -311,18 +311,28 @@ func _on_loot_dropped(_enemy: Node, loot: Array[EquipmentInstance]) -> void:
 	var loot_names: Array[String] = []
 	var new_best_items: Array[EquipmentInstance] = []
 	var added_count: int = 0
+	var stowed_count: int = 0
 	for item in loot:
-		if item != null:
-			loot_names.append(item.get_display_name())
-			var comparison: EquipmentComparison = player.get_inventory().create_comparison(item)
-			if player.add_equipment(item):
-				added_count += 1
-				if comparison != null and comparison.is_upgrade():
-					new_best_items.append(item)
-	if added_count == loot.size():
-		_last_move_text = "Loot added: %s (%d/%d)" % [", ".join(loot_names), player.get_inventory().get_item_count(), player.get_inventory().capacity]
+		if item == null:
+			continue
+		loot_names.append(item.get_display_name())
+		var comparison: EquipmentComparison = player.get_inventory().create_comparison(item)
+		var is_upgrade: bool = comparison != null and comparison.is_upgrade()
+		if player.add_equipment(item):
+			added_count += 1
+		elif player.add_to_storage(item):
+			stowed_count += 1
+		else:
+			continue
+		if is_upgrade:
+			new_best_items.append(item)
+	var inventory: EquipmentInventory = player.get_inventory()
+	if added_count + stowed_count == loot.size():
+		_last_move_text = "Loot added: %s (%d/%d)" % [", ".join(loot_names), inventory.get_item_count(), inventory.capacity]
 	else:
-		_last_move_text = "Loot added %d/%d — inventory full" % [added_count, loot.size()]
+		_last_move_text = "Loot added %d/%d — bag full" % [added_count + stowed_count, loot.size()]
+	if stowed_count > 0:
+		_last_move_text += "  (%d stored)" % stowed_count
 	if not loot_names.is_empty():
 		hud.log_event("log.loot_found", {"items": ", ".join(loot_names)})
 	hud.present_loot(loot, new_best_items, str(_enemy.get("enemy_id")) if _enemy != null else "")

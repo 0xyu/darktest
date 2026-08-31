@@ -2,14 +2,16 @@ class_name EquipmentInventory
 extends Resource
 
 ## Owns the player's equipment collection and the item assigned to each slot.
-## Equipped items remain in `items`, so unequipping never destroys ownership.
+## Equipped items remain in `items`, so unequipping never destroys ownership,
+## but they do NOT occupy bag slots: bag capacity, bag listings, and slot
+## filtering all count only non-equipped items (see [method get_bag_items]).
 signal item_added(item: EquipmentInstance)
 signal item_removed(item: EquipmentInstance)
 signal item_selected(item: EquipmentInstance)
 signal equipment_changed(slot: int, equipped_item: EquipmentInstance, previous_item: EquipmentInstance)
 signal inventory_changed
 
-const DEFAULT_CAPACITY: int = 60
+const DEFAULT_CAPACITY: int = 10
 
 @export_range(1, 999, 1) var capacity: int = DEFAULT_CAPACITY
 @export var items: Array[EquipmentInstance] = []
@@ -21,7 +23,7 @@ var _equipped_items: Dictionary = {}
 func add_item(item: EquipmentInstance) -> bool:
 	if item == null or has_item(item):
 		return false
-	if items.size() >= maxi(capacity, 1):
+	if get_item_count() >= maxi(capacity, 1):
 		return false
 	item.is_equipped = false
 	items.append(item)
@@ -82,16 +84,31 @@ func get_selected_item() -> EquipmentInstance:
 	return selected_item
 
 
+## All owned items, including equipped ones (the ownership list). Equipped
+## items still live here so unequipping never destroys ownership; use
+## [method get_bag_items] for what the bag actually shows.
 func get_items() -> Array[EquipmentInstance]:
 	return items.duplicate()
 
 
+## Items currently in the bag (everything except equipped items). The bag grid
+## and bag capacity are based on this list.
+func get_bag_items() -> Array[EquipmentInstance]:
+	var result: Array[EquipmentInstance] = []
+	for item in items:
+		if item != null and not item.is_equipped:
+			result.append(item)
+	return result
+
+
+## Number of bag slots in use. Equipped items live in equipment slots and do
+## not count toward bag capacity.
 func get_item_count() -> int:
-	return items.size()
+	return get_bag_items().size()
 
 
 func get_remaining_capacity() -> int:
-	return maxi(capacity, 1) - items.size()
+	return maxi(capacity, 1) - get_item_count()
 
 
 func get_items_for_slot(slot: int) -> Array[EquipmentInstance]:
@@ -99,7 +116,7 @@ func get_items_for_slot(slot: int) -> Array[EquipmentInstance]:
 	if not EquipmentSlot.is_valid(slot):
 		return result
 	for item in items:
-		if item != null and item.get_slot() == slot:
+		if item != null and not item.is_equipped and item.get_slot() == slot:
 			result.append(item)
 	return result
 

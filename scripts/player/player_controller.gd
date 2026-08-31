@@ -23,6 +23,7 @@ signal sub_hero_slots_changed
 @export var player_stats: PlayerStats = PlayerStats.new()
 @export var player_progression: PlayerProgression = PlayerProgression.new()
 @export var equipment_inventory: EquipmentInventory
+@export var storage_inventory: StorageInventory
 @export var sub_hero_progression: SubHeroProgressionService
 @export var is_selected: bool = true
 @export var target_path: NodePath
@@ -108,6 +109,47 @@ func load_sub_hero_save_data(save_data: Dictionary) -> void:
 
 func add_equipment(item: EquipmentInstance) -> bool:
 	return get_inventory().add_item(item)
+
+
+func get_storage() -> StorageInventory:
+	if storage_inventory == null:
+		storage_inventory = StorageInventory.new()
+	return storage_inventory
+
+
+## Adds a picked-up item straight to the warehouse (overflow path).
+func add_to_storage(item: EquipmentInstance) -> bool:
+	return get_storage().add_item(item)
+
+
+## Moves a bag item into the warehouse. Equipped items cannot be stored.
+func move_to_storage(item: EquipmentInstance) -> bool:
+	var bag := get_inventory()
+	if item == null or item.is_equipped or not bag.has_item(item):
+		return false
+	var storage := get_storage()
+	if storage.get_remaining_capacity() <= 0:
+		return false
+	if not bag.remove_item(item):
+		return false
+	return storage.add_item(item)
+
+
+## Moves a warehouse item back into the bag. Requires a free bag slot.
+func move_to_bag(item: EquipmentInstance) -> bool:
+	var storage := get_storage()
+	if item == null or not storage.has_item(item):
+		return false
+	var bag := get_inventory()
+	if bag.get_remaining_capacity() <= 0:
+		return false
+	if not storage.remove_item(item):
+		return false
+	return bag.add_item(item)
+
+
+func discard_storage_item(item: EquipmentInstance) -> bool:
+	return get_storage().remove_item(item)
 
 
 func equip_item(item: EquipmentInstance) -> bool:

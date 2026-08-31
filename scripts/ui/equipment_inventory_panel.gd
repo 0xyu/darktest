@@ -57,6 +57,9 @@ const COLOR_MUTED := Color("8f879d")
 const COLOR_GREEN := Color("82d49b")
 const COLOR_RED := Color("d46a78")
 
+## Warehouse page size (items shown per page, 4 rows x 6 columns).
+const STORAGE_PAGE_SIZE: int = 24
+
 enum Tab { CHARACTER, EQUIPMENT, ITEMS }
 
 ## Clickable square cell painted from hud-sprite.jpg slices (frame + icon +
@@ -150,10 +153,22 @@ var _equipment_grid: GridContainer
 var _left_slot_column: VBoxContainer
 var _right_slot_column: VBoxContainer
 var _inventory_section: Control
+var _inventory_body: VBoxContainer
 var _inventory_grid: GridContainer
 var _inventory_count_label: Label
 var _filter_row: Control
 var _filter_label: Label
+
+# Storage (warehouse)
+var _storage: StorageInventory
+var _storage_count_label: Label
+var _storage_grid: GridContainer
+var _storage_selected_item: EquipmentInstance
+var _storage_pager_row: HBoxContainer
+var _storage_page_label: Label
+var _storage_prev_button: Button
+var _storage_next_button: Button
+var _storage_page: int = 0
 
 # Character stats
 var _attack_value_label: Label
@@ -179,13 +194,20 @@ func set_player(player: PlayerController) -> void:
 			_inventory.inventory_changed.disconnect(_on_inventory_changed)
 		if _inventory.item_selected.is_connected(_on_item_selected):
 			_inventory.item_selected.disconnect(_on_item_selected)
+	if _storage != null:
+		if _storage.storage_changed.is_connected(_on_storage_changed):
+			_storage.storage_changed.disconnect(_on_storage_changed)
 	_player = player
 	_inventory = _player.get_inventory() if _player != null else null
+	_storage = _player.get_storage() if _player != null else null
 	if _inventory != null:
 		if not _inventory.inventory_changed.is_connected(_on_inventory_changed):
 			_inventory.inventory_changed.connect(_on_inventory_changed)
 		if not _inventory.item_selected.is_connected(_on_item_selected):
 			_inventory.item_selected.connect(_on_item_selected)
+	if _storage != null:
+		if not _storage.storage_changed.is_connected(_on_storage_changed):
+			_storage.storage_changed.connect(_on_storage_changed)
 	_request_refresh()
 
 
@@ -633,17 +655,82 @@ func _build_inventory_section() -> Control:
 	section.add_child(_filter_row)
 
 	# Only the item list scrolls; the character/equipment/details stay fixed.
+	# The scroll body holds the bag grid followed by the separate warehouse grid.
 	var item_scroll := ScrollContainer.new()
 	item_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	item_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	section.add_child(item_scroll)
+
+	_inventory_body = VBoxContainer.new()
+	_inventory_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_inventory_body.add_theme_constant_override("separation", 10)
+	item_scroll.add_child(_inventory_body)
 
 	_inventory_grid = GridContainer.new()
 	_inventory_grid.columns = 6
 	_inventory_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_inventory_grid.add_theme_constant_override("h_separation", 8)
 	_inventory_grid.add_theme_constant_override("v_separation", 8)
-	item_scroll.add_child(_inventory_grid)
+	_inventory_body.add_child(_inventory_grid)
+
+	# Warehouse block: its own header, count, and grid — slots are separate
+	# from the bag above.
+	var storage_header := HBoxContainer.new()
+	storage_header.add_theme_constant_override("separation", 8)
+	_inventory_body.add_child(storage_header)
+
+	var storage_title := Label.new()
+	storage_title.text = "仓库"
+	storage_title.add_theme_color_override("font_color", COLOR_GOLD)
+	storage_title.add_theme_font_size_override("font_size", 17)
+	storage_header.add_child(storage_title)
+
+	var storage_spacer := Control.new()
+	storage_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	storage_header.add_child(storage_spacer)
+
+	_storage_count_label = Label.new()
+	_storage_count_label.text = "0/0"
+	_storage_count_label.add_theme_color_override("font_color", COLOR_TEXT)
+	_storage_count_label.add_theme_font_size_override("font_size", 14)
+	storage_header.add_child(_storage_count_label)
+
+	# Warehouse pagination: only shown when the storage spans multiple pages.
+	_storage_pager_row = HBoxContainer.new()
+	_storage_pager_row.add_theme_constant_override("separation", 8)
+	_storage_pager_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_inventory_body.add_child(_storage_pager_row)
+
+	_storage_prev_button = Button.new()
+	_storage_prev_button.text = "◀ 上一页"
+	_storage_prev_button.add_theme_font_size_override("font_size", 12)
+	_storage_prev_button.add_theme_color_override("font_color", Color("c9bdb4"))
+	_apply_button_style(_storage_prev_button, false)
+	_storage_prev_button.pressed.connect(_on_storage_prev_pressed)
+	_storage_pager_row.add_child(_storage_prev_button)
+
+	_storage_page_label = Label.new()
+	_storage_page_label.text = "第 1/1 页"
+	_storage_page_label.custom_minimum_size = Vector2(80, 0)
+	_storage_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_storage_page_label.add_theme_color_override("font_color", COLOR_TEXT)
+	_storage_page_label.add_theme_font_size_override("font_size", 12)
+	_storage_pager_row.add_child(_storage_page_label)
+
+	_storage_next_button = Button.new()
+	_storage_next_button.text = "下一页 ▶"
+	_storage_next_button.add_theme_font_size_override("font_size", 12)
+	_storage_next_button.add_theme_color_override("font_color", Color("c9bdb4"))
+	_apply_button_style(_storage_next_button, false)
+	_storage_next_button.pressed.connect(_on_storage_next_pressed)
+	_storage_pager_row.add_child(_storage_next_button)
+
+	_storage_grid = GridContainer.new()
+	_storage_grid.columns = 6
+	_storage_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_storage_grid.add_theme_constant_override("h_separation", 8)
+	_storage_grid.add_theme_constant_override("v_separation", 8)
+	_inventory_body.add_child(_storage_grid)
 	return section
 
 
@@ -677,6 +764,7 @@ func _refresh() -> void:
 	_rebuild_slot_columns()
 	_rebuild_equipment_grid()
 	_rebuild_inventory_grid()
+	_rebuild_storage_grid()
 	_refresh_filter_row()
 	_refresh_dynamic()
 
@@ -703,7 +791,7 @@ func _rebuild_inventory_grid() -> void:
 		return
 	var filtering: bool = EquipmentSlot.is_valid(_filter_slot)
 	var items: Array[EquipmentInstance] = (
-		_inventory.get_items_for_slot(_filter_slot) if filtering else _inventory.get_items()
+		_inventory.get_items_for_slot(_filter_slot) if filtering else _inventory.get_bag_items()
 	)
 	_inventory_count_label.text = "%d/%d" % [items.size(), _inventory.capacity]
 	if items.is_empty():
@@ -793,10 +881,95 @@ func _on_item_cell_pressed(cell: InventoryCell) -> void:
 		_open_item_popup(cell.item)
 
 
-func _open_item_popup(item: EquipmentInstance) -> void:
+func _rebuild_storage_grid() -> void:
+	_clear_grid(_storage_grid)
+	if _player == null:
+		_storage_count_label.text = "0/0"
+		_update_storage_pager(0)
+		return
+	var storage: StorageInventory = _player.get_storage()
+	if _storage_selected_item != null and not storage.has_item(_storage_selected_item):
+		_storage_selected_item = null
+	var items: Array[EquipmentInstance] = storage.get_items()
+	_storage_count_label.text = "%d/%d" % [items.size(), storage.capacity]
+	var total_pages: int = maxi(ceili(float(items.size()) / float(STORAGE_PAGE_SIZE)), 1)
+	_storage_page = clampi(_storage_page, 0, total_pages - 1)
+	if items.is_empty():
+		var empty := Label.new()
+		empty.custom_minimum_size = Vector2(0, 60)
+		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		empty.text = "仓库是空的\n物品栏满时掉落的装备会自动存入这里"
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		empty.add_theme_color_override("font_color", Color("62596d"))
+		empty.add_theme_font_size_override("font_size", 13)
+		_storage_grid.add_child(empty)
+		_update_storage_pager(1)
+		return
+	var start_index: int = _storage_page * STORAGE_PAGE_SIZE
+	var end_index: int = mini(start_index + STORAGE_PAGE_SIZE, items.size())
+	for index in range(start_index, end_index):
+		_storage_grid.add_child(_create_storage_cell(items[index]))
+	_update_storage_pager(total_pages)
+
+
+## Shows/hides the warehouse pager and syncs the page label / button states.
+func _update_storage_pager(total_pages: int) -> void:
+	if _storage_pager_row == null:
+		return
+	var has_pages: bool = total_pages > 1
+	_storage_pager_row.visible = has_pages
+	if not has_pages:
+		return
+	_storage_page_label.text = "第 %d/%d 页" % [_storage_page + 1, total_pages]
+	_storage_prev_button.disabled = _storage_page <= 0
+	_storage_next_button.disabled = _storage_page >= total_pages - 1
+
+
+func _on_storage_prev_pressed() -> void:
+	if _storage_page <= 0:
+		return
+	_storage_page -= 1
+	_request_refresh()
+
+
+func _on_storage_next_pressed() -> void:
+	_storage_page += 1
+	_request_refresh()
+
+
+func _create_storage_cell(item: EquipmentInstance) -> InventoryCell:
+	var cell := InventoryCell.new()
+	cell.custom_minimum_size = Vector2(96, 96)
+	cell.item = item
+	cell.icon = EQUIPMENT_ICON_BY_SLOT.get(item.get_slot()) as Texture2D
+	cell.has_content = true
+	cell.selected = item == _storage_selected_item
+	cell.frame_region = _frame_region_for(item.get_rarity())
+	cell.frame_tint = _frame_tint_for(item.get_rarity())
+	cell.corner_text = "%d" % item.get_item_level()
+	cell.corner_color = _get_rarity_color(item.get_rarity())
+	cell.tooltip_text = "%s  •  %s" % [item.get_display_name(), _format_item_details(item)]
+	cell.cell_pressed.connect(_on_storage_cell_pressed)
+	return cell
+
+
+func _on_storage_cell_pressed(cell: InventoryCell) -> void:
+	if cell.item != null:
+		_storage_selected_item = cell.item
+		_open_item_popup(cell.item, true)
+
+
+func _on_storage_changed() -> void:
+	if _storage_selected_item != null and _player != null and not _player.get_storage().has_item(_storage_selected_item):
+		_storage_selected_item = null
+	_request_refresh()
+
+
+func _open_item_popup(item: EquipmentInstance, from_storage: bool = false) -> void:
 	if item == null or _player == null or _item_popup == null:
 		return
-	_item_popup.call("open_for", _player, item)
+	_item_popup.call("open_for", _player, item, from_storage)
 
 
 func _toggle_detailed_stats() -> void:

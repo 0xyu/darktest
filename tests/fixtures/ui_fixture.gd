@@ -120,6 +120,13 @@ static func create_empty_inventory(capacity: int = EquipmentInventory.DEFAULT_CA
 	return inventory
 
 
+## A fresh, empty warehouse with the default capacity.
+static func create_storage(capacity: int = StorageInventory.DEFAULT_CAPACITY) -> StorageInventory:
+	var storage := StorageInventory.new()
+	storage.capacity = maxi(capacity, 1)
+	return storage
+
+
 ## A deterministic demo inventory guaranteed to contain at least one Common,
 ## Rare, Epic, Legendary, and Mythic item. The Legendary gloves and Mythic
 ## ring are equipped so both equipped and bag states are visible in UI.

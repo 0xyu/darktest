@@ -29,13 +29,13 @@ func _process(delta: float) -> void:
 		_feedback_time_remaining = maxf(_feedback_time_remaining - delta, 0.0)
 		_feedback_label.modulate.a = clampf(_feedback_time_remaining / 0.8, 0.0, 1.0)
 		if is_zero_approx(_feedback_time_remaining):
-			_feedback_label.text = "READY"
-			_feedback_label.modulate = Color("9d93ae")
+			_update_state_label()
 	if _cooldown_time_remaining > 0.0:
 		_cooldown_time_remaining = maxf(_cooldown_time_remaining - delta, 0.0)
 		_cooldown_bar.value = _cooldown_time_remaining
 		if is_zero_approx(_cooldown_time_remaining):
 			_cooldown_bar.value = 0.0
+			_update_state_label()
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -88,6 +88,10 @@ func start_cooldown(duration: float) -> void:
 	_cooldown_time_remaining = safe_duration
 	_cooldown_bar.max_value = safe_duration
 	_cooldown_bar.value = safe_duration
+	# Pre-started bars (combat start / re-sync) must flip a stale "READY" label
+	# into CHARGING; at real attack time the hit text is showing and stays.
+	if _feedback_time_remaining <= 0.0:
+		_update_state_label()
 
 
 func reset_cooldown() -> void:
@@ -133,6 +137,20 @@ func _reset_cooldown() -> void:
 	_cooldown_time_remaining = 0.0
 	_cooldown_bar.max_value = 1.0
 	_cooldown_bar.value = 0.0
+
+
+## Derives the status text from the real cooldown so "READY" only appears once
+## the countdown has actually reached zero. While charging, the label shows
+## CHARGING instead of pretending the hero is ready to fire.
+func _update_state_label() -> void:
+	if _bound_hero_id.is_empty():
+		return
+	if _cooldown_time_remaining > 0.0:
+		_feedback_label.text = "CHARGING"
+		_feedback_label.modulate = Color("756b80")
+	else:
+		_feedback_label.text = "READY"
+		_feedback_label.modulate = Color("9d93ae")
 
 
 func _apply_frame_style(frame_color: Color, filled: bool) -> void:

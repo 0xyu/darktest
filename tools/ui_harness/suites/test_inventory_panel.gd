@@ -177,7 +177,7 @@ func test_slot_filter_toggles() -> void:
 	expect_eq(_panel_get("_filter_slot"), EquipmentSlot.WEAPON, "clicking a slot sets the filter")
 	expect(_panel_get("_filter_row").visible, "filter status row is shown while filtering")
 	expect_eq(count_cells(_panel_get("_inventory_grid")), 2, "item list filters to the 2 weapon items")
-	expect_eq(_panel_get("_inventory_count_label").text, "2/60", "count label reflects the filtered list")
+	expect_eq(_panel_get("_inventory_count_label").text, "2/10", "count label reflects the filtered list")
 
 	# Toggle off by clicking the SAME slot again. The grid was rebuilt by the
 	# refresh, so the cell reference MUST be re-queried.
@@ -194,16 +194,83 @@ func test_slot_filter_toggles() -> void:
 
 func test_apply_character_rebind() -> void:
 	await _mount_panel_with_player()
-	expect_eq(_panel_get("_inventory_count_label").text, "9/60", "panel bound to the first fixture inventory")
+	# Fixture inventory holds 9 owned items, 2 of which are equipped; equipped
+	# gear does not occupy bag slots, so the bag shows 7/10.
+	expect_eq(_panel_get("_inventory_count_label").text, "7/10", "panel bound to the first fixture inventory")
 	# apply_character_to_player REPLACES the inventory object, orphaning the panel.
 	UIFixtureScript.apply_character_to_player(_player)
 	var fresh: EquipmentInventory = _player.get_inventory()
 	expect(fresh.remove_item(fresh.get_items()[0]), "one item removed from the fresh inventory")
 	await flush_frames()
-	expect_eq(_panel_get("_inventory_count_label").text, "9/60", "panel still reads the stale (orphaned) inventory")
+	expect_eq(_panel_get("_inventory_count_label").text, "7/10", "panel still reads the stale (orphaned) inventory")
 	_panel.call("set_player", _player)
 	await flush_frames()
-	expect_eq(_panel_get("_inventory_count_label").text, "8/60", "re-binding set_player refreshes to the fresh inventory")
+	expect_eq(_panel_get("_inventory_count_label").text, "6/10", "re-binding set_player refreshes to the fresh inventory")
+
+
+# --- Storage (warehouse) ----------------------------------------------------
+
+func test_storage_section_and_withdraw() -> void:
+	await _mount_panel_with_player()
+	var storage: StorageInventory = _player.get_storage()
+	var stored: EquipmentInstance = UIFixtureScript.create_equipment(EquipmentRarity.RARE, EquipmentSlot.WEAPON, 12)
+	expect(storage.add_item(stored), "storage accepts an item")
+	await flush_frames()
+	expect_eq(_panel_get("_storage_count_label").text, "1/%d" % storage.capacity, "storage count label binds to storage")
+	var grid: Node = _panel_get("_storage_grid")
+	expect(count_cells(grid) == 1, "storage grid shows the stored item")
+	var cell: Node = find_cell(grid, 0)
+	expect(cell != null and cell.get("item") == stored, "storage cell carries its item")
+	click_cell(cell)
+	await flush_frames()
+	var popup: Control = _panel_get("_item_popup")
+	expect(popup != null and popup.visible, "clicking a storage cell opens the popup")
+	if popup == null:
+		return
+	var withdraw_button: Button = popup.get("_withdraw_button")
+	expect(withdraw_button != null and withdraw_button.visible, "storage popup offers withdraw")
+	withdraw_button.pressed.emit()
+	await flush_frames()
+	expect(storage.get_item_count() == 0, "withdraw removes the item from storage")
+	expect(_player.get_inventory().has_item(stored), "withdraw moves the item into the bag")
+
+
+func test_storage_pagination() -> void:
+	await _mount_panel_with_player()
+	var storage: StorageInventory = _player.get_storage()
+	# Mirrors STORAGE_PAGE_SIZE in equipment_inventory_panel.gd.
+	var page_size: int = 24
+	var extra: int = 5
+	for index in page_size + extra:
+		storage.add_item(UIFixtureScript.create_equipment(EquipmentRarity.COMMON, EquipmentSlot.WEAPON, 1))
+	await flush_frames()
+	expect_eq(
+		_panel_get("_storage_count_label").text,
+		"%d/%d" % [page_size + extra, storage.capacity],
+		"storage count shows the full total across pages",
+	)
+	expect(count_cells(_panel_get("_storage_grid")) == page_size, "first page shows exactly one page of items")
+	var page_label: Label = _panel_get("_storage_page_label")
+	expect_contains(page_label.text, "1/2", "page label reads page 1 of 2")
+	var prev_button: Button = _panel_get("_storage_prev_button")
+	var next_button: Button = _panel_get("_storage_next_button")
+	expect(prev_button != null and prev_button.disabled, "prev disabled on the first page")
+	expect(next_button != null and not next_button.disabled, "next enabled with a second page")
+	next_button.pressed.emit()
+	await flush_frames()
+	expect(count_cells(_panel_get("_storage_grid")) == extra, "second page shows the remaining items")
+	expect_contains(page_label.text, "2/2", "page label reads page 2 of 2")
+	expect(prev_button != null and not prev_button.disabled, "prev enabled on the last page")
+	expect(next_button != null and next_button.disabled, "next disabled on the last page")
+
+
+func test_bag_grid_excludes_equipped_items() -> void:
+	await _mount_panel_with_player()
+	# The fixture equips Legendary gloves + Mythic ring; they must not appear in
+	# the bag grid (only in the equipment section).
+	var bag_cells: int = count_cells(_panel_get("_inventory_grid"))
+	expect_eq(bag_cells, _player.get_inventory().get_item_count(), "bag grid matches non-equipped bag count")
+	expect(bag_cells < _player.get_inventory().get_items().size(), "equipped items are excluded from the bag grid")
 
 
 # ---------------------------------------------------------------------------
