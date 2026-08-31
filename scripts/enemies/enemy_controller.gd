@@ -274,6 +274,7 @@ func get_current_stats() -> EnemyStats:
 
 func set_current_hp(value: int) -> void:
 	enemy_runtime.set_hp(value)
+	queue_redraw()
 
 
 func sync_runtime_state() -> void:

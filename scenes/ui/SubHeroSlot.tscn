@@ -91,3 +91,10 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.459, 0.42, 0.502, 1)
 theme_override_font_sizes/font_size = 10
 text = "WAITING"
+
+[node name="CooldownBar" type="ProgressBar" parent="Margin/Content/Details"]
+custom_minimum_size = Vector2(0, 5)
+layout_mode = 2
+mouse_filter = 2
+show_percentage = false
+value = 0.0

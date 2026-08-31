@@ -2,10 +2,13 @@ class_name SubHeroCombatManager
 extends Node
 
 const SubHeroQualityResource = preload("res://scripts/sub_hero/sub_hero_quality.gd")
+const DamageNumberResource = preload("res://scripts/combat/damage_number.gd")
 
 ## A time-based combat layer that deliberately does not participate in the
 ## turn manager or query grid distance/pathfinding.
 signal attack_resolved(result: DamageResult)
+signal attack_feedback_requested(result: DamageResult, target: Node)
+signal cooldown_started(hero_id: StringName, duration: float)
 signal target_changed(hero_id: StringName, target: Node)
 signal combat_cleared
 signal combat_state_changed(is_running: bool)
@@ -155,6 +158,11 @@ func _resolve_attack(state: ActiveSubHeroState, target: Node) -> void:
 	result.target_defeated = _get_current_hp(target) <= 0
 	if target.has_method("clamp_current_hp"):
 		target.clamp_current_hp()
+	if target.has_method("queue_redraw"):
+		target.queue_redraw()
+	_spawn_damage_number(target, result)
+	attack_feedback_requested.emit(result, target)
+	cooldown_started.emit(state.instance.hero_id, maxf(state.data.attack_interval, 0.1))
 	if result.target_defeated and target.has_method("handle_defeat"):
 		target.handle_defeat()
 	if state.data.unique_effect != null and state.data.unique_effect.has_method("on_attack_resolved"):
@@ -163,6 +171,15 @@ func _resolve_attack(state: ActiveSubHeroState, target: Node) -> void:
 			"sub_hero_data": state.data,
 		})
 	attack_resolved.emit(result)
+
+
+func _spawn_damage_number(target: Node, result: DamageResult) -> void:
+	if target == null or not is_instance_valid(target) or not target is Node2D:
+		return
+	var damage_number := DamageNumberResource.new()
+	add_child(damage_number)
+	damage_number.global_position = (target as Node2D).global_position + Vector2(0.0, -30.0)
+	damage_number.setup(result.final_damage, result.is_critical)
 
 
 func _select_target(target_rule: int) -> Node:
@@ -244,14 +261,20 @@ func _set_current_hp(enemy: Node, value: int) -> bool:
 	var safe_value: int = maxi(value, 0)
 	if enemy.has_method("set_current_hp"):
 		enemy.set_current_hp(safe_value)
+		if enemy.has_method("queue_redraw"):
+			enemy.queue_redraw()
 		return true
 	var enemy_runtime: Variant = enemy.get("enemy_runtime")
 	if enemy_runtime != null:
 		enemy_runtime.set("current_hp", safe_value)
+		if enemy.has_method("queue_redraw"):
+			enemy.queue_redraw()
 		return true
 	var enemy_stats: Variant = enemy.get("enemy_stats")
 	if enemy_stats != null:
 		enemy_stats.set("current_hp", safe_value)
+		if enemy.has_method("queue_redraw"):
+			enemy.queue_redraw()
 		return true
 	return false
 

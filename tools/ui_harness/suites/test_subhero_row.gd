@@ -46,3 +46,15 @@ func test_attack_feedback_routes_to_matching_slot() -> void:
 	var feedback: Label = row.get_node("Margin/Content/Slots/SlotA/Margin/Content/Details/FeedbackLabel")
 	expect_eq(feedback.text, "HIT  -8", "slot shows recent damage feedback")
 	expect(not bool(row.call("show_attack_feedback", &"unknown", 5)), "unknown hero should not alter a slot")
+
+
+func test_cooldown_updates_without_attack_feedback() -> void:
+	var row := await _mount_row()
+	var data: Resource = load(SKELETON_DATA_PATH)
+	var instance: Resource = InstanceScript.new(&"skeleton_archer", 1)
+	row.call("set_slot", 0, data, instance)
+	var slot: Node = row.get_node("Margin/Content/Slots/SlotA")
+	slot.call("start_cooldown", 1.8)
+	slot.call("_process", 0.5)
+	var cooldown_bar: ProgressBar = slot.get_node("Margin/Content/Details/CooldownBar")
+	expect(is_equal_approx(cooldown_bar.value, 1.3), "cooldown bar should continue updating after attack feedback ends")

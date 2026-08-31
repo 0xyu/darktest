@@ -306,17 +306,33 @@ The player should be able to stop auto mode at any time.
 
 Auto mode must never permanently soft-lock combat.
 
-## 4.1 Auto Stage Toggle
+### 4.1 Game Speed
 
-AUTO STAGE controls what AUTO does after a victory:
+Auto combat provides three selectable pacing modes:
 
 ```text
-AUTO STAGE ON   →  advance to the next stage
-AUTO STAGE OFF  →  stay on the cleared stage and refresh its monsters
+x1       0.40 seconds between automatic decisions
+x2       0.20 seconds between automatic decisions
+FASTEST  existing rapid test/debug pacing (0.05 seconds)
 ```
 
-The toggle only affects auto combat. In manual mode the player always advances
-with the NEXT STAGE button regardless of the toggle.
+x1 is the default for normal play. Changing the mode immediately updates any
+pending automatic decision without resetting the current turn or other combat
+state. The setting only affects main-hero auto decisions; it does not change
+global engine time or unrelated systems.
+
+## 4.2 Auto Stage Toggle
+
+AUTO STAGE controls what happens after a victory:
+
+```text
+AUTO STAGE ON   →  advance to the next stage automatically
+AUTO STAGE OFF  →  stay on the cleared stage until NEXT STAGE is pressed
+```
+
+When AUTO STAGE is ON, clearing the final enemy advances immediately whether
+combat is running in AUTO or being controlled manually. When it is OFF, AUTO
+refreshes the cleared stage and manual mode waits for the NEXT STAGE button.
 
 ---
 

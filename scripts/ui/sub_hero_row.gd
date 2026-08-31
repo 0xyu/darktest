@@ -45,5 +45,25 @@ func show_attack_feedback(hero_id: StringName, damage: int) -> bool:
 	return false
 
 
+func start_cooldown(hero_id: StringName, duration: float) -> bool:
+	for slot in _slots.get_children():
+		if slot.call("get_bound_hero_id") == hero_id:
+			slot.call("start_cooldown", duration)
+			return true
+	return false
+
+
+func reset_cooldowns() -> void:
+	for slot in _slots.get_children():
+		slot.call("reset_cooldown")
+
+
+func get_slot_center(hero_id: StringName) -> Vector2:
+	for slot in _slots.get_children():
+		if slot.call("get_bound_hero_id") == hero_id:
+			return (slot as Control).get_global_rect().get_center()
+	return Vector2.ZERO
+
+
 func get_slot_count() -> int:
 	return _slots.get_child_count()

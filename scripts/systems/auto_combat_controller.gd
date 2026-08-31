@@ -7,6 +7,13 @@ extends Node
 signal auto_mode_changed(enabled: bool)
 signal auto_action_taken(description: String)
 signal auto_stage_changed(enabled: bool)
+signal game_speed_changed(speed: int)
+
+enum GameSpeed {
+	X1,
+	X2,
+	FASTEST,
+}
 
 @export var player_path: NodePath = NodePath("../Player")
 @export var turn_manager_path: NodePath = NodePath("../TurnManager")
@@ -15,11 +22,16 @@ signal auto_stage_changed(enabled: bool)
 @export var grid_path: NodePath = NodePath("../Grid")
 @export var use_healing_items: bool = true
 @export_range(0.05, 0.95, 0.05) var healing_item_threshold: float = 0.35
+## Kept as the fastest mode so the existing rapid test/debug loop is preserved.
 @export_range(0.01, 2.0, 0.01) var action_delay_seconds: float = 0.05
+@export_range(0.10, 2.0, 0.01) var x1_action_delay_seconds: float = 0.40
+@export_range(0.05, 2.0, 0.01) var x2_action_delay_seconds: float = 0.20
 
-## When true, AUTO advances to the next stage on victory. When false, AUTO
-## stays on the cleared stage and refreshes its enemies for repeat farming.
+## When true, a cleared stage advances automatically, including when the
+## player is controlling attacks manually. When false, AUTO stays on the
+## cleared stage and refreshes its enemies for repeat farming.
 var auto_stage_enabled: bool = true
+var _game_speed: int = GameSpeed.X1
 
 var _player: PlayerController
 var _turn_manager: TurnManager
@@ -28,6 +40,8 @@ var _stage_manager: StageManager
 var _grid: GridMap2D
 var _auto_enabled: bool = false
 var _decision_scheduled: bool = false
+var _decision_remaining_seconds: float = 0.0
+var _decision_wait_duration: float = 0.0
 var _stage_advance_scheduled: bool = false
 var _run_token: int = 0
 
@@ -35,6 +49,19 @@ var _run_token: int = 0
 func _ready() -> void:
 	_resolve_dependencies()
 	_connect_signals()
+
+
+func _process(delta: float) -> void:
+	if not _decision_scheduled:
+		return
+	if not _auto_enabled or _turn_manager == null or _turn_manager.get_phase() != TurnState.PLAYER_TURN:
+		_decision_scheduled = false
+		return
+	_decision_remaining_seconds -= delta
+	if _decision_remaining_seconds > 0.0:
+		return
+	_decision_scheduled = false
+	_run_auto_turn(_run_token)
 
 
 func attach_systems(
@@ -95,6 +122,39 @@ func toggle_auto_stage() -> void:
 	set_auto_stage_enabled(not auto_stage_enabled)
 
 
+func set_game_speed(speed: int) -> void:
+	var clamped_speed: int = clampi(speed, GameSpeed.X1, GameSpeed.FASTEST)
+	if _game_speed == clamped_speed:
+		return
+	var previous_wait_duration: float = _decision_wait_duration
+	var decision_progress: float = 0.0
+	if _decision_scheduled and previous_wait_duration > 0.0:
+		decision_progress = clampf(
+			1.0 - (_decision_remaining_seconds / previous_wait_duration),
+			0.0,
+			1.0
+		)
+	_game_speed = clamped_speed
+	if _decision_scheduled:
+		_decision_wait_duration = _get_action_delay_seconds()
+		_decision_remaining_seconds = _decision_wait_duration * (1.0 - decision_progress)
+	game_speed_changed.emit(_game_speed)
+
+
+func get_game_speed() -> int:
+	return _game_speed
+
+
+func get_game_speed_label() -> String:
+	match _game_speed:
+		GameSpeed.X1:
+			return "x1"
+		GameSpeed.X2:
+			return "x2"
+		_:
+			return "FASTEST"
+
+
 func _resolve_dependencies() -> void:
 	if _player == null:
 		_player = get_node_or_null(player_path) as PlayerController
@@ -109,14 +169,15 @@ func _resolve_dependencies() -> void:
 
 
 func _connect_signals() -> void:
-	if _turn_manager == null:
-		return
-	if not _turn_manager.player_turn_started.is_connected(_on_player_turn_started):
-		_turn_manager.player_turn_started.connect(_on_player_turn_started)
-	if not _turn_manager.combat_victory.is_connected(_on_combat_victory):
-		_turn_manager.combat_victory.connect(_on_combat_victory)
-	if not _turn_manager.combat_defeat.is_connected(_on_combat_defeat):
-		_turn_manager.combat_defeat.connect(_on_combat_defeat)
+	if _turn_manager != null:
+		if not _turn_manager.player_turn_started.is_connected(_on_player_turn_started):
+			_turn_manager.player_turn_started.connect(_on_player_turn_started)
+		if not _turn_manager.combat_victory.is_connected(_on_combat_victory):
+			_turn_manager.combat_victory.connect(_on_combat_victory)
+		if not _turn_manager.combat_defeat.is_connected(_on_combat_defeat):
+			_turn_manager.combat_defeat.connect(_on_combat_defeat)
+	if _stage_manager != null and not _stage_manager.stage_completed.is_connected(_on_stage_completed):
+		_stage_manager.stage_completed.connect(_on_stage_completed)
 	if _player != null and _player.has_signal("defeated"):
 		var defeated_signal: Signal = _player.defeated
 		if not defeated_signal.is_connected(_on_player_defeated):
@@ -142,6 +203,15 @@ func _on_combat_victory() -> void:
 	_schedule_stage_advance()
 
 
+func _on_stage_completed(_stage_state: StageState) -> void:
+	# StageManager is the source of truth for "all enemies defeated". This
+	# also covers clears caused by skills and Sub Heroes, before any turn-state
+	# transition is required.
+	if not auto_stage_enabled:
+		return
+	_schedule_stage_advance()
+
+
 func _schedule_stage_advance() -> void:
 	if _stage_manager == null or _stage_advance_scheduled:
 		return
@@ -152,12 +222,13 @@ func _schedule_stage_advance() -> void:
 
 func _advance_after_victory(token: int) -> void:
 	_stage_advance_scheduled = false
-	if token != _run_token or not _auto_enabled:
-		return
-	if _turn_manager == null or _turn_manager.get_phase() != TurnState.VICTORY:
+	if token != _run_token or (not _auto_enabled and not auto_stage_enabled):
 		return
 	if _stage_manager == null:
 		return
+	if _turn_manager == null or _turn_manager.get_phase() != TurnState.VICTORY:
+		if _stage_manager.stage_state == null or not _stage_manager.stage_state.is_complete:
+			return
 	var stage_started: bool
 	if auto_stage_enabled:
 		stage_started = _stage_manager.start_next_stage()
@@ -185,11 +256,8 @@ func _schedule_decision() -> void:
 	if _turn_manager.get_phase() != TurnState.PLAYER_TURN:
 		return
 	_decision_scheduled = true
-	var token: int = _run_token
-	if action_delay_seconds > 0.0:
-		_get_tree().create_timer(action_delay_seconds).timeout.connect(_run_auto_turn.bind(token), CONNECT_ONE_SHOT)
-	else:
-		call_deferred("_run_auto_turn", token)
+	_decision_wait_duration = _get_action_delay_seconds()
+	_decision_remaining_seconds = _decision_wait_duration
 
 
 func _run_auto_turn(token: int) -> void:
@@ -338,9 +406,15 @@ func _get_player_attack_range() -> int:
 	return maxi(_player.player_stats.attack_range, 0)
 
 
+func _get_action_delay_seconds() -> float:
+	match _game_speed:
+		GameSpeed.X1:
+			return maxf(x1_action_delay_seconds, 0.0)
+		GameSpeed.X2:
+			return maxf(x2_action_delay_seconds, 0.0)
+		_:
+			return maxf(action_delay_seconds, 0.0)
+
+
 func _grid_distance(from_cell: Vector2i, to_cell: Vector2i) -> int:
 	return absi(from_cell.x - to_cell.x) + absi(from_cell.y - to_cell.y)
-
-
-func _get_tree() -> SceneTree:
-	return get_tree()

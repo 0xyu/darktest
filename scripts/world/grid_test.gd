@@ -2,6 +2,7 @@ class_name GridTest
 extends Node2D
 
 const SpecialEncounterTypeResource = preload("res://scripts/systems/special_encounter_type.gd")
+const SubHeroAttackEffectResource = preload("res://scripts/combat/sub_hero_attack_effect.gd")
 
 @onready var grid: GridMap2D = $Grid
 @onready var player: PlayerController = $Player
@@ -52,7 +53,10 @@ func _ready() -> void:
 	player.equipment_effect_triggered.connect(_on_equipment_effect_triggered)
 	player.sub_hero_slots_changed.connect(_on_sub_hero_slots_changed)
 	sub_hero_combat_manager.attack_resolved.connect(_on_sub_hero_attack_resolved)
+	sub_hero_combat_manager.attack_feedback_requested.connect(_on_sub_hero_attack_feedback_requested)
+	sub_hero_combat_manager.cooldown_started.connect(_on_sub_hero_cooldown_started)
 	sub_hero_combat_manager.combat_cleared.connect(_on_sub_hero_combat_cleared)
+	sub_hero_combat_manager.combat_state_changed.connect(_on_sub_hero_combat_state_changed)
 	hud.move_requested.connect(_on_hud_move_requested)
 	hud.attack_requested.connect(_on_hud_attack_requested)
 	hud.skill_requested.connect(_on_hud_skill_requested)
@@ -60,11 +64,14 @@ func _ready() -> void:
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
 	hud.auto_toggle_requested.connect(_on_hud_auto_toggle_requested)
 	hud.auto_stage_toggle_requested.connect(_on_hud_auto_stage_toggle_requested)
+	hud.game_speed_requested.connect(_on_hud_game_speed_requested)
 	auto_combat.attach_systems(player, turn_manager, combat_system, stage_manager, grid)
 	auto_combat.auto_mode_changed.connect(_on_auto_mode_changed)
 	auto_combat.auto_stage_changed.connect(_on_auto_stage_changed)
 	auto_combat.auto_action_taken.connect(_on_auto_action_taken)
+	auto_combat.game_speed_changed.connect(_on_game_speed_changed)
 	hud.set_auto_stage_mode(auto_combat.is_auto_stage_enabled())
+	hud.set_game_speed(auto_combat.get_game_speed())
 	_sync_sub_hero_combatants()
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_layout_portrait_grid()
@@ -126,6 +133,16 @@ func _on_hud_auto_toggle_requested() -> void:
 
 func _on_hud_auto_stage_toggle_requested() -> void:
 	auto_combat.toggle_auto_stage()
+
+
+func _on_hud_game_speed_requested(speed: int) -> void:
+	auto_combat.set_game_speed(speed)
+
+
+func _on_game_speed_changed(speed: int) -> void:
+	hud.set_game_speed(speed)
+	_last_move_text = "GAME SPEED %s" % auto_combat.get_game_speed_label()
+	queue_redraw()
 
 
 func _on_auto_mode_changed(enabled: bool) -> void:
@@ -340,6 +357,27 @@ func _on_sub_hero_attack_resolved(result: DamageResult) -> void:
 	hud.show_sub_hero_attack_feedback(result.attacker_id, result.final_damage)
 	_last_move_text = "Sub Hero hit for %d" % result.final_damage
 	queue_redraw()
+
+
+func _on_sub_hero_attack_feedback_requested(result: DamageResult, target: Node) -> void:
+	if result == null or result.is_miss or target == null or not is_instance_valid(target) or not target is Node2D:
+		return
+	var origin: Vector2 = hud.get_sub_hero_attack_origin(result.attacker_id)
+	var destination: Vector2 = (target as Node2D).get_global_transform_with_canvas().origin
+	if origin == Vector2.ZERO:
+		origin = destination + Vector2(0.0, 40.0)
+	var effect := SubHeroAttackEffectResource.new()
+	hud.add_child(effect)
+	effect.setup(origin, destination)
+
+
+func _on_sub_hero_cooldown_started(hero_id: StringName, duration: float) -> void:
+	hud.start_sub_hero_cooldown(hero_id, duration)
+
+
+func _on_sub_hero_combat_state_changed(is_running: bool) -> void:
+	if is_running:
+		hud.reset_sub_hero_cooldowns()
 
 
 func _on_sub_hero_combat_cleared() -> void:

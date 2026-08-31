@@ -597,6 +597,52 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
 text = "DEV"
 
+[node name="SpeedRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 38)
+theme_override_constants/separation = 8
+
+[node name="SpeedLabel" type="Label" parent="Root/BottomPanel/Margin/Content/SpeedRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(92, 38)
+theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
+theme_override_font_sizes/font_size = 11
+text = "GAME SPEED"
+vertical_alignment = 1
+
+[node name="SpeedX1Button" type="Button" parent="Root/BottomPanel/Margin/Content/SpeedRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+text = "x1"
+
+[node name="SpeedX2Button" type="Button" parent="Root/BottomPanel/Margin/Content/SpeedRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+text = "x2"
+
+[node name="SpeedFastestButton" type="Button" parent="Root/BottomPanel/Margin/Content/SpeedRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+text = "FASTEST"
+
 [node name="CriticalLabel" type="Label" parent="Root"]
 unique_name_in_owner = true
 layout_mode = 1
@@ -633,15 +679,15 @@ unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
-anchor_top = 0.5
+anchor_top = 0.0
 anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -180.0
-offset_top = -48.0
-offset_right = 180.0
-offset_bottom = 48.0
+anchor_bottom = 0.0
+offset_left = -72.0
+offset_top = 256.0
+offset_right = 72.0
+offset_bottom = 290.0
 grow_horizontal = 2
-grow_vertical = 2
+grow_vertical = 0
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StylePanel")
 visible = false
@@ -650,7 +696,7 @@ visible = false
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 16
 text = "VICTORY"
 horizontal_alignment = 1
 vertical_alignment = 1

@@ -10,6 +10,7 @@ signal item_requested
 signal end_turn_requested
 signal auto_toggle_requested
 signal auto_stage_toggle_requested
+signal game_speed_requested(speed: int)
 
 const AUTO_OFF_ICON: Texture2D = preload("res://assets/ui/hud/2_options_off.png")
 const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
@@ -40,6 +41,9 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _end_turn_button: Button = %EndTurnButton
 @onready var _auto_button: Button = %AutoButton
 @onready var _auto_stage_button: Button = %AutoStageButton
+@onready var _speed_x1_button: Button = %SpeedX1Button
+@onready var _speed_x2_button: Button = %SpeedX2Button
+@onready var _speed_fastest_button: Button = %SpeedFastestButton
 @onready var _inventory_button: Button = %InventoryButton
 @onready var _shop_button: Button = %ShopButton
 @onready var _bestiary_button: Button = %BestiaryButton
@@ -77,6 +81,9 @@ func _ready() -> void:
 	_end_turn_button.pressed.connect(func() -> void: end_turn_requested.emit())
 	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
 	_auto_stage_button.pressed.connect(func() -> void: auto_stage_toggle_requested.emit())
+	_speed_x1_button.pressed.connect(func() -> void: game_speed_requested.emit(0))
+	_speed_x2_button.pressed.connect(func() -> void: game_speed_requested.emit(1))
+	_speed_fastest_button.pressed.connect(func() -> void: game_speed_requested.emit(2))
 	_inventory_button.pressed.connect(_on_inventory_button_pressed)
 	_shop_button.pressed.connect(_on_shop_button_pressed)
 	_bestiary_button.pressed.connect(_on_bestiary_button_pressed)
@@ -401,7 +408,10 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 		_end_turn_button.disabled = not player_turn
 	_auto_button.disabled = phase == TurnState.DEFEAT
 	_auto_stage_button.disabled = phase == TurnState.DEFEAT
+	# Victory is a brief status effect, not a modal result screen. Keep the
+	# compact banner mouse-transparent so it never covers combat controls.
 	_state_banner.visible = phase == TurnState.VICTORY or phase == TurnState.DEFEAT
+	_state_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_state_label.text = "VICTORY" if phase == TurnState.VICTORY else "DEFEAT"
 	_state_label.modulate = Color("89c797") if phase == TurnState.VICTORY else Color("d46a78")
 	if player_stats == null:
@@ -433,6 +443,15 @@ func set_auto_stage_mode(enabled: bool) -> void:
 	_auto_stage_button.modulate = Color("89c797") if enabled else Color("f0e7d2")
 
 
+func set_game_speed(speed: int) -> void:
+	if _speed_x1_button == null:
+		return
+	var buttons: Array[Button] = [_speed_x1_button, _speed_x2_button, _speed_fastest_button]
+	for index in buttons.size():
+		var selected: bool = index == speed
+		buttons[index].modulate = Color("89c797") if selected else Color("f0e7d2")
+
+
 ## Binds the three visible combat slots. Ownership/assignment remains outside
 ## the HUD; entries are dictionaries containing `data` and `instance`.
 func set_sub_hero_slots(entries: Array[Dictionary]) -> void:
@@ -449,6 +468,23 @@ func show_sub_hero_attack_feedback(hero_id: StringName, damage: int) -> bool:
 	if _sub_hero_row == null:
 		return false
 	return bool(_sub_hero_row.call("show_attack_feedback", hero_id, damage))
+
+
+func start_sub_hero_cooldown(hero_id: StringName, duration: float) -> bool:
+	if _sub_hero_row == null:
+		return false
+	return bool(_sub_hero_row.call("start_cooldown", hero_id, duration))
+
+
+func reset_sub_hero_cooldowns() -> void:
+	if _sub_hero_row != null:
+		_sub_hero_row.call("reset_cooldowns")
+
+
+func get_sub_hero_attack_origin(hero_id: StringName) -> Vector2:
+	if _sub_hero_row == null:
+		return Vector2.ZERO
+	return _sub_hero_row.call("get_slot_center", hero_id)
 
 
 func present_loot(items: Array[EquipmentInstance], new_best_items: Array[EquipmentInstance] = [], source_name: String = "") -> void:
