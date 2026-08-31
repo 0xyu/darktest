@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/grid_test.gd" id="1_test"]
 [ext_resource type="Script" path="res://scripts/systems/grid_map_2d.gd" id="2_grid"]
@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://scripts/systems/level_manager.gd" id="13_level_manager"]
 [ext_resource type="Script" path="res://scripts/systems/level_provider.gd" id="14_level_provider"]
 [ext_resource type="Resource" path="res://resources/enemies/enemy_registry.tres" id="15_enemy_registry"]
+[ext_resource type="Script" path="res://scripts/sub_hero/sub_hero_combat_manager.gd" id="16_subhero_combat"]
 
 [node name="GridTest" type="Node2D"]
 script = ExtResource("1_test")
@@ -64,3 +65,6 @@ script = ExtResource("11_loot")
 
 [node name="AutoCombatController" type="Node" parent="."]
 script = ExtResource("12_auto")
+
+[node name="SubHeroCombatManager" type="Node" parent="."]
+script = ExtResource("16_subhero_combat")

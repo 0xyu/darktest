@@ -1,4 +1,4 @@
-[gd_scene load_steps=35 format=3]
+[gd_scene load_steps=36 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/mobile_combat_hud.gd" id="1_hud"]
 [ext_resource type="Script" path="res://scripts/ui/loot_presentation.gd" id="2_loot"]
@@ -20,6 +20,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/SkillPanel.tscn" id="22_skills"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroRow.tscn" id="23_subhero_row"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroShopPanel.tscn" id="24_shop"]
+[ext_resource type="PackedScene" path="res://scenes/ui/SubHeroAssignmentPanel.tscn" id="25_assignment"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.0706, 0.0627, 0.102, 0.97)
@@ -670,4 +671,7 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 
 [node name="SubHeroShopPanel" parent="Root" instance=ExtResource("24_shop")]
+unique_name_in_owner = true
+
+[node name="SubHeroAssignmentPanel" parent="Root" instance=ExtResource("25_assignment")]
 unique_name_in_owner = true

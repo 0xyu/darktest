@@ -847,7 +847,7 @@ If equivalent systems already exist, integrate into them rather than creating du
 - [x] Create slot component.
 - [x] Display portrait, quality, level.
 - [x] Add attack feedback.
-- [ ] Add assignment interaction.
+- [x] Add assignment interaction.
 - [ ] Verify portrait responsive layout.
 
 ## Phase 4 — Ownership / Progression

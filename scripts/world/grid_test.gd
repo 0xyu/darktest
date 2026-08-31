@@ -13,6 +13,7 @@ const SpecialEncounterTypeResource = preload("res://scripts/systems/special_enco
 @onready var gold_system = $GoldSystem
 @onready var loot_system = $LootSystem
 @onready var auto_combat: AutoCombatController = $AutoCombatController
+@onready var sub_hero_combat_manager: SubHeroCombatManager = $SubHeroCombatManager
 
 var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
@@ -49,6 +50,9 @@ func _ready() -> void:
 	stage_manager.stage_generation_failed.connect(_on_stage_generation_failed)
 	player.selection_changed.connect(_on_selection_changed)
 	player.equipment_effect_triggered.connect(_on_equipment_effect_triggered)
+	player.sub_hero_slots_changed.connect(_on_sub_hero_slots_changed)
+	sub_hero_combat_manager.attack_resolved.connect(_on_sub_hero_attack_resolved)
+	sub_hero_combat_manager.combat_cleared.connect(_on_sub_hero_combat_cleared)
 	hud.move_requested.connect(_on_hud_move_requested)
 	hud.attack_requested.connect(_on_hud_attack_requested)
 	hud.skill_requested.connect(_on_hud_skill_requested)
@@ -61,6 +65,7 @@ func _ready() -> void:
 	auto_combat.auto_stage_changed.connect(_on_auto_stage_changed)
 	auto_combat.auto_action_taken.connect(_on_auto_action_taken)
 	hud.set_auto_stage_mode(auto_combat.is_auto_stage_enabled())
+	_sync_sub_hero_combatants()
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_layout_portrait_grid()
 	stage_manager.initialize_stage(1)
@@ -184,6 +189,8 @@ func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
 		player.set_target(_active_enemies[0])
 	combat_system.set_combat_targets(_active_enemies)
 	turn_manager.start_combat(player, _active_enemies)
+	_sync_sub_hero_combatants()
+	sub_hero_combat_manager.start_combat(_active_enemies)
 	var encounter_label: String = "MINI BOSS" if stage_state.is_mini_boss_stage else "NORMAL"
 	if stage_state.is_special_encounter:
 		encounter_label = SpecialEncounterTypeResource.get_display_name(stage_state.special_encounter_type).to_upper()
@@ -200,6 +207,7 @@ func _on_enemy_spawned(enemy: Node) -> void:
 	_register_enemy(enemy_controller)
 	combat_system.set_combat_targets(_active_enemies)
 	turn_manager.add_enemy(enemy_controller)
+	sub_hero_combat_manager.add_enemy(enemy_controller)
 	_last_move_text = "%s summoned" % enemy_controller.get_display_name()
 	hud.log_event("log.enemy_summoned", {"name": enemy_controller.get_display_name()})
 	queue_redraw()
@@ -216,6 +224,7 @@ func _register_enemy(enemy: EnemyController) -> void:
 
 
 func _on_stage_completed(stage_state: StageState) -> void:
+	sub_hero_combat_manager.stop_combat()
 	_last_move_text = "STAGE %d CLEARED — SPACE FOR NEXT STAGE" % stage_state.stage_number
 	hud.log_event("log.stage_clear", {"stage": stage_state.stage_number})
 	turn_manager.set_victory()
@@ -308,8 +317,38 @@ func _on_equipment_effect_triggered(_effect_id: StringName, description: String)
 	queue_redraw()
 
 
+func _on_sub_hero_slots_changed() -> void:
+	_sync_sub_hero_combatants()
+
+
+func _sync_sub_hero_combatants() -> void:
+	sub_hero_combat_manager.clear_active_sub_heroes()
+	if player == null or not player.has_method("get_active_sub_hero_entries"):
+		return
+	for entry in player.get_active_sub_hero_entries():
+		var data := entry.get("data") as SubHeroData
+		var instance := entry.get("instance") as SubHeroInstance
+		if data != null and instance != null:
+			sub_hero_combat_manager.register_active_sub_hero(instance, data)
+	if sub_hero_combat_manager.is_combat_running():
+		sub_hero_combat_manager.start_combat(_active_enemies)
+
+
+func _on_sub_hero_attack_resolved(result: DamageResult) -> void:
+	if result == null or result.is_miss:
+		return
+	hud.show_sub_hero_attack_feedback(result.attacker_id, result.final_damage)
+	_last_move_text = "Sub Hero hit for %d" % result.final_damage
+	queue_redraw()
+
+
+func _on_sub_hero_combat_cleared() -> void:
+	stage_manager.complete_stage_if_cleared()
+
+
 func _on_actor_died(actor: Node) -> void:
 	if actor == player:
+		sub_hero_combat_manager.stop_combat()
 		_last_move_text = "PLAYER DEFEATED"
 		hud.log_event("log.player_defeated")
 		turn_manager.set_defeat()

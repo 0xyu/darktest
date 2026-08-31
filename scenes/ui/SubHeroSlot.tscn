@@ -17,7 +17,8 @@ corner_radius_bottom_left = 6
 [node name="SubHeroSlot" type="PanelContainer"]
 custom_minimum_size = Vector2(0, 70)
 size_flags_horizontal = 3
-mouse_filter = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 2
 theme_override_styles/panel = SubResource("StyleSlot")
 script = ExtResource("1_slot")
 

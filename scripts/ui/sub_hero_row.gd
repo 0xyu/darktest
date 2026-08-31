@@ -2,7 +2,20 @@ extends PanelContainer
 
 const MAX_SLOTS: int = 3
 
+signal slot_selected(slot_index: int)
+
 @onready var _slots: HBoxContainer = $Margin/Content/Slots
+
+
+func _ready() -> void:
+	for index in _slots.get_child_count():
+		var slot: Node = _slots.get_child(index)
+		if slot.has_signal("pressed"):
+			slot.pressed.connect(_on_slot_pressed.bind(index))
+
+
+func _on_slot_pressed(slot_index: int) -> void:
+	slot_selected.emit(slot_index)
 
 
 func set_slots(entries: Array[Dictionary]) -> void:

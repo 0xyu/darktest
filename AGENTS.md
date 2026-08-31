@@ -221,8 +221,11 @@ A deterministic fixture system exists for UI testing — see `docs/testing-fixtu
 Use `UIFixture` (at `res://tests/fixtures/ui_fixture.gd`) to build equipment,
 inventory, and character data instead of hand-crafting it via `game_eval`. In the
 running game, the **DEV** button on the combat HUD opens a development panel that
-generates items/characters straight into the player's inventory. Fixture tests live
-in `res://tests/test_ui_fixture.gd`.
+generates items/characters straight into the player's inventory. The same panel
+has a **SUB HERO FIXTURES** section; Agent/runtime tests can call
+`DevelopmentPanel.dev_summon_sub_hero(&"skeleton_archer")` directly to add a
+Sub Hero without Gold or summon resources while preserving normal duplicate
+progression. Fixture tests live in `res://tests/test_ui_fixture.gd`.
 
 ---
 

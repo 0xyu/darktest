@@ -2,6 +2,8 @@ extends PanelContainer
 
 const SubHeroQualityResource = preload("res://scripts/sub_hero/sub_hero_quality.gd")
 
+signal pressed
+
 @onready var _portrait: TextureRect = $Margin/Content/PortraitBox/Portrait
 @onready var _portrait_fallback: Label = $Margin/Content/PortraitBox/Fallback
 @onready var _name_label: Label = $Margin/Content/Details/NameLabel
@@ -25,6 +27,12 @@ func _process(delta: float) -> void:
 	if is_zero_approx(_feedback_time_remaining):
 		_feedback_label.text = "READY"
 		_feedback_label.modulate = Color("9d93ae")
+
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		pressed.emit()
+		accept_event()
 
 
 func set_slot(data: Resource, instance: Resource) -> void:
@@ -74,7 +82,7 @@ func _show_empty() -> void:
 	_name_label.text = "EMPTY SLOT"
 	_quality_label.text = "UNASSIGNED"
 	_quality_label.modulate = Color("756b80")
-	_level_label.text = "SUMMON A SUB HERO"
+	_level_label.text = "ASSIGN SUB HERO"
 	_feedback_label.text = "WAITING"
 	_feedback_label.modulate = Color("756b80")
 	_portrait.texture = null

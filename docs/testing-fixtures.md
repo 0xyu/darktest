@@ -90,6 +90,26 @@ development panel, which exposes the fixtures in-game:
 - **APPLY DEMO CHARACTER** — applies `apply_character_to_player()`.
 - **CLEAR BAG** — removes all non-equipped items.
 
+The DEV panel also includes **SUB HERO FIXTURES**. These buttons directly add
+catalog Sub Heroes without spending Gold and without using the summon table or
+quality roll. They still go through the normal `SubHeroProgressionService`, so
+calling the same hero again exercises duplicate conversion and level progress.
+
+For Agent/runtime tests, use the public DEV-panel method directly:
+
+```gdscript
+var dev = get_tree().current_scene.find_child("DevelopmentPanel", true, false)
+dev.dev_summon_sub_hero(&"skeleton_archer")
+```
+
+The `hero_id` may be any catalog id (`skeleton_archer`, `goblin_gunner`,
+`dark_servant`, `poison_witch`, `dark_ranger`, `plague_doctor`,
+`death_knight`, or `demon_mage`). The optional second argument is the starting
+level. Omitting the id deterministically adds the first catalog entry. This
+runtime-only helper does not persist data and does not require Gold or Shop
+resources, making it the preferred direct setup path when an Agent tests
+Sub Hero ownership, assignment, or duplicate progression.
+
 The panel emits `data_changed` after every mutation; the HUD listens and
 re-binds the inventory panel (required because `apply_character_to_player`
 replaces the player's inventory *object*, orphaning panels bound to the old one).

@@ -12,6 +12,9 @@ signal panel_closed
 signal data_changed
 
 const UIFixtureScript = preload("res://tests/fixtures/ui_fixture.gd")
+const SubHeroCatalogResource = preload("res://scripts/sub_hero/sub_hero_catalog.gd")
+const SubHeroInstanceResource = preload("res://scripts/sub_hero/sub_hero_instance.gd")
+const SubHeroQualityResource = preload("res://scripts/sub_hero/sub_hero_quality.gd")
 
 const SLOT_COUNT: int = 7  # EquipmentSlot.WEAPON .. AMULET
 
@@ -151,6 +154,36 @@ func _clear_inventory() -> void:
 	data_changed.emit()
 
 
+## Directly grants one Sub Hero for QA/agent testing. This intentionally
+## bypasses Gold, summon odds, and the Shop resource table while still using
+## the normal ownership service, so duplicate conversion remains testable.
+## An empty hero_id selects the first catalog entry deterministically.
+func dev_summon_sub_hero(hero_id: StringName = &"", level: int = 1) -> Dictionary:
+	var player := _get_player()
+	if player == null:
+		_set_status("No player available")
+		return {"success": false, "reason": "PLAYER_UNAVAILABLE"}
+	var data: SubHeroData = SubHeroCatalogResource.get_data(hero_id)
+	if data == null and hero_id.is_empty():
+		var all_data: Array[SubHeroData] = SubHeroCatalogResource.get_all_data()
+		if not all_data.is_empty():
+			data = all_data[0]
+	if data == null:
+		_set_status("Unknown Sub Hero: %s" % String(hero_id))
+		return {"success": false, "reason": "UNKNOWN_SUB_HERO", "hero_id": hero_id}
+	var result: Dictionary = player.add_sub_hero(SubHeroInstanceResource.new(data.id, maxi(level, 1)))
+	result["success"] = true
+	result["reason"] = ""
+	result["data"] = data
+	result["level"] = int(result.get("level", 1))
+	_set_status("DEV Sub Hero  •  %s%s" % [
+		data.display_name,
+		" (duplicate)" if not bool(result.get("is_new", false)) else "",
+	])
+	data_changed.emit()
+	return result
+
+
 func _get_player() -> PlayerController:
 	if _player != null and is_instance_valid(_player):
 		return _player
@@ -196,6 +229,8 @@ func _build_ui() -> void:
 	content.add_child(_build_rarity_grid())
 	content.add_child(_section_title("FIXTURES"))
 	content.add_child(_build_fixture_actions())
+	content.add_child(_section_title("SUB HERO FIXTURES"))
+	content.add_child(_build_subhero_actions())
 
 	_status_label = Label.new()
 	_status_label.text = "Ready"
@@ -250,6 +285,17 @@ func _build_fixture_actions() -> VBoxContainer:
 	box.add_child(_make_button("APPLY DEMO CHARACTER", Color("e8af4f"), _apply_demo_character))
 	box.add_child(_make_button("CLEAR BAG", COLOR_RED, _clear_inventory))
 	return box
+
+
+func _build_subhero_actions() -> GridContainer:
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	for data in SubHeroCatalogResource.get_all_data():
+		var accent: Color = SubHeroQualityResource.get_color(data.quality)
+		grid.add_child(_make_button("ADD %s" % data.display_name, accent, dev_summon_sub_hero.bind(data.id)))
+	return grid
 
 
 func _section_title(text: String) -> Label:

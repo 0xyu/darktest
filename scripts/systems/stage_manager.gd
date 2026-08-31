@@ -128,6 +128,23 @@ func get_spawned_enemies() -> Array[EnemyController]:
 	return _spawned_enemies.duplicate()
 
 
+## Completes the current stage when every spawned enemy has been defeated.
+## This is idempotent so independent combat layers can confirm a clear
+## without producing duplicate rewards or stage transitions.
+func complete_stage_if_cleared() -> bool:
+	if stage_state == null or stage_state.is_complete:
+		return stage_state != null and stage_state.is_complete
+	if _spawned_enemies.is_empty():
+		return false
+	for enemy in _spawned_enemies:
+		if enemy != null and is_instance_valid(enemy) and not enemy.is_defeated():
+			return false
+	stage_state.defeated_enemy_count = stage_state.spawned_enemy_count
+	stage_state.is_complete = true
+	stage_completed.emit(stage_state)
+	return true
+
+
 func _resolve_references() -> void:
 	if _grid == null:
 		_grid = get_node_or_null(grid_path) as GridMap2D
@@ -284,9 +301,7 @@ func _on_enemy_defeated(enemy: EnemyController) -> void:
 		return
 	_defeated_enemy_ids[enemy.enemy_id] = true
 	stage_state.defeated_enemy_count += 1
-	if stage_state.defeated_enemy_count >= stage_state.spawned_enemy_count and stage_state.spawned_enemy_count > 0:
-		stage_state.is_complete = true
-		stage_completed.emit(stage_state)
+	complete_stage_if_cleared()
 
 
 func _clear_spawned_enemies() -> void:

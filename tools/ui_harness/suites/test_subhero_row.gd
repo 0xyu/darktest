@@ -21,6 +21,7 @@ func test_empty_slots_are_visible() -> void:
 		var slot: Node = slots.get_child(index)
 		expect_eq(slot.get_node("Margin/Content/Details/NameLabel").text, "EMPTY SLOT", "empty slot %d label" % index)
 		expect_eq(slot.get_node("Margin/Content/Details/QualityLabel").text, "UNASSIGNED", "empty slot %d quality" % index)
+		expect_eq(slot.get_node("Margin/Content/Details/LevelLabel").text, "ASSIGN SUB HERO", "empty slot %d action" % index)
 
 
 func test_data_binding() -> void:

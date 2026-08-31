@@ -53,6 +53,9 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _skill_panel: SkillPanel = %SkillPanel
 @onready var _combat_log: CombatLogPanel = %CombatLogPanel
 @onready var _shop_panel: SubHeroShopPanel = %SubHeroShopPanel
+# Keep this reference as Control so a cold headless harness does not depend on
+# the newly-added panel class being present in Godot's global class cache.
+@onready var _assignment_panel: Control = %SubHeroAssignmentPanel
 
 var _critical_time_remaining: float = 0.0
 var _enemy_summary_signature: String = ""
@@ -84,11 +87,16 @@ func _ready() -> void:
 	_skill_panel.set_player(_player)
 	_shop_panel.set_player(_player)
 	_shop_panel.data_changed.connect(_on_shop_data_changed)
+	_assignment_panel.set_player(_player)
+	_assignment_panel.data_changed.connect(_on_assignment_data_changed)
+	if _sub_hero_row.has_signal("slot_selected"):
+		_sub_hero_row.slot_selected.connect(_on_sub_hero_slot_selected)
 	_inventory_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_bestiary_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_development_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_skill_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_shop_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
+	_assignment_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	if _player != null and _player.has_signal("sub_hero_collection_changed"):
 		_player.sub_hero_collection_changed.connect(_on_sub_hero_state_changed)
 	if _player != null and _player.has_signal("sub_hero_slots_changed"):
@@ -140,8 +148,8 @@ func _on_overlay_panel_visibility_changed() -> void:
 	if _combat_log == null:
 		return
 	_combat_log.visible = not (
-		_inventory_panel.visible or _bestiary_panel.visible or _development_panel.visible
-		or _skill_panel.visible
+	_inventory_panel.visible or _bestiary_panel.visible or _development_panel.visible
+		or _skill_panel.visible or _shop_panel.visible or _assignment_panel.visible
 	)
 
 
@@ -151,12 +159,22 @@ func _on_dev_data_changed() -> void:
 	_inventory_panel.set_player(_player)
 	_skill_panel.set_player(_player)
 	_shop_panel.set_player(_player)
+	_assignment_panel.set_player(_player)
 	_refresh()
 
 
 func _on_shop_data_changed() -> void:
 	_refresh_sub_hero_slots()
 	_refresh()
+
+
+func _on_assignment_data_changed() -> void:
+	_refresh_sub_hero_slots()
+	_refresh()
+
+
+func _on_sub_hero_slot_selected(slot_index: int) -> void:
+	_assignment_panel.show_for_slot(slot_index)
 
 
 func _on_sub_hero_state_changed() -> void:
