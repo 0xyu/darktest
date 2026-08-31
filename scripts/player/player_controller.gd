@@ -5,6 +5,7 @@ signal moved(from_cell: Vector2i, to_cell: Vector2i, movement_points_remaining: 
 signal selection_changed(is_selected: bool)
 signal action_completed
 signal attack_requested(attacker: Node, target: Node)
+signal skill_requested(attacker: Node, target: Node, skill_id: StringName)
 signal defeated
 signal experience_gained(amount: int, current_experience: int, required_experience: int)
 signal level_up(new_level: int)
@@ -284,6 +285,24 @@ func set_target(target: Node) -> void:
 
 func get_target() -> Node:
 	return _get_attack_target()
+
+
+func get_skill_points() -> int:
+	if player_progression == null:
+		return 0
+	return player_progression.get_skill_points()
+
+
+func get_skill_level(skill_id: StringName) -> int:
+	if player_progression == null:
+		return 0
+	return player_progression.get_skill_level(skill_id)
+
+
+func upgrade_skill(skill_id: StringName) -> bool:
+	if player_progression == null:
+		return false
+	return player_progression.upgrade_skill(skill_id)
 
 
 func is_input_enabled() -> bool:

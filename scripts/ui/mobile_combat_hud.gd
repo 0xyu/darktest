@@ -5,6 +5,7 @@ extends CanvasLayer
 ## The HUD only forwards input to the existing player and turn systems.
 signal move_requested(direction: Vector2i)
 signal attack_requested
+signal skill_requested(skill_id: StringName)
 signal item_requested
 signal end_turn_requested
 signal auto_toggle_requested
@@ -30,6 +31,10 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _combat_info_label: Label = %CombatInfoLabel
 @onready var _event_label: Label = %EventLabel
 @onready var _attack_button: Button = %AttackButton
+@onready var _whirlwind_button: Button = %WhirlwindButton
+@onready var _arcane_bolt_button: Button = %ArcaneBoltButton
+@onready var _execution_button: Button = %ExecutionButton
+@onready var _skills_button: Button = %SkillsButton
 @onready var _item_button: Button = %ItemButton
 @onready var _end_turn_button: Button = %EndTurnButton
 @onready var _auto_button: Button = %AutoButton
@@ -43,6 +48,7 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _inventory_panel: EquipmentInventoryPanel = %InventoryPanel
 @onready var _bestiary_panel: EnemyBestiaryPanel = %EnemyBestiaryPanel
 @onready var _development_panel: DevelopmentPanel = %DevelopmentPanel
+@onready var _skill_panel: SkillPanel = %SkillPanel
 @onready var _combat_log: CombatLogPanel = %CombatLogPanel
 @onready var _move_buttons: Array[Button] = [%MoveUpButton, %MoveLeftButton, %MoveDownButton, %MoveRightButton]
 
@@ -62,6 +68,10 @@ func _ready() -> void:
 	_move_buttons[2].pressed.connect(_on_move_down_pressed)
 	_move_buttons[3].pressed.connect(_on_move_right_pressed)
 	_attack_button.pressed.connect(func() -> void: attack_requested.emit())
+	_whirlwind_button.pressed.connect(func() -> void: skill_requested.emit(SkillCatalog.WHIRLWIND))
+	_arcane_bolt_button.pressed.connect(func() -> void: skill_requested.emit(SkillCatalog.ARCANE_BOLT))
+	_execution_button.pressed.connect(func() -> void: skill_requested.emit(SkillCatalog.EXECUTION_STRIKE))
+	_skills_button.pressed.connect(_on_skills_button_pressed)
 	_item_button.pressed.connect(func() -> void: item_requested.emit())
 	_end_turn_button.pressed.connect(func() -> void: end_turn_requested.emit())
 	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
@@ -72,9 +82,11 @@ func _ready() -> void:
 	_inventory_panel.set_player(_player)
 	_development_panel.set_player(_player)
 	_development_panel.data_changed.connect(_on_dev_data_changed)
+	_skill_panel.set_player(_player)
 	_inventory_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_bestiary_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_development_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
+	_skill_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_refresh()
 
@@ -106,6 +118,10 @@ func _on_dev_button_pressed() -> void:
 	_development_panel.toggle_panel()
 
 
+func _on_skills_button_pressed() -> void:
+	_skill_panel.toggle_panel()
+
+
 ## The combat log only belongs on the combat screen. Hide it while any overlay
 ## panel (inventory / bestiary / development) is open so it never covers them.
 ## visibility_changed fires on every show/hide path (button, ui_cancel, ...).
@@ -114,6 +130,7 @@ func _on_overlay_panel_visibility_changed() -> void:
 		return
 	_combat_log.visible = not (
 		_inventory_panel.visible or _bestiary_panel.visible or _development_panel.visible
+		or _skill_panel.visible
 	)
 
 
@@ -121,6 +138,7 @@ func _on_dev_data_changed() -> void:
 	# The dev panel can replace the player's inventory object (demo character),
 	# which orphans panels still bound to the old object. Re-bind and refresh.
 	_inventory_panel.set_player(_player)
+	_skill_panel.set_player(_player)
 	_refresh()
 
 
@@ -156,6 +174,7 @@ func _refresh() -> void:
 	var inventory: EquipmentInventory = _player.get_inventory() if _player.has_method("get_inventory") else null
 	if inventory != null:
 		_inventory_button.text = "INVENTORY %d" % inventory.get_item_count()
+	_skills_button.text = "SKILLS %d" % _player.get_skill_points()
 
 	var player_stats: PlayerStats = _player.get("player_stats") as PlayerStats
 	var player_progression: PlayerProgression = _player.get("player_progression") as PlayerProgression
@@ -319,6 +338,10 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 		button.disabled = not can_move
 	var can_attack: bool = player_turn and input_enabled and _get_target() != null
 	_attack_button.disabled = not can_attack
+	var can_use_skill: bool = player_turn and input_enabled
+	_whirlwind_button.disabled = not can_use_skill or not _can_use_skill(SkillCatalog.WHIRLWIND)
+	_arcane_bolt_button.disabled = not can_use_skill or not _can_use_skill(SkillCatalog.ARCANE_BOLT)
+	_execution_button.disabled = not can_use_skill or not _can_use_skill(SkillCatalog.EXECUTION_STRIKE)
 	var potion_count: int = _player.get_healing_item_count() if _player.has_method("get_healing_item_count") else 0
 	_item_button.text = "POTION %d" % potion_count
 	var can_use_item: bool = player_turn and input_enabled and potion_count > 0
@@ -343,7 +366,15 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 	_state_label.modulate = Color("89c797") if phase == TurnState.VICTORY else Color("d46a78")
 	if player_stats == null:
 		_attack_button.disabled = true
+		_whirlwind_button.disabled = true
+		_arcane_bolt_button.disabled = true
+		_execution_button.disabled = true
 		_item_button.disabled = true
+
+
+func _can_use_skill(skill_id: StringName) -> bool:
+	var combat_scene: Node = get_parent()
+	return combat_scene.has_method("can_use_skill") and bool(combat_scene.call("can_use_skill", skill_id))
 
 
 func set_auto_mode(enabled: bool) -> void:

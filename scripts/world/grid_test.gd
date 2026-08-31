@@ -28,6 +28,8 @@ func _ready() -> void:
 	combat_system.set_player_actor(player)
 	combat_system.connect_actor(player)
 	combat_system.attack_resolved.connect(_on_attack_resolved)
+	combat_system.skill_resolved.connect(_on_skill_resolved)
+	combat_system.skill_failed.connect(_on_skill_failed)
 	combat_system.actor_died.connect(_on_actor_died)
 	experience_system.attach_player(player)
 	experience_system.attach_combat_system(combat_system)
@@ -49,6 +51,7 @@ func _ready() -> void:
 	player.equipment_effect_triggered.connect(_on_equipment_effect_triggered)
 	hud.move_requested.connect(_on_hud_move_requested)
 	hud.attack_requested.connect(_on_hud_attack_requested)
+	hud.skill_requested.connect(_on_hud_skill_requested)
 	hud.item_requested.connect(_on_hud_item_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
 	hud.auto_toggle_requested.connect(_on_hud_auto_toggle_requested)
@@ -82,6 +85,18 @@ func _on_hud_attack_requested() -> void:
 	if turn_manager.get_phase() != TurnState.PLAYER_TURN or not player.is_input_enabled():
 		return
 	player.attack_requested.emit(player, player.get_target())
+
+
+func _on_hud_skill_requested(skill_id: StringName) -> void:
+	if turn_manager.get_phase() != TurnState.PLAYER_TURN or not player.is_input_enabled():
+		return
+	player.skill_requested.emit(player, player.get_target(), skill_id)
+
+
+func can_use_skill(skill_id: StringName) -> bool:
+	if player == null or combat_system == null:
+		return false
+	return combat_system.can_use_skill(player, skill_id, player.get_target())
 
 
 func _on_hud_item_requested() -> void:
@@ -134,7 +149,7 @@ func _on_viewport_size_changed() -> void:
 func _layout_portrait_grid() -> void:
 	var viewport_size: Vector2 = get_viewport_rect().size
 	var top_reserved: float = clampf(viewport_size.y * 0.20, 230.0, 270.0)
-	var bottom_reserved: float = clampf(viewport_size.y * 0.28, 338.0, 390.0)
+	var bottom_reserved: float = clampf(viewport_size.y * 0.33, 420.0, 470.0)
 	var side_margin: float = clampf(viewport_size.x * 0.045, 18.0, 36.0)
 	var available_size := Vector2(
 		maxf(viewport_size.x - side_margin * 2.0, 1.0),
@@ -167,6 +182,7 @@ func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
 		_register_enemy(enemy_node as EnemyController)
 	if not _active_enemies.is_empty():
 		player.set_target(_active_enemies[0])
+	combat_system.set_combat_targets(_active_enemies)
 	turn_manager.start_combat(player, _active_enemies)
 	var encounter_label: String = "MINI BOSS" if stage_state.is_mini_boss_stage else "NORMAL"
 	if stage_state.is_special_encounter:
@@ -182,6 +198,7 @@ func _on_enemy_spawned(enemy: Node) -> void:
 		return
 	_active_enemies.append(enemy_controller)
 	_register_enemy(enemy_controller)
+	combat_system.set_combat_targets(_active_enemies)
 	turn_manager.add_enemy(enemy_controller)
 	_last_move_text = "%s summoned" % enemy_controller.get_display_name()
 	hud.log_event("log.enemy_summoned", {"name": enemy_controller.get_display_name()})
@@ -232,6 +249,18 @@ func _on_attack_resolved(result: DamageResult) -> void:
 		_last_move_text = "Critical hit for %d" % result.final_damage if result.is_critical else "Hit for %d" % result.final_damage
 		if result.is_critical:
 			hud.show_critical_indicator(result.final_damage)
+	queue_redraw()
+
+
+func _on_skill_resolved(skill_id: StringName, hit_count: int) -> void:
+	var skill := SkillCatalog.get_skill(skill_id)
+	_last_move_text = "%s hit %d target%s" % [skill.display_name, hit_count, "" if hit_count == 1 else "s"]
+	queue_redraw()
+
+
+func _on_skill_failed(skill_id: StringName, reason: String) -> void:
+	var skill := SkillCatalog.get_skill(skill_id)
+	_last_move_text = "%s unavailable: %s" % [skill.display_name, reason]
 	queue_redraw()
 
 

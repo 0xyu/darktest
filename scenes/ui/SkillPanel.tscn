@@ -1,0 +1,143 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/skill_panel.gd" id="1_skill_panel"]
+
+[sub_resource type="StyleBoxFlat" id="StylePanel"]
+bg_color = Color(0.035, 0.031, 0.047, 0.998)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.49, 0.36, 0.18, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleButton"]
+bg_color = Color(0.082, 0.074, 0.102, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.22, 0.3, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleButtonHover"]
+bg_color = Color(0.14, 0.11, 0.14, 1)
+border_width_left = 1
+border_width_top = 2
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.78, 0.59, 0.29, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[node name="SkillPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+visible = false
+script = ExtResource("1_skill_panel")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+color = Color(0.012, 0.01, 0.018, 0.93)
+
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = 18.0
+offset_right = -14.0
+offset_bottom = -18.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StylePanel")
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="Content" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="HBoxContainer" parent="Panel/Margin/Content"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 52)
+theme_override_constants/separation = 8
+
+[node name="TitleBlock" type="VBoxContainer" parent="Panel/Margin/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Title" type="Label" parent="Panel/Margin/Content/Header/TitleBlock"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.91, 0.76, 0.42, 1)
+theme_override_font_sizes/font_size = 24
+text = "SKILLS"
+vertical_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Panel/Margin/Content/Header/TitleBlock"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.48, 0.44, 0.52, 1)
+theme_override_font_sizes/font_size = 10
+text = "LEARN YOUR PATH"
+
+[node name="SkillPointsLabel" type="Label" parent="Panel/Margin/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.91, 0.76, 0.42, 1)
+theme_override_font_sizes/font_size = 14
+text = "SKILL POINTS  0"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="CloseButton" type="Button" parent="Panel/Margin/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(72, 44)
+theme_override_colors/font_color = Color(0.91, 0.84, 0.69, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "CLOSE"
+
+[node name="HeaderRule" type="ColorRect" parent="Panel/Margin/Content"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 1)
+color = Color(0.55, 0.38, 0.16, 0.85)
+
+[node name="SkillList" type="VBoxContainer" parent="Panel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="Footer" type="Label" parent="Panel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.56, 0.52, 0.61, 1)
+theme_override_font_sizes/font_size = 11
+text = "Each upgrade costs 1 skill point  •  Maximum skill level: 5"
+horizontal_alignment = 1

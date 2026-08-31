@@ -172,7 +172,26 @@ Future weapons may modify:
 - Damage type
 - Special attack behavior
 
-## 3.5 Damage
+## 3.5 Skills
+
+Skills use the same player-turn action as a basic attack: the player may move
+0..MovementPoints cells and then use one skill. The initial skill set is:
+
+```text
+Whirlwind       Four orthogonally adjacent cells around the player, 0.8x damage
+Arcane Bolt     Single target, two-cell range, 1.0x damage
+Execution       Single target, one-cell range, 1.5x damage
+```
+
+All skills start at level 0 (unlearned). Each player level-up grants one skill
+point. Spending one point learns a skill or raises its level, up to level 5.
+Each skill level increases its damage multiplier by 0.1. Whirlwind affects
+every living enemy in its four adjacent cells. Arcane Bolt and Execution use
+the currently selected enemy as their target. Skills cannot be used while
+unlearned or without a valid target, and successful skill use ends the
+player's turn.
+
+## 3.6 Damage
 
 Initial base damage:
 
@@ -194,7 +213,7 @@ Max(1, BaseDamage)
 
 The implementation should avoid unnecessary floating-point complexity.
 
-## 3.6 Critical Hit
+## 3.7 Critical Hit
 
 Initial default values:
 
@@ -212,7 +231,7 @@ Critical hits should have:
 
 Critical hits are one of the main combat excitement sources.
 
-## 3.7 Enemy Turn
+## 3.8 Enemy Turn
 
 Turn flow:
 

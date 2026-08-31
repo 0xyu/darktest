@@ -3,12 +3,15 @@ extends Node
 
 signal attack_resolved(result: DamageResult)
 signal actor_died(actor: Node)
+signal skill_resolved(skill_id: StringName, hit_count: int)
+signal skill_failed(skill_id: StringName, reason: String)
 
 @export var feedback_parent_path: NodePath
 
 var _random_number_generator := RandomNumberGenerator.new()
 var _turn_manager: TurnManager
 var _player_actor: Node
+var _combat_targets: Array[Node] = []
 
 
 func _ready() -> void:
@@ -23,6 +26,10 @@ func set_player_actor(player: Node) -> void:
 	_player_actor = player
 
 
+func set_combat_targets(targets: Array[Node]) -> void:
+	_combat_targets = targets.duplicate()
+
+
 func connect_actor(actor: Node) -> void:
 	if actor == null:
 		return
@@ -34,12 +41,23 @@ func connect_actor(actor: Node) -> void:
 		var area_attack_signal: Signal = actor.area_attack_requested
 		if not area_attack_signal.is_connected(_on_area_attack_requested):
 			area_attack_signal.connect(_on_area_attack_requested)
+	if actor.has_signal("skill_requested"):
+		var skill_signal: Signal = actor.skill_requested
+		if not skill_signal.is_connected(_on_skill_requested):
+			skill_signal.connect(_on_skill_requested)
 
 
-func resolve_attack(attacker: Node, target: Node, damage_multiplier: float = 1.0, attack_range_override: int = -1) -> DamageResult:
+func resolve_attack(
+	attacker: Node,
+	target: Node,
+	damage_multiplier: float = 1.0,
+	attack_range_override: int = -1,
+	skill_id: StringName = &""
+) -> DamageResult:
 	var result := DamageResult.new()
 	result.attacker_id = _get_actor_id(attacker)
 	result.target_id = _get_actor_id(target)
+	result.skill_id = skill_id
 	if not _is_valid_attack(attacker, target, attack_range_override):
 		result.is_miss = true
 		attack_resolved.emit(result)
@@ -96,6 +114,68 @@ func _on_attack_requested(attacker: Node, target: Node) -> void:
 
 func _on_area_attack_requested(attacker: Node, target: Node, attack_range: int, damage_multiplier: float) -> void:
 	resolve_attack(attacker, target, damage_multiplier, attack_range)
+
+
+func _on_skill_requested(attacker: Node, target: Node, skill_id: StringName) -> void:
+	if not resolve_skill(attacker, skill_id, target):
+		return
+	if _turn_manager != null and attacker == _player_actor and _turn_manager.is_player_turn():
+		_turn_manager.complete_player_turn()
+
+
+func can_use_skill(attacker: Node, skill_id: StringName, selected_target: Node = null) -> bool:
+	var skill := SkillCatalog.get_skill(skill_id)
+	if skill.skill_id.is_empty():
+		return false
+	if _get_skill_level(attacker, skill_id) <= 0:
+		return false
+	if skill.is_area_skill():
+		for combat_target in _combat_targets:
+			if _is_valid_attack(attacker, combat_target, skill.range_cells):
+				return true
+		return false
+	return _is_valid_attack(attacker, selected_target, skill.range_cells)
+
+
+func resolve_skill(attacker: Node, skill_id: StringName, selected_target: Node = null) -> bool:
+	var skill := SkillCatalog.get_skill(skill_id)
+	if skill.skill_id.is_empty():
+		skill_failed.emit(skill_id, "Unknown skill")
+		return false
+	if not can_use_skill(attacker, skill_id, selected_target):
+		skill_failed.emit(skill_id, "No valid target")
+		return false
+
+	var hit_count: int = 0
+	var skill_level: int = _get_skill_level(attacker, skill_id)
+	var skill_damage_multiplier: float = skill.get_damage_multiplier(skill_level)
+	if skill.is_area_skill():
+		# Copy the list because defeating the final enemy can trigger stage cleanup
+		# while this skill is still resolving its remaining hits.
+		var targets: Array[Node] = _combat_targets.duplicate()
+		for combat_target in targets:
+			if _is_valid_attack(attacker, combat_target, skill.range_cells):
+				var area_result := resolve_attack(attacker, combat_target, skill_damage_multiplier, skill.range_cells, skill.skill_id)
+				if not area_result.is_miss:
+					hit_count += 1
+	else:
+		var result := resolve_attack(attacker, selected_target, skill_damage_multiplier, skill.range_cells, skill.skill_id)
+		if not result.is_miss:
+			hit_count = 1
+
+	skill_resolved.emit(skill.skill_id, hit_count)
+	return hit_count > 0
+
+
+func _get_skill_level(attacker: Node, skill_id: StringName) -> int:
+	if attacker == null or not is_instance_valid(attacker):
+		return 0
+	if attacker.has_method("get_skill_level"):
+		return maxi(int(attacker.get_skill_level(skill_id)), 0)
+	var progression: Variant = attacker.get("player_progression")
+	if progression is PlayerProgression:
+		return maxi((progression as PlayerProgression).get_skill_level(skill_id), 0)
+	return 0
 
 
 func _is_valid_attack(attacker: Node, target: Node, attack_range_override: int = -1) -> bool:
