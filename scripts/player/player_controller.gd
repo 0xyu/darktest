@@ -1,6 +1,8 @@
 class_name PlayerController
 extends Node2D
 
+const SubHeroProgressionServiceResource = preload("res://scripts/sub_hero/sub_hero_progression_service.gd")
+
 signal moved(from_cell: Vector2i, to_cell: Vector2i, movement_points_remaining: int)
 signal selection_changed(is_selected: bool)
 signal action_completed
@@ -12,6 +14,8 @@ signal level_up(new_level: int)
 signal equipment_effect_triggered(effect_id: StringName, description: String)
 signal healing_item_used(remaining_items: int, amount_healed: int)
 signal item_used(item: EquipmentInstance, amount_healed: int)
+signal sub_hero_collection_changed
+signal sub_hero_slots_changed
 
 @export var grid_path: NodePath
 @export var player_id: StringName = &"player"
@@ -19,6 +23,7 @@ signal item_used(item: EquipmentInstance, amount_healed: int)
 @export var player_stats: PlayerStats = PlayerStats.new()
 @export var player_progression: PlayerProgression = PlayerProgression.new()
 @export var equipment_inventory: EquipmentInventory
+@export var sub_hero_progression: SubHeroProgressionService
 @export var is_selected: bool = true
 @export var target_path: NodePath
 @export_range(0, 99, 1) var healing_item_count: int = 3
@@ -33,6 +38,7 @@ var _target: Node
 var _applied_equipment_bonuses: Dictionary = {}
 var _attack_count: int = 0
 var _cells_moved_since_attack: int = 0
+var _sub_hero_signals_bound: bool = false
 
 
 func _ready() -> void:
@@ -64,6 +70,40 @@ func set_equipment_inventory(inventory: EquipmentInventory) -> void:
 func get_inventory() -> EquipmentInventory:
 	_ensure_equipment_inventory()
 	return equipment_inventory
+
+
+func get_sub_hero_progression() -> SubHeroProgressionService:
+	if sub_hero_progression == null:
+		sub_hero_progression = SubHeroProgressionServiceResource.new()
+	if not _sub_hero_signals_bound:
+		var collection_signal: Signal = sub_hero_progression.collection_changed
+		if not collection_signal.is_connected(_on_sub_hero_collection_changed):
+			collection_signal.connect(_on_sub_hero_collection_changed)
+		var slots_signal: Signal = sub_hero_progression.active_slots_changed
+		if not slots_signal.is_connected(_on_sub_hero_slots_changed):
+			slots_signal.connect(_on_sub_hero_slots_changed)
+		_sub_hero_signals_bound = true
+	return sub_hero_progression
+
+
+func add_sub_hero(instance: SubHeroInstance) -> Dictionary:
+	return get_sub_hero_progression().add_instance(instance)
+
+
+func assign_sub_hero_slot(slot_index: int, hero_id: StringName) -> bool:
+	return get_sub_hero_progression().assign_active_slot(slot_index, hero_id)
+
+
+func remove_sub_hero_slot(slot_index: int) -> bool:
+	return get_sub_hero_progression().remove_active_slot(slot_index)
+
+
+func get_active_sub_hero_entries() -> Array[Dictionary]:
+	return get_sub_hero_progression().get_active_entries()
+
+
+func load_sub_hero_save_data(save_data: Dictionary) -> void:
+	get_sub_hero_progression().load_save_data(save_data)
 
 
 func add_equipment(item: EquipmentInstance) -> bool:
@@ -363,6 +403,14 @@ func _ensure_equipment_inventory() -> void:
 
 func _on_equipment_changed(_slot: int, _equipped_item: EquipmentInstance, _previous_item: EquipmentInstance) -> void:
 	_refresh_equipment_stats()
+
+
+func _on_sub_hero_collection_changed() -> void:
+	sub_hero_collection_changed.emit()
+
+
+func _on_sub_hero_slots_changed() -> void:
+	sub_hero_slots_changed.emit()
 
 
 func _refresh_equipment_stats() -> void:

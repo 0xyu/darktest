@@ -832,39 +832,39 @@ If equivalent systems already exist, integrate into them rather than creating du
 
 ## Phase 2 — Combat
 
-- [ ] Create SubHeroCombatManager.
-- [ ] Register active Sub Heroes at combat start.
-- [ ] Implement independent attack timers.
-- [ ] Implement target selection.
-- [ ] Implement distance-independent attacks.
-- [ ] Apply damage.
-- [ ] Handle target death / retargeting.
-- [ ] Reset state at combat end.
+- [x] Create SubHeroCombatManager.
+- [x] Register active Sub Heroes at combat start.
+- [x] Implement independent attack timers.
+- [x] Implement target selection.
+- [x] Implement distance-independent attacks.
+- [x] Apply damage.
+- [x] Handle target death / retargeting.
+- [x] Reset state at combat end.
 
 ## Phase 3 — UI
 
-- [ ] Add Sub Hero row below combat grid.
-- [ ] Create slot component.
-- [ ] Display portrait, quality, level.
-- [ ] Add attack feedback.
+- [x] Add Sub Hero row below combat grid.
+- [x] Create slot component.
+- [x] Display portrait, quality, level.
+- [x] Add attack feedback.
 - [ ] Add assignment interaction.
 - [ ] Verify portrait responsive layout.
 
 ## Phase 4 — Ownership / Progression
 
-- [ ] Add owned Sub Hero collection.
-- [ ] Add active slot assignment.
-- [ ] Add level progression.
-- [ ] Add duplicate handling.
+- [x] Add owned Sub Hero collection.
+- [x] Add active slot assignment.
+- [x] Add level progression.
+- [x] Add duplicate handling.
 - [ ] Connect to save/load.
 
 ## Phase 5 — Shop
 
-- [ ] Add Sub Hero summon entry.
-- [ ] Add quality roll.
-- [ ] Add Sub Hero selection/result UI.
-- [ ] Add duplicate conversion.
-- [ ] Add configurable summon weights.
+- [x] Add Sub Hero summon entry.
+- [x] Add quality roll.
+- [x] Add Sub Hero selection/result UI.
+- [x] Add duplicate conversion.
+- [x] Add configurable summon weights.
 
 ## Phase 6 — Integration
 

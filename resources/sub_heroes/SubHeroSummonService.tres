@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="SubHeroSummonService" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/sub_hero/sub_hero_summon_service.gd" id="1_service"]
+[ext_resource type="Resource" path="res://resources/sub_heroes/SubHeroSummonTable.tres" id="2_table"]
+
+[resource]
+script = ExtResource("1_service")
+summon_cost = 250
+summon_table = ExtResource("2_table")

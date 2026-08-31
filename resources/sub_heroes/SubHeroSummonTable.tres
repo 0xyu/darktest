@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="SubHeroSummonTable" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/sub_hero/sub_hero_summon_table.gd" id="1_table"]
+
+[resource]
+script = ExtResource("1_table")
+common_weight = 70.0
+rare_weight = 25.0
+legendary_weight = 5.0

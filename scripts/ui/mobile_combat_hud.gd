@@ -23,6 +23,7 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _turn_label: Label = %TurnLabel
 @onready var _encounter_label: Label = %EncounterLabel
 @onready var _enemy_summary_row: HBoxContainer = %EnemySummaryRow
+@onready var _sub_hero_row: Control = %SubHeroRow
 @onready var _player_hp_bar: ProgressBar = %PlayerHPBar
 @onready var _player_hp_value: Label = %PlayerHPValue
 @onready var _target_label: Label = %TargetLabel
@@ -40,6 +41,7 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _auto_button: Button = %AutoButton
 @onready var _auto_stage_button: Button = %AutoStageButton
 @onready var _inventory_button: Button = %InventoryButton
+@onready var _shop_button: Button = %ShopButton
 @onready var _bestiary_button: Button = %BestiaryButton
 @onready var _dev_button: Button = %DevButton
 @onready var _critical_label: Label = %CriticalLabel
@@ -50,6 +52,7 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _development_panel: DevelopmentPanel = %DevelopmentPanel
 @onready var _skill_panel: SkillPanel = %SkillPanel
 @onready var _combat_log: CombatLogPanel = %CombatLogPanel
+@onready var _shop_panel: SubHeroShopPanel = %SubHeroShopPanel
 
 var _critical_time_remaining: float = 0.0
 var _enemy_summary_signature: String = ""
@@ -72,17 +75,26 @@ func _ready() -> void:
 	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
 	_auto_stage_button.pressed.connect(func() -> void: auto_stage_toggle_requested.emit())
 	_inventory_button.pressed.connect(_on_inventory_button_pressed)
+	_shop_button.pressed.connect(_on_shop_button_pressed)
 	_bestiary_button.pressed.connect(_on_bestiary_button_pressed)
 	_dev_button.pressed.connect(_on_dev_button_pressed)
 	_inventory_panel.set_player(_player)
 	_development_panel.set_player(_player)
 	_development_panel.data_changed.connect(_on_dev_data_changed)
 	_skill_panel.set_player(_player)
+	_shop_panel.set_player(_player)
+	_shop_panel.data_changed.connect(_on_shop_data_changed)
 	_inventory_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_bestiary_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_development_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_skill_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
+	_shop_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
+	if _player != null and _player.has_signal("sub_hero_collection_changed"):
+		_player.sub_hero_collection_changed.connect(_on_sub_hero_state_changed)
+	if _player != null and _player.has_signal("sub_hero_slots_changed"):
+		_player.sub_hero_slots_changed.connect(_on_sub_hero_state_changed)
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
+	_refresh_sub_hero_slots()
 	_refresh()
 
 
@@ -103,6 +115,10 @@ func _on_viewport_size_changed() -> void:
 
 func _on_inventory_button_pressed() -> void:
 	_inventory_panel.toggle_inventory()
+
+
+func _on_shop_button_pressed() -> void:
+	_shop_panel.toggle_panel()
 
 
 func _on_bestiary_button_pressed() -> void:
@@ -134,7 +150,22 @@ func _on_dev_data_changed() -> void:
 	# which orphans panels still bound to the old object. Re-bind and refresh.
 	_inventory_panel.set_player(_player)
 	_skill_panel.set_player(_player)
+	_shop_panel.set_player(_player)
 	_refresh()
+
+
+func _on_shop_data_changed() -> void:
+	_refresh_sub_hero_slots()
+	_refresh()
+
+
+func _on_sub_hero_state_changed() -> void:
+	_refresh_sub_hero_slots()
+
+
+func _refresh_sub_hero_slots() -> void:
+	if _player != null and _player.has_method("get_active_sub_hero_entries"):
+		set_sub_hero_slots(_player.get_active_sub_hero_entries())
 
 
 func _on_move_up_pressed() -> void:
@@ -382,6 +413,24 @@ func set_auto_stage_mode(enabled: bool) -> void:
 	_auto_stage_button.text = "AUTO STAGE: ON" if enabled else "AUTO STAGE: OFF"
 	_auto_stage_button.icon = AUTO_ON_ICON if enabled else AUTO_OFF_ICON
 	_auto_stage_button.modulate = Color("89c797") if enabled else Color("f0e7d2")
+
+
+## Binds the three visible combat slots. Ownership/assignment remains outside
+## the HUD; entries are dictionaries containing `data` and `instance`.
+func set_sub_hero_slots(entries: Array[Dictionary]) -> void:
+	if _sub_hero_row != null:
+		_sub_hero_row.call("set_slots", entries)
+
+
+func clear_sub_hero_slots() -> void:
+	if _sub_hero_row != null:
+		_sub_hero_row.call("clear_slots")
+
+
+func show_sub_hero_attack_feedback(hero_id: StringName, damage: int) -> bool:
+	if _sub_hero_row == null:
+		return false
+	return bool(_sub_hero_row.call("show_attack_feedback", hero_id, damage))
 
 
 func present_loot(items: Array[EquipmentInstance], new_best_items: Array[EquipmentInstance] = [], source_name: String = "") -> void:

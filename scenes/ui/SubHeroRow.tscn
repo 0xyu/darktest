@@ -1,0 +1,53 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/sub_hero_row.gd" id="1_row"]
+[ext_resource type="PackedScene" path="res://scenes/ui/SubHeroSlot.tscn" id="2_slot"]
+
+[sub_resource type="StyleBoxFlat" id="StyleRow"]
+bg_color = Color(0.043, 0.039, 0.067, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.275, 0.22, 0.29, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="SubHeroRow" type="PanelContainer"]
+custom_minimum_size = Vector2(0, 94)
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleRow")
+script = ExtResource("1_row")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 7
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 7
+theme_override_constants/margin_bottom = 5
+
+[node name="Content" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="Header" type="Label" parent="Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
+theme_override_font_sizes/font_size = 10
+text = "SUB HEROES  //  AUTO SUPPORT"
+
+[node name="Slots" type="HBoxContainer" parent="Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 5
+
+[node name="SlotA" parent="Margin/Content/Slots" instance=ExtResource("2_slot")]
+layout_mode = 2
+
+[node name="SlotB" parent="Margin/Content/Slots" instance=ExtResource("2_slot")]
+layout_mode = 2
+
+[node name="SlotC" parent="Margin/Content/Slots" instance=ExtResource("2_slot")]
+layout_mode = 2

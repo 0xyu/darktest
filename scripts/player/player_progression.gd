@@ -60,6 +60,17 @@ func add_gold(amount: int) -> int:
 	return safe_amount
 
 
+func spend_gold(amount: int) -> bool:
+	var safe_amount: int = maxi(amount, 0)
+	if gold < safe_amount:
+		return false
+	if safe_amount == 0:
+		return true
+	gold -= safe_amount
+	gold_changed.emit(gold, -safe_amount)
+	return true
+
+
 func get_skill_points() -> int:
 	return maxi(skill_points, 0)
 
