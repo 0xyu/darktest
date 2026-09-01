@@ -90,6 +90,7 @@ func _ready() -> void:
 	_dev_button.pressed.connect(_on_dev_button_pressed)
 	_main_navigation.character_pressed.connect(_on_character_navigation_pressed)
 	_main_navigation.inventory_pressed.connect(_on_inventory_navigation_pressed)
+	_main_navigation.shop_pressed.connect(_on_shop_button_pressed)
 	_inventory_panel.set_player(_player)
 	_development_panel.set_player(_player)
 	_development_panel.data_changed.connect(_on_dev_data_changed)
@@ -241,7 +242,8 @@ func _refresh() -> void:
 	var player_level: int = player_progression.level if player_progression != null else 1
 	var current_hp: int = player_stats.current_hp if player_stats != null else 0
 	var max_hp: int = player_stats.max_hp if player_stats != null else 0
-	_main_navigation.set_player_status(current_hp, max_hp, player_level, 0, 0)
+	var experience_ratio: float = player_progression.get_experience_ratio() if player_progression != null else 0.0
+	_main_navigation.set_player_status(current_hp, max_hp, player_level, 0, 0, experience_ratio)
 	if player_progression != null:
 		_gold_label.text = "GOLD %s" % _format_number(player_progression.gold)
 	if player_stats != null:
