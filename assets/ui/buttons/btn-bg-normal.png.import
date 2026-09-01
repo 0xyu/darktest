@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://clakjvphshpwt"
-path="res://.godot/imported/combat-gui-bottom-navigation.jpeg-b458bf881c63e058c7c6837be73ca516.ctex"
+uid="uid://bpvvle0jrr152"
+path="res://.godot/imported/btn-bg-normal.png-0a39bf715e0d617493470517ef742179.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://game ui design/combat-gui-bottom-navigation.jpeg"
-dest_files=["res://.godot/imported/combat-gui-bottom-navigation.jpeg-b458bf881c63e058c7c6837be73ca516.ctex"]
+source_file="res://assets/ui/buttons/btn-bg-normal.png"
+dest_files=["res://.godot/imported/btn-bg-normal.png-0a39bf715e0d617493470517ef742179.ctex"]
 
 [params]
 

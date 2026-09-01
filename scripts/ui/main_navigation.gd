@@ -10,6 +10,7 @@ signal shop_pressed
 
 const FORGE_TEXTURE: Texture2D = preload("res://assets/ui/buttons/forge.png")
 const CHARACTER_TEXTURE: Texture2D = preload("res://assets/ui/buttons/character.png")
+const CHARACTER_BUTTON_BACKGROUND: Texture2D = preload("res://assets/ui/buttons/btn-bg-normal.png")
 const INVENTORY_TEXTURE: Texture2D = preload("res://assets/ui/buttons/bag.png")
 const MODES_TEXTURE: Texture2D = preload("res://assets/ui/buttons/map.png")
 const REWARDS_TEXTURE: Texture2D = preload("res://assets/ui/buttons/reward.png")
@@ -84,7 +85,7 @@ func _build_ui() -> void:
 	left_items.size_flags_stretch_ratio = 1.0
 	left_items.add_theme_constant_override("separation", 1)
 	row.add_child(left_items)
-	_add_icon_item(left_items, "CHARACTER", CHARACTER_TEXTURE, true, _on_character_pressed)
+	_add_icon_item(left_items, "CHARACTER", CHARACTER_TEXTURE, true, _on_character_pressed, CHARACTER_BUTTON_BACKGROUND)
 	_add_icon_item(left_items, "INVENTORY", INVENTORY_TEXTURE, true, _on_inventory_pressed)
 	_add_icon_item(left_items, "FORGE", FORGE_TEXTURE, false)
 
@@ -110,12 +111,27 @@ func _add_icon_item(
 	texture: Texture2D,
 	clickable: bool,
 	callback: Callable = Callable(),
+	background_texture: Texture2D = null,
 ) -> void:
 	var item := Control.new()
 	item.name = label_text + "NavigationItem"
 	item.custom_minimum_size = Vector2(0, 190)
 	item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(item)
+
+	if background_texture != null:
+		var background := TextureRect.new()
+		background.name = "ButtonBackground"
+		background.set_anchors_preset(Control.PRESET_FULL_RECT)
+		background.offset_left = 2
+		background.offset_top = 2
+		background.offset_right = -2
+		background.offset_bottom = -2
+		background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		background.texture = background_texture
+		background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		item.add_child(background)
 
 	var icon_box := TextureRect.new()
 	icon_box.name = "Icon"
@@ -134,7 +150,8 @@ func _add_icon_item(
 	label.name = "Label"
 	label.text = label_text
 	label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	label.offset_top = -28
+	label.offset_top = -36 if label_text == "CHARACTER" else -28
+	label.offset_bottom = -8 if label_text == "CHARACTER" else 0
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_color_override("font_color", COLOR_TEXT)
