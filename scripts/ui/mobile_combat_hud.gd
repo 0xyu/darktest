@@ -27,9 +27,6 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _sub_hero_row: Control = %SubHeroRow
 @onready var _player_hp_bar: ProgressBar = %PlayerHPBar
 @onready var _player_hp_value: Label = %PlayerHPValue
-@onready var _target_label: Label = %TargetLabel
-@onready var _target_hp_bar: ProgressBar = %TargetHPBar
-@onready var _target_hp_value: Label = %TargetHPValue
 @onready var _combat_info_label: Label = %CombatInfoLabel
 @onready var _event_label: Label = %EventLabel
 @onready var _attack_button: Button = %AttackButton
@@ -61,6 +58,9 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 # the newly-added panel class being present in Godot's global class cache.
 @onready var _assignment_panel: Control = %SubHeroAssignmentPanel
 
+@onready var _main_navigation: MainNavigation = %MainNavigation
+
+
 var _critical_time_remaining: float = 0.0
 var _enemy_summary_signature: String = ""
 
@@ -88,6 +88,8 @@ func _ready() -> void:
 	_shop_button.pressed.connect(_on_shop_button_pressed)
 	_bestiary_button.pressed.connect(_on_bestiary_button_pressed)
 	_dev_button.pressed.connect(_on_dev_button_pressed)
+	_main_navigation.character_pressed.connect(_on_character_navigation_pressed)
+	_main_navigation.inventory_pressed.connect(_on_inventory_navigation_pressed)
 	_inventory_panel.set_player(_player)
 	_development_panel.set_player(_player)
 	_development_panel.data_changed.connect(_on_dev_data_changed)
@@ -134,6 +136,13 @@ func _on_inventory_button_pressed() -> void:
 
 func _on_shop_button_pressed() -> void:
 	_shop_panel.toggle_panel()
+
+func _on_character_navigation_pressed() -> void:
+	_inventory_panel.show_inventory()
+
+
+func _on_inventory_navigation_pressed() -> void:
+	_inventory_panel.toggle_inventory()
 
 
 func _on_bestiary_button_pressed() -> void:
@@ -229,6 +238,10 @@ func _refresh() -> void:
 
 	var player_stats: PlayerStats = _player.get("player_stats") as PlayerStats
 	var player_progression: PlayerProgression = _player.get("player_progression") as PlayerProgression
+	var player_level: int = player_progression.level if player_progression != null else 1
+	var current_hp: int = player_stats.current_hp if player_stats != null else 0
+	var max_hp: int = player_stats.max_hp if player_stats != null else 0
+	_main_navigation.set_player_status(current_hp, max_hp, player_level, 0, 0)
 	if player_progression != null:
 		_gold_label.text = "GOLD %s" % _format_number(player_progression.gold)
 	if player_stats != null:
@@ -239,8 +252,6 @@ func _refresh() -> void:
 		var movement_remaining: int = int(_player.get("movement_points_remaining"))
 		_combat_info_label.text = "MP %d / %d   •   CELL %d, %d" % [movement_remaining, player_stats.movement_points, cell.x + 1, cell.y + 1]
 
-	var target: Node = _get_target()
-	_update_target(target)
 	_update_buttons(player_stats)
 
 
@@ -363,23 +374,6 @@ func _get_target() -> Node:
 	return null
 
 
-func _update_target(target: Node) -> void:
-	if target == null:
-		_target_label.text = "TARGET  //  NONE"
-		_target_hp_bar.value = 0
-		_target_hp_value.text = "--"
-		return
-	var enemy_stats: EnemyStats = target.get("enemy_stats") as EnemyStats
-	var enemy_name: String = str(target.call("get_display_name")) if target.has_method("get_display_name") else "ENEMY"
-	var enemy_level: int = int(target.get("enemy_level"))
-	_target_label.text = "TARGET  //  %s  LV.%d" % [enemy_name.to_upper(), enemy_level]
-	if enemy_stats == null:
-		return
-	_target_hp_bar.max_value = maxi(enemy_stats.max_hp, 1)
-	_target_hp_bar.value = clampi(enemy_stats.current_hp, 0, maxi(enemy_stats.max_hp, 1))
-	_target_hp_value.text = "%d / %d" % [enemy_stats.current_hp, enemy_stats.max_hp]
-
-
 func _update_buttons(player_stats: PlayerStats) -> void:
 	var player_turn: bool = _turn_manager.get_phase() == TurnState.PLAYER_TURN
 	var input_enabled: bool = bool(_player.get("is_selected")) and bool(_player.call("is_input_enabled"))
@@ -462,6 +456,42 @@ func set_sub_hero_slots(entries: Array[Dictionary]) -> void:
 func clear_sub_hero_slots() -> void:
 	if _sub_hero_row != null:
 		_sub_hero_row.call("clear_slots")
+
+
+## Keeps the support row immediately below the battlefield and the combat log
+## in the remaining gap before the bottom controls.
+func layout_battle_support(grid_bottom: float, viewport_size: Vector2) -> void:
+	if _sub_hero_row == null:
+		return
+	const SUB_HERO_HORIZONTAL_MARGIN: float = 24.0
+	const GRID_TO_SUB_HERO_GAP: float = 8.0
+	const SUPPORT_TO_LOG_GAP: float = 4.0
+	const COMBAT_LOG_HEIGHT: float = 120.0
+
+	_sub_hero_row.anchor_left = 0.0
+	_sub_hero_row.anchor_top = 0.0
+	_sub_hero_row.anchor_right = 1.0
+	_sub_hero_row.anchor_bottom = 0.0
+	_sub_hero_row.offset_left = SUB_HERO_HORIZONTAL_MARGIN
+	_sub_hero_row.offset_right = -SUB_HERO_HORIZONTAL_MARGIN
+	var row_top: float = grid_bottom + GRID_TO_SUB_HERO_GAP
+	var row_height: float = maxf(_sub_hero_row.get_combined_minimum_size().y, 1.0)
+	_sub_hero_row.offset_top = row_top
+	_sub_hero_row.offset_bottom = row_top + row_height
+
+	if _combat_log == null:
+		return
+	var bottom_panel_top: float = viewport_size.y - 300.0
+	var log_bottom: float = bottom_panel_top - SUPPORT_TO_LOG_GAP
+	var log_top: float = minf(row_top + row_height + SUPPORT_TO_LOG_GAP, log_bottom - COMBAT_LOG_HEIGHT)
+	_combat_log.anchor_left = 0.0
+	_combat_log.anchor_top = 0.0
+	_combat_log.anchor_right = 0.62
+	_combat_log.anchor_bottom = 0.0
+	_combat_log.offset_left = 16.0
+	_combat_log.offset_right = 0.0
+	_combat_log.offset_top = log_top
+	_combat_log.offset_bottom = log_bottom
 
 
 func show_sub_hero_attack_feedback(hero_id: StringName, damage: int) -> bool:
