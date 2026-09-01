@@ -44,11 +44,33 @@ func add_enemy(enemy: Node) -> void:
 func complete_player_turn() -> void:
 	if turn_state.phase != TurnState.PLAYER_TURN:
 		return
-	turn_state.action_available = false
-	player_action_completed.emit()
+	if turn_state.action_available:
+		turn_state.action_available = false
+		player_action_completed.emit()
 	if _player != null and _player.has_method("end_player_turn"):
 		_player.end_player_turn()
 	_begin_enemy_phase()
+
+
+func is_action_available(actor: Node = null) -> bool:
+	if turn_state.phase != TurnState.PLAYER_TURN or not turn_state.action_available:
+		return false
+	return actor == null or actor == _player
+
+
+func is_active_actor(actor: Node) -> bool:
+	if actor == null or turn_state.phase != TurnState.ENEMY_TURN:
+		return false
+	if _enemy_index <= 0 or _enemy_index > _enemies.size():
+		return false
+	return _enemies[_enemy_index - 1] == actor
+
+
+func consume_player_action(actor: Node) -> bool:
+	if not is_action_available(actor):
+		return false
+	turn_state.action_available = false
+	return true
 
 
 func complete_enemy_turn(enemy: Node) -> void:

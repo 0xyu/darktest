@@ -54,11 +54,22 @@ func resolve_attack(
 	attack_range_override: int = -1,
 	skill_id: StringName = &""
 ) -> DamageResult:
+	return _resolve_attack(attacker, target, damage_multiplier, attack_range_override, skill_id, true)
+
+
+func _resolve_attack(
+	attacker: Node,
+	target: Node,
+	damage_multiplier: float = 1.0,
+	attack_range_override: int = -1,
+	skill_id: StringName = &"",
+	consume_player_action: bool = true
+) -> DamageResult:
 	var result := DamageResult.new()
 	result.attacker_id = _get_actor_id(attacker)
 	result.target_id = _get_actor_id(target)
 	result.skill_id = skill_id
-	if not _is_valid_attack(attacker, target, attack_range_override):
+	if not _is_actor_authorized(attacker) or not _is_valid_attack(attacker, target, attack_range_override):
 		result.is_miss = true
 		attack_resolved.emit(result)
 		return result
@@ -88,6 +99,8 @@ func resolve_attack(
 
 	var remaining_hp: int = maxi(_get_current_hp(target, target_stats) - result.final_damage, 0)
 	_set_current_hp(target, target_stats, remaining_hp)
+	if consume_player_action and attacker == _player_actor and _turn_manager != null:
+		_turn_manager.consume_player_action(attacker)
 	result.target_defeated = remaining_hp <= 0
 	if target.has_method("clamp_current_hp"):
 		target.clamp_current_hp()
@@ -145,6 +158,9 @@ func resolve_skill(attacker: Node, skill_id: StringName, selected_target: Node =
 	if not can_use_skill(attacker, skill_id, selected_target):
 		skill_failed.emit(skill_id, "No valid target")
 		return false
+	if not _is_actor_authorized(attacker):
+		skill_failed.emit(skill_id, "Actor cannot act")
+		return false
 
 	var hit_count: int = 0
 	var skill_level: int = _get_skill_level(attacker, skill_id)
@@ -155,13 +171,15 @@ func resolve_skill(attacker: Node, skill_id: StringName, selected_target: Node =
 		var targets: Array[Node] = _combat_targets.duplicate()
 		for combat_target in targets:
 			if _is_valid_attack(attacker, combat_target, skill.range_cells):
-				var area_result := resolve_attack(attacker, combat_target, skill_damage_multiplier, skill.range_cells, skill.skill_id)
+				var area_result := _resolve_attack(attacker, combat_target, skill_damage_multiplier, skill.range_cells, skill.skill_id, false)
 				if not area_result.is_miss:
 					hit_count += 1
 	else:
-		var result := resolve_attack(attacker, selected_target, skill_damage_multiplier, skill.range_cells, skill.skill_id)
+		var result := _resolve_attack(attacker, selected_target, skill_damage_multiplier, skill.range_cells, skill.skill_id, false)
 		if not result.is_miss:
 			hit_count = 1
+	if hit_count > 0 and attacker == _player_actor and _turn_manager != null:
+		_turn_manager.consume_player_action(attacker)
 
 	skill_resolved.emit(skill.skill_id, hit_count)
 	return hit_count > 0
@@ -193,6 +211,16 @@ func _is_valid_attack(attacker: Node, target: Node, attack_range_override: int =
 	var target_cell: Vector2i = _get_grid_position(target)
 	var attack_range: int = attack_range_override if attack_range_override >= 0 else maxi(int(attacker_stats.get("attack_range")), 0)
 	return _grid_distance(attacker_cell, target_cell) <= attack_range
+
+
+func _is_actor_authorized(attacker: Node) -> bool:
+	if attacker == null or not is_instance_valid(attacker):
+		return false
+	if _turn_manager == null:
+		return true
+	if attacker == _player_actor:
+		return _turn_manager.is_action_available(attacker)
+	return _turn_manager.is_active_actor(attacker)
 
 
 func _get_combat_stats(actor: Node) -> Resource:
