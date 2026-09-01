@@ -1,27 +1,26 @@
-[gd_scene load_steps=36 format=3]
+[gd_scene format=3 uid="uid://bsioi2y8tul2k"]
 
-[ext_resource type="Script" path="res://scripts/ui/mobile_combat_hud.gd" id="1_hud"]
-[ext_resource type="Script" path="res://scripts/ui/loot_presentation.gd" id="2_loot"]
+[ext_resource type="Script" uid="uid://dt3tup545hjr6" path="res://scripts/ui/mobile_combat_hud.gd" id="1_hud"]
+[ext_resource type="Script" uid="uid://jlhfbbbk7bxr" path="res://scripts/ui/loot_presentation.gd" id="2_loot"]
 [ext_resource type="PackedScene" path="res://scenes/ui/EquipmentInventoryPanel.tscn" id="3_inventory"]
-[ext_resource type="Texture2D" path="res://assets/characters/portraits/HP_Portrait_frame_bg.png" id="4_avatar_bg"]
-[ext_resource type="Texture2D" path="res://assets/characters/portraits/Avatar_ref.png" id="5_avatar"]
-[ext_resource type="Texture2D" path="res://assets/characters/portraits/HP_Portrait_frame.png" id="6_avatar_frame"]
-[ext_resource type="Texture2D" path="res://assets/ui/hud/Hp_frame.png" id="7_hp_frame"]
-[ext_resource type="Texture2D" path="res://assets/ui/hud/Hp_red.png" id="8_hp_red"]
-[ext_resource type="Texture2D" path="res://assets/ui/hud/11_cross.png" id="13_end_turn"]
-[ext_resource type="Texture2D" path="res://assets/ui/hud/12_potion.png" id="14_potion"]
-[ext_resource type="Texture2D" path="res://assets/items/icons/Icon_Eq_Weapon.png" id="15_attack"]
-[ext_resource type="Texture2D" path="res://assets/ui/hud/Hud_icon_inventory.png" id="16_inventory"]
-[ext_resource type="Texture2D" path="res://assets/ui/hud/2_options_off.png" id="17_auto_off"]
-[ext_resource type="Texture2D" path="res://assets/ui/hud/2_options_on.png" id="18_auto_on"]
+[ext_resource type="Texture2D" uid="uid://c2viwev4lmnll" path="res://assets/characters/portraits/HP_Portrait_frame_bg.png" id="4_avatar_bg"]
+[ext_resource type="Texture2D" uid="uid://d1kxmsx2xp7q2" path="res://assets/characters/portraits/Avatar_ref.png" id="5_avatar"]
+[ext_resource type="Texture2D" uid="uid://c80gtsswsic5p" path="res://assets/characters/portraits/HP_Portrait_frame.png" id="6_avatar_frame"]
+[ext_resource type="Texture2D" uid="uid://cubpxxjiwkgfx" path="res://assets/ui/hud/Hp_frame.png" id="7_hp_frame"]
+[ext_resource type="Texture2D" uid="uid://qen7qg7wgkcy" path="res://assets/ui/hud/Hp_red.png" id="8_hp_red"]
+[ext_resource type="Texture2D" uid="uid://cpe2wwvqou25g" path="res://assets/ui/hud/11_cross.png" id="13_end_turn"]
+[ext_resource type="Texture2D" uid="uid://chex144lbifd3" path="res://assets/ui/hud/12_potion.png" id="14_potion"]
+[ext_resource type="Texture2D" uid="uid://xf5y08b85pp5" path="res://assets/items/icons/Icon_Eq_Weapon.png" id="15_attack"]
+[ext_resource type="Texture2D" uid="uid://c2hq4lx8pr1w" path="res://assets/ui/hud/Hud_icon_inventory.png" id="16_inventory"]
+[ext_resource type="Texture2D" uid="uid://cmqsx327uul1t" path="res://assets/ui/hud/2_options_off.png" id="17_auto_off"]
 [ext_resource type="PackedScene" path="res://scenes/ui/EnemyBestiaryPanel.tscn" id="19_bestiary"]
 [ext_resource type="PackedScene" path="res://scenes/ui/DevelopmentPanel.tscn" id="20_dev"]
 [ext_resource type="PackedScene" path="res://scenes/ui/CombatLogPanel.tscn" id="21_log"]
+[ext_resource type="PackedScene" uid="uid://c8c3uy5khbnen" path="res://scenes/ui/MainNavigation.tscn" id="22_navigation"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SkillPanel.tscn" id="22_skills"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroRow.tscn" id="23_subhero_row"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroShopPanel.tscn" id="24_shop"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroAssignmentPanel.tscn" id="25_assignment"]
-[ext_resource type="Script" path="res://scripts/ui/main_navigation.gd" id="22_navigation"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.0706, 0.0627, 0.102, 0.97)
@@ -35,29 +34,43 @@ corner_radius_top_right = 10
 corner_radius_bottom_right = 10
 corner_radius_bottom_left = 10
 
+[sub_resource type="StyleBoxFlat" id="StyleEnemySummary"]
+bg_color = Color(0.043, 0.039, 0.067, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.275, 0.22, 0.29, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxTexture" id="StyleBarBackground"]
+texture = ExtResource("7_hp_frame")
+texture_margin_left = 6.0
+texture_margin_top = 4.0
+texture_margin_right = 6.0
+texture_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxTexture" id="StyleBarFill"]
+texture = ExtResource("8_hp_red")
+texture_margin_left = 4.0
+texture_margin_top = 3.0
+texture_margin_right = 4.0
+texture_margin_bottom = 3.0
+
 [sub_resource type="StyleBoxFlat" id="StyleButton"]
+content_margin_left = 5.0
+content_margin_top = 3.0
+content_margin_right = 5.0
+content_margin_bottom = 3.0
 bg_color = Color(0.145, 0.125, 0.196, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
 border_color = Color(0.424, 0.325, 0.192, 1)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
-content_margin_left = 5.0
-content_margin_top = 3.0
-content_margin_right = 5.0
-content_margin_bottom = 3.0
-
-[sub_resource type="StyleBoxFlat" id="StyleButtonHover"]
-bg_color = Color(0.231, 0.192, 0.29, 1)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.847, 0.678, 0.349, 1)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -75,37 +88,23 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[sub_resource type="StyleBoxTexture" id="StyleBarBackground"]
-texture = ExtResource("7_hp_frame")
-texture_margin_left = 6.0
-texture_margin_top = 4.0
-texture_margin_right = 6.0
-texture_margin_bottom = 4.0
+[sub_resource type="StyleBoxFlat" id="StyleButtonHover"]
+bg_color = Color(0.231, 0.192, 0.29, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.847, 0.678, 0.349, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
-[sub_resource type="StyleBoxTexture" id="StyleBarFill"]
-texture = ExtResource("8_hp_red")
-texture_margin_left = 4.0
-texture_margin_top = 3.0
-texture_margin_right = 4.0
-texture_margin_bottom = 3.0
-
-[sub_resource type="StyleBoxFlat" id="StyleEnemySummary"]
-bg_color = Color(0.043, 0.039, 0.067, 0.96)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.275, 0.22, 0.29, 1)
-corner_radius_top_left = 5
-corner_radius_top_right = 5
-corner_radius_bottom_right = 5
-corner_radius_bottom_left = 5
-
-[node name="MobileCombatHUD" type="CanvasLayer"]
+[node name="MobileCombatHUD" type="CanvasLayer" unique_id=2140394397]
 layer = 10
 script = ExtResource("1_hud")
 
-[node name="Root" type="Control" parent="."]
+[node name="Root" type="Control" parent="." unique_id=1182686064]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -114,7 +113,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="LootPresentation" type="Control" parent="Root"]
+[node name="LootPresentation" type="Control" parent="Root" unique_id=1272694900]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -125,7 +124,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("2_loot")
 
-[node name="LootPanel" type="PanelContainer" parent="Root/LootPresentation"]
+[node name="LootPanel" type="PanelContainer" parent="Root/LootPresentation" unique_id=513014345]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 8
@@ -141,25 +140,25 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Margin" type="MarginContainer" parent="Root/LootPresentation/LootPanel"]
+[node name="Margin" type="MarginContainer" parent="Root/LootPresentation/LootPanel" unique_id=1238119601]
 layout_mode = 2
 theme_override_constants/margin_left = 20
 theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 20
 theme_override_constants/margin_bottom = 16
 
-[node name="Content" type="VBoxContainer" parent="Root/LootPresentation/LootPanel/Margin"]
+[node name="Content" type="VBoxContainer" parent="Root/LootPresentation/LootPanel/Margin" unique_id=798262481]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="LootBurst" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+[node name="LootBurst" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=303997999]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "✦"
 horizontal_alignment = 1
 
-[node name="LootTitle" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+[node name="LootTitle" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=863283668]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
@@ -167,23 +166,23 @@ theme_override_font_sizes/font_size = 13
 text = "LOOT FOUND"
 horizontal_alignment = 1
 
-[node name="LootRarity" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+[node name="LootRarity" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=1508754770]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "RARE"
 horizontal_alignment = 1
 
-[node name="LootItem" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+[node name="LootItem" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=462603125]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_font_sizes/font_size = 22
 text = "Equipment"
-clip_text = true
 horizontal_alignment = 1
+clip_text = true
 
-[node name="LootDetails" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+[node name="LootDetails" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=1674170878]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.741, 0.706, 0.808, 1)
@@ -191,15 +190,15 @@ theme_override_font_sizes/font_size = 12
 text = "WEAPON  •  ITEM LEVEL 1"
 horizontal_alignment = 1
 
-[node name="LootBest" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content"]
+[node name="LootBest" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=1106919456]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
 text = "NEW BEST ITEM"
 horizontal_alignment = 1
-visible = false
 
-[node name="TopPanel" type="PanelContainer" parent="Root"]
+[node name="TopPanel" type="PanelContainer" parent="Root" unique_id=1188517692]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
@@ -210,70 +209,70 @@ offset_bottom = 220.0
 grow_horizontal = 2
 theme_override_styles/panel = SubResource("StylePanel")
 
-[node name="Margin" type="MarginContainer" parent="Root/TopPanel"]
+[node name="Margin" type="MarginContainer" parent="Root/TopPanel" unique_id=2016389163]
 layout_mode = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 10
 
-[node name="Content" type="VBoxContainer" parent="Root/TopPanel/Margin"]
+[node name="Content" type="VBoxContainer" parent="Root/TopPanel/Margin" unique_id=467865011]
 layout_mode = 2
 theme_override_constants/separation = 5
 
-[node name="EnemySummaryPanel" type="PanelContainer" parent="Root/TopPanel/Margin/Content"]
-layout_mode = 2
+[node name="EnemySummaryPanel" type="PanelContainer" parent="Root/TopPanel/Margin/Content" unique_id=1281276242]
 custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
 theme_override_styles/panel = SubResource("StyleEnemySummary")
 
-[node name="Margin" type="MarginContainer" parent="Root/TopPanel/Margin/Content/EnemySummaryPanel"]
+[node name="Margin" type="MarginContainer" parent="Root/TopPanel/Margin/Content/EnemySummaryPanel" unique_id=1780087699]
 layout_mode = 2
 theme_override_constants/margin_left = 7
 theme_override_constants/margin_top = 5
 theme_override_constants/margin_right = 7
 theme_override_constants/margin_bottom = 5
 
-[node name="EnemySummaryRow" type="HBoxContainer" parent="Root/TopPanel/Margin/Content/EnemySummaryPanel/Margin"]
+[node name="EnemySummaryRow" type="HBoxContainer" parent="Root/TopPanel/Margin/Content/EnemySummaryPanel/Margin" unique_id=374592324]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 5
 
-[node name="Header" type="HBoxContainer" parent="Root/TopPanel/Margin/Content"]
+[node name="Header" type="HBoxContainer" parent="Root/TopPanel/Margin/Content" unique_id=679827907]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="AvatarBox" type="Control" parent="Root/TopPanel/Margin/Content/Header"]
-layout_mode = 2
+[node name="AvatarBox" type="Control" parent="Root/TopPanel/Margin/Content/Header" unique_id=561380817]
 custom_minimum_size = Vector2(46, 46)
+layout_mode = 2
 mouse_filter = 2
 
-[node name="Background" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox"]
+[node name="Background" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox" unique_id=1042496547]
 layout_mode = 0
 offset_right = 46.0
 offset_bottom = 46.0
 mouse_filter = 2
-expand_mode = 1
 texture = ExtResource("4_avatar_bg")
+expand_mode = 1
 
-[node name="Portrait" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox"]
+[node name="Portrait" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox" unique_id=1339770874]
 layout_mode = 0
 offset_left = 4.0
 offset_top = 4.0
 offset_right = 42.0
 offset_bottom = 42.0
 mouse_filter = 2
-expand_mode = 1
 texture = ExtResource("5_avatar")
+expand_mode = 1
 
-[node name="Frame" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox"]
+[node name="Frame" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox" unique_id=353347375]
 layout_mode = 0
 offset_right = 46.0
 offset_bottom = 46.0
 mouse_filter = 2
-expand_mode = 1
 texture = ExtResource("6_avatar_frame")
+expand_mode = 1
 
-[node name="StageLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header"]
+[node name="StageLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header" unique_id=561527669]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -281,17 +280,17 @@ theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
 theme_override_font_sizes/font_size = 20
 text = "STAGE 01"
 
-[node name="GoldLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header"]
+[node name="GoldLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header" unique_id=554984179]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
 theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
 theme_override_font_sizes/font_size = 14
 text = "GOLD 0"
 horizontal_alignment = 2
 vertical_alignment = 1
 
-[node name="TurnLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header"]
+[node name="TurnLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header" unique_id=1846356070]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.847, 0.678, 0.349, 1)
@@ -299,7 +298,7 @@ theme_override_font_sizes/font_size = 16
 text = "YOUR TURN"
 horizontal_alignment = 2
 
-[node name="EncounterLabel" type="Label" parent="Root/TopPanel/Margin/Content"]
+[node name="EncounterLabel" type="Label" parent="Root/TopPanel/Margin/Content" unique_id=1185896246]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
@@ -307,39 +306,39 @@ theme_override_font_sizes/font_size = 12
 text = "NORMAL ENCOUNTER   •   FOES 0 / 0"
 clip_text = true
 
-[node name="PlayerHPRow" type="HBoxContainer" parent="Root/TopPanel/Margin/Content"]
+[node name="PlayerHPRow" type="HBoxContainer" parent="Root/TopPanel/Margin/Content" unique_id=727602032]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="PlayerLabel" type="Label" parent="Root/TopPanel/Margin/Content/PlayerHPRow"]
-layout_mode = 2
+[node name="PlayerLabel" type="Label" parent="Root/TopPanel/Margin/Content/PlayerHPRow" unique_id=136111178]
 custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
 theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
 theme_override_font_sizes/font_size = 12
 text = "HERO HP"
 vertical_alignment = 1
 
-[node name="PlayerHPBar" type="ProgressBar" parent="Root/TopPanel/Margin/Content/PlayerHPRow"]
+[node name="PlayerHPBar" type="ProgressBar" parent="Root/TopPanel/Margin/Content/PlayerHPRow" unique_id=1044474573]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 16)
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(80, 16)
 theme_override_styles/background = SubResource("StyleBarBackground")
 theme_override_styles/fill = SubResource("StyleBarFill")
-show_percentage = false
 value = 100.0
+show_percentage = false
 
-[node name="PlayerHPValue" type="Label" parent="Root/TopPanel/Margin/Content/PlayerHPRow"]
+[node name="PlayerHPValue" type="Label" parent="Root/TopPanel/Margin/Content/PlayerHPRow" unique_id=1796258548]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(76, 0)
+layout_mode = 2
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_font_sizes/font_size = 12
 text = "100 / 100"
 horizontal_alignment = 2
 vertical_alignment = 1
 
-[node name="CombatInfoLabel" type="Label" parent="Root/TopPanel/Margin/Content"]
+[node name="CombatInfoLabel" type="Label" parent="Root/TopPanel/Margin/Content" unique_id=1731306067]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
@@ -347,97 +346,100 @@ theme_override_font_sizes/font_size = 12
 text = "MP 3 / 3   •   CELL 2, 4"
 clip_text = true
 
-[node name="BottomPanel" type="PanelContainer" parent="Root"]
+[node name="BottomPanel" type="PanelContainer" parent="Root" unique_id=1729398184]
 layout_mode = 1
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = -300.0
-offset_right = -16.0
-offset_bottom = -16.0
+offset_left = 12.0
+offset_top = -474.0
+offset_right = -20.0
+offset_bottom = -190.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_styles/panel = SubResource("StylePanel")
 
-[node name="Margin" type="MarginContainer" parent="Root/BottomPanel"]
+[node name="Margin" type="MarginContainer" parent="Root/BottomPanel" unique_id=501170006]
 layout_mode = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 10
 
-[node name="Content" type="VBoxContainer" parent="Root/BottomPanel/Margin"]
+[node name="Content" type="VBoxContainer" parent="Root/BottomPanel/Margin" unique_id=1034160719]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="EventLabel" type="Label" parent="Root/BottomPanel/Margin/Content"]
+[node name="EventLabel" type="Label" parent="Root/BottomPanel/Margin/Content" unique_id=131080532]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(0, 31)
+layout_mode = 2
 theme_override_colors/font_color = Color(0.835, 0.796, 0.878, 1)
 theme_override_font_sizes/font_size = 12
 text = "Awaiting input"
-text_overrun_behavior = 3
 vertical_alignment = 1
+text_overrun_behavior = 3
 
-[node name="SkillHintLabel" type="Label" parent="Root/BottomPanel/Margin/Content"]
+[node name="SkillHintLabel" type="Label" parent="Root/BottomPanel/Margin/Content" unique_id=1282099482]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
 theme_override_font_sizes/font_size = 11
 text = "SKILLS  •  ONE ACTION PER TURN"
 
-[node name="SkillRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content"]
-layout_mode = 2
+[node name="SkillRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content" unique_id=1375908508]
 custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="WhirlwindButton" type="Button" parent="Root/BottomPanel/Margin/Content/SkillRow"]
+[node name="WhirlwindButton" type="Button" parent="Root/BottomPanel/Margin/Content/SkillRow" unique_id=901088570]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 12
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-text = "WHIRLWIND\nAOE 1"
 tooltip_text = "Hits enemies in the four adjacent cells (0.8x damage)."
-
-[node name="ArcaneBoltButton" type="Button" parent="Root/BottomPanel/Margin/Content/SkillRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
-text = "ARCANE BOLT\nRANGE 2"
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "WHIRLWIND
+AOE 1"
+
+[node name="ArcaneBoltButton" type="Button" parent="Root/BottomPanel/Margin/Content/SkillRow" unique_id=216743585]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
 tooltip_text = "Single-target ranged attack with a two-cell range."
-
-[node name="ExecutionButton" type="Button" parent="Root/BottomPanel/Margin/Content/SkillRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
-text = "EXECUTION\nMELEE 1.5x"
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "ARCANE BOLT
+RANGE 2"
+
+[node name="ExecutionButton" type="Button" parent="Root/BottomPanel/Margin/Content/SkillRow" unique_id=893283580]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
 tooltip_text = "Powerful single-target attack with a one-cell range."
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "EXECUTION
+MELEE 1.5x"
 
-[node name="ActionRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content"]
-layout_mode = 2
+[node name="ActionRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content" unique_id=155588933]
 custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="AttackButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow"]
+[node name="AttackButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow" unique_id=993958164]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -445,12 +447,12 @@ theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
 theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
-icon = ExtResource("15_attack")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "ATTACK"
+icon = ExtResource("15_attack")
 
-[node name="ItemButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow"]
+[node name="ItemButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow" unique_id=379770835]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -458,12 +460,12 @@ theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
 theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
-icon = ExtResource("14_potion")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "POTION 3"
+icon = ExtResource("14_potion")
 
-[node name="EndTurnButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow"]
+[node name="EndTurnButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow" unique_id=838827908]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -471,12 +473,12 @@ theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
 theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
-icon = ExtResource("13_end_turn")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "END TURN"
+icon = ExtResource("13_end_turn")
 
-[node name="AutoButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow"]
+[node name="AutoButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow" unique_id=900396088]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -484,134 +486,135 @@ theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
 theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
-icon = ExtResource("17_auto_off")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "AUTO: OFF"
+icon = ExtResource("17_auto_off")
 
-[node name="UtilityRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content"]
+[node name="UtilityRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content" unique_id=1611719087]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="InventoryButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow"]
+[node name="InventoryButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow" unique_id=406332830]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 38)
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_font_sizes/font_size = 12
-icon = ExtResource("16_inventory")
 text = "INVENTORY 0"
+icon = ExtResource("16_inventory")
 
-[node name="ShopButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow"]
+[node name="ShopButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow" unique_id=1992445606]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 38)
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "SHOP"
 
-[node name="SkillsButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow"]
+[node name="SkillsButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow" unique_id=974430699]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 38)
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "SKILLS 0"
 
-[node name="AutoStageButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow"]
+[node name="AutoStageButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow" unique_id=1089259161]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 38)
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
-icon = ExtResource("17_auto_off")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "AUTO STAGE: OFF"
+icon = ExtResource("17_auto_off")
 
-[node name="BestiaryButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow"]
+[node name="BestiaryButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow" unique_id=1514740107]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 38)
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "BESTIARY"
 
-[node name="DevButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow"]
+[node name="DevButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow" unique_id=2079950874]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(72, 38)
+layout_mode = 2
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "DEV"
 
-[node name="SpeedRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content"]
-layout_mode = 2
+[node name="SpeedRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content" unique_id=1358145806]
 custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="SpeedLabel" type="Label" parent="Root/BottomPanel/Margin/Content/SpeedRow"]
-layout_mode = 2
+[node name="SpeedLabel" type="Label" parent="Root/BottomPanel/Margin/Content/SpeedRow" unique_id=459139155]
 custom_minimum_size = Vector2(92, 38)
+layout_mode = 2
 theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
 theme_override_font_sizes/font_size = 11
 text = "GAME SPEED"
 vertical_alignment = 1
 
-[node name="SpeedX1Button" type="Button" parent="Root/BottomPanel/Margin/Content/SpeedRow"]
+[node name="SpeedX1Button" type="Button" parent="Root/BottomPanel/Margin/Content/SpeedRow" unique_id=718885610]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "x1"
 
-[node name="SpeedX2Button" type="Button" parent="Root/BottomPanel/Margin/Content/SpeedRow"]
+[node name="SpeedX2Button" type="Button" parent="Root/BottomPanel/Margin/Content/SpeedRow" unique_id=1593171958]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "x2"
 
-[node name="SpeedFastestButton" type="Button" parent="Root/BottomPanel/Margin/Content/SpeedRow"]
+[node name="SpeedFastestButton" type="Button" parent="Root/BottomPanel/Margin/Content/SpeedRow" unique_id=339873638]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "FASTEST"
 
-[node name="CriticalLabel" type="Label" parent="Root"]
+[node name="CriticalLabel" type="Label" parent="Root" unique_id=733128120]
 unique_name_in_owner = true
+visible = false
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
@@ -620,32 +623,28 @@ offset_top = 184.0
 offset_right = -16.0
 offset_bottom = 218.0
 grow_horizontal = 2
-mouse_filter = 2
 theme_override_colors/font_color = Color(0.941, 0.761, 0.369, 1)
 theme_override_font_sizes/font_size = 22
 text = "CRITICAL HIT"
 horizontal_alignment = 1
-visible = false
 
-[node name="SubHeroRow" parent="Root" instance=ExtResource("23_subhero_row")]
+[node name="SubHeroRow" parent="Root" unique_id=815259273 instance=ExtResource("23_subhero_row")]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
 offset_left = 24.0
 offset_right = -24.0
-offset_top = 0.0
 offset_bottom = 109.0
 grow_horizontal = 2
 
-[node name="StateBanner" type="PanelContainer" parent="Root"]
+[node name="StateBanner" type="PanelContainer" parent="Root" unique_id=510967552]
 unique_name_in_owner = true
+visible = false
 layout_mode = 1
-anchors_preset = 8
+anchors_preset = 5
 anchor_left = 0.5
-anchor_top = 0.0
 anchor_right = 0.5
-anchor_bottom = 0.0
 offset_left = -72.0
 offset_top = 256.0
 offset_right = 72.0
@@ -654,9 +653,8 @@ grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StylePanel")
-visible = false
 
-[node name="StateLabel" type="Label" parent="Root/StateBanner"]
+[node name="StateLabel" type="Label" parent="Root/StateBanner" unique_id=942743284]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
@@ -665,36 +663,46 @@ text = "VICTORY"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="InventoryPanel" parent="Root" instance=ExtResource("3_inventory")]
+[node name="InventoryPanel" parent="Root" unique_id=1900479489 instance=ExtResource("3_inventory")]
 unique_name_in_owner = true
+layout_mode = 1
 
-[node name="EnemyBestiaryPanel" parent="Root" instance=ExtResource("19_bestiary")]
+[node name="EnemyBestiaryPanel" parent="Root" unique_id=202036707 instance=ExtResource("19_bestiary")]
 unique_name_in_owner = true
+layout_mode = 1
 
-[node name="DevelopmentPanel" parent="Root" instance=ExtResource("20_dev")]
+[node name="DevelopmentPanel" parent="Root" unique_id=1999941089 instance=ExtResource("20_dev")]
 unique_name_in_owner = true
+layout_mode = 1
 
-[node name="CombatLogPanel" parent="Root" instance=ExtResource("21_log")]
+[node name="CombatLogPanel" parent="Root" unique_id=1057368619 instance=ExtResource("21_log")]
 unique_name_in_owner = true
+layout_mode = 1
+offset_right = -285.4
+offset_bottom = -411.0
+grow_horizontal = 1
+grow_vertical = 1
 
-[node name="SkillPanel" parent="Root" instance=ExtResource("22_skills")]
+[node name="SkillPanel" parent="Root" unique_id=1154190298 instance=ExtResource("22_skills")]
 unique_name_in_owner = true
+layout_mode = 1
 
-[node name="SubHeroShopPanel" parent="Root" instance=ExtResource("24_shop")]
+[node name="SubHeroShopPanel" parent="Root" unique_id=1524388934 instance=ExtResource("24_shop")]
 unique_name_in_owner = true
+layout_mode = 1
 
-[node name="SubHeroAssignmentPanel" parent="Root" instance=ExtResource("25_assignment")]
+[node name="SubHeroAssignmentPanel" parent="Root" unique_id=921606121 instance=ExtResource("25_assignment")]
 unique_name_in_owner = true
+layout_mode = 1
 
-[node name="MainNavigation" type="Control" parent="Root"]
+[node name="MainNavigation" parent="Root" unique_id=1709475583 instance=ExtResource("22_navigation")]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 12
 anchor_top = 1.0
-anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -204.0
-grow_horizontal = 2
+offset_left = 1.0
+offset_top = -171.0
+offset_right = 1.0
+offset_bottom = 33.0
 grow_vertical = 0
-mouse_filter = 0
-script = ExtResource("22_navigation")
