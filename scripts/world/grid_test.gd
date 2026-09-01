@@ -170,20 +170,23 @@ func _on_viewport_size_changed() -> void:
 
 func _layout_portrait_grid() -> void:
 	var viewport_size: Vector2 = get_viewport_rect().size
-	var top_reserved: float = clampf(viewport_size.y * 0.17, 220.0, 240.0)
-	var bottom_reserved: float = clampf(viewport_size.y * 0.36, 450.0, 480.0)
-	var side_margin: float = clampf(viewport_size.x * 0.045, 18.0, 36.0)
+	# Keep the world grid in the same normalized combat band as the HUD's
+	# MainVBox. The UI owns all lower-section layout; this node only positions
+	# the existing gameplay grid inside CombatSection.
+	var top_reserved: float = viewport_size.y * 0.06 + 14.0
+	var combat_height: float = viewport_size.y * 0.34
+	var side_margin: float = viewport_size.x * 0.045
 	var available_size := Vector2(
 		maxf(viewport_size.x - side_margin * 2.0, 1.0),
-		maxf(viewport_size.y - top_reserved - bottom_reserved - 24.0, 1.0)
+		maxf(combat_height - 16.0, 1.0)
 	)
 	var cell_size: int = maxi(floori(minf(
 		available_size.x / float(grid.grid_size.x),
 		available_size.y / float(grid.grid_size.y)
 	)), 1)
 	var grid_pixel_size := Vector2(grid.grid_size * cell_size)
-	var play_area_top: float = top_reserved + 12.0
-	var play_area_height: float = maxf(viewport_size.y - top_reserved - bottom_reserved - 24.0, grid_pixel_size.y)
+	var play_area_top: float = top_reserved
+	var play_area_height: float = maxf(combat_height - 16.0, grid_pixel_size.y)
 	grid.cell_size = cell_size
 	grid.origin = Vector2(
 		(viewport_size.x - grid_pixel_size.x) * 0.5,

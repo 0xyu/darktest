@@ -72,6 +72,7 @@ const ENEMY_SUMMARY_MUTED_COLOR := Color("9d93ae")
 
 
 func _ready() -> void:
+	_build_responsive_layout()
 	_attack_button.pressed.connect(func() -> void: attack_requested.emit())
 	_whirlwind_button.pressed.connect(func() -> void: skill_requested.emit(SkillCatalog.WHIRLWIND))
 	_arcane_bolt_button.pressed.connect(func() -> void: skill_requested.emit(SkillCatalog.ARCANE_BOLT))
@@ -114,6 +115,201 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_refresh_sub_hero_slots()
 	_refresh()
+
+
+## Builds the visible combat screen from containers. The older panel nodes remain
+## in the scene because their controls are wired to gameplay; their controls are
+## reparented into this layout so those signal paths and bindings stay intact.
+func _build_responsive_layout() -> void:
+	var old_top := get_node_or_null("Root/TopPanel") as Control
+	var old_bottom := get_node_or_null("Root/BottomPanel") as Control
+	var old_root := get_node("Root") as Control
+	if old_top == null or old_bottom == null or old_root.get_node_or_null("SafeArea") != null:
+		return
+
+	old_top.visible = false
+	old_bottom.visible = false
+	var safe_area := MarginContainer.new()
+	safe_area.name = "SafeArea"
+	safe_area.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	safe_area.add_theme_constant_override("margin_left", 16)
+	safe_area.add_theme_constant_override("margin_right", 16)
+	safe_area.add_theme_constant_override("margin_top", 8)
+	safe_area.add_theme_constant_override("margin_bottom", 8)
+	old_root.add_child(safe_area)
+	var main_vbox := VBoxContainer.new()
+	main_vbox.name = "MainVBox"
+	main_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	main_vbox.add_theme_constant_override("separation", 6)
+	safe_area.add_child(main_vbox)
+
+	var header := _layout_region("TopHeader", 0.06)
+	main_vbox.add_child(header)
+	var header_row := HBoxContainer.new()
+	header_row.name = "HeaderRow"
+	_fill_region_child(header_row)
+	header_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	header_row.add_theme_constant_override("separation", 8)
+	header.add_child(header_row)
+	var avatar := old_top.get_node("Margin/Content/Header/AvatarBox")
+	var gold := old_top.get_node("Margin/Content/Header/GoldLabel")
+	var stage := old_top.get_node("Margin/Content/Header/StageLabel")
+	var _turn := old_top.get_node("Margin/Content/Header/TurnLabel")
+	avatar.reparent(header_row)
+	stage.reparent(header_row)
+	gold.reparent(header_row)
+	var plus := Button.new()
+	plus.text = "+"
+	plus.custom_minimum_size = Vector2(34, 34)
+	header_row.add_child(plus)
+	var header_spacer := Control.new()
+	header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_row.add_child(header_spacer)
+	var power := Label.new()
+	power.name = "CombatPowerLabel"
+	power.text = "⚔  CP 0"
+	power.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	power.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	header_row.add_child(power)
+
+	var combat := _layout_region("CombatSection", 0.34)
+	combat.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	main_vbox.add_child(combat)
+	var enemy_card := old_top.get_node("Margin/Content/EnemySummaryPanel") as Control
+	enemy_card.reparent(combat)
+	enemy_card.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	enemy_card.offset_left = 0
+	enemy_card.offset_top = 2
+	enemy_card.offset_right = 0
+	enemy_card.offset_bottom = 68
+	enemy_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	enemy_card.z_index = 2
+	var combat_label := Label.new()
+	combat_label.text = "COMBAT AREA"
+	combat_label.visible = false
+	combat_label.modulate = Color(0.55, 0.5, 0.62, 0.55)
+	combat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	combat_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	combat.add_child(combat_label)
+
+	_sub_hero_row.reparent(main_vbox)
+	_sub_hero_row.name = "SubHeroes"
+	_sub_hero_row.custom_minimum_size.y = 0
+	_sub_hero_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_sub_hero_row.size_flags_stretch_ratio = 0.09
+
+	var actions := _layout_region("CombatActions", 0.10)
+	main_vbox.add_child(actions)
+	var action_row := HBoxContainer.new()
+	action_row.name = "BossSkillsAutoRow"
+	_fill_region_child(action_row)
+	action_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	action_row.add_theme_constant_override("separation", 6)
+	actions.add_child(action_row)
+	_attack_button.reparent(action_row)
+	_attack_button.text = "ATTACK"
+	_attack_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var skills := HBoxContainer.new()
+	skills.name = "SkillsContainer"
+	skills.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skills.size_flags_stretch_ratio = 2.2
+	skills.add_theme_constant_override("separation", 4)
+	action_row.add_child(skills)
+	for skill_button in [_whirlwind_button, _arcane_bolt_button, _execution_button, _skills_button]:
+		skill_button.reparent(skills)
+		skill_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var auto_column := VBoxContainer.new()
+	auto_column.name = "AutoContainer"
+	auto_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	auto_column.add_theme_constant_override("separation", 3)
+	action_row.add_child(auto_column)
+	_auto_stage_button.reparent(auto_column)
+	_auto_button.reparent(auto_column)
+	_auto_stage_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_auto_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	_combat_log.reparent(main_vbox)
+	_combat_log.name = "CombatLog"
+	_combat_log.custom_minimum_size.y = 0
+	_combat_log.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_combat_log.size_flags_stretch_ratio = 0.13
+
+	var utility := _layout_region("UtilityActions", 0.07)
+	main_vbox.add_child(utility)
+	var utility_row := HBoxContainer.new()
+	_fill_region_child(utility_row)
+	utility_row.add_theme_constant_override("separation", 6)
+	utility_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	utility.add_child(utility_row)
+	_dev_button.reparent(utility_row)
+	_bestiary_button.reparent(utility_row)
+	_end_turn_button.reparent(utility_row)
+	_dev_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_bestiary_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_end_turn_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var stage_section := _layout_region("StageSection", 0.12)
+	main_vbox.add_child(stage_section)
+	var stage_row := HBoxContainer.new()
+	_fill_region_child(stage_row)
+	stage_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stage_row.add_theme_constant_override("separation", 8)
+	stage_section.add_child(stage_row)
+	var stage_info := Label.new()
+	stage_info.name = "StageInfo"
+	stage_info.text = "STAGE INFO\nDIFFICULTY  NORMAL\nFOES 0   TREASURE 0"
+	stage_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stage_info.size_flags_stretch_ratio = 0.4
+	stage_info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	stage_row.add_child(stage_info)
+	var stage_list := HBoxContainer.new()
+	stage_list.name = "StageList"
+	stage_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stage_list.size_flags_stretch_ratio = 0.6
+	stage_list.alignment = BoxContainer.ALIGNMENT_CENTER
+	stage_list.add_theme_constant_override("separation", 4)
+	stage_row.add_child(stage_list)
+	for label_text in ["1", "2", "3", "4", "5", ">>"]:
+		var stage_button := Button.new()
+		stage_button.text = label_text
+		stage_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		stage_list.add_child(stage_button)
+
+	var navigation := _layout_region("MainNavigation", 0.09)
+	main_vbox.add_child(navigation)
+	var nav_row := HBoxContainer.new()
+	_fill_region_child(nav_row)
+	nav_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	nav_row.add_theme_constant_override("separation", 3)
+	navigation.add_child(nav_row)
+	for nav_text in ["CHARACTER", "INVENTORY", "FORGE", "MODES", "REWARDS", "SHOP"]:
+		var nav_button := Button.new()
+		nav_button.text = nav_text
+		nav_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nav_row.add_child(nav_button)
+		if nav_text == "CHARACTER":
+			nav_button.pressed.connect(_on_character_navigation_pressed)
+		elif nav_text == "INVENTORY":
+			nav_button.pressed.connect(_on_inventory_navigation_pressed)
+		elif nav_text == "SHOP":
+			nav_button.pressed.connect(_on_shop_button_pressed)
+
+	# The legacy navigation remains alive for player resource updates, but is not
+	# part of the visible layout because its art is sized for the former HUD.
+	_main_navigation.visible = false
+
+
+func _layout_region(region_name: String, ratio: float) -> Control:
+	var region := Control.new()
+	region.name = region_name
+	region.custom_minimum_size.y = 0
+	region.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	region.size_flags_stretch_ratio = ratio
+	return region
+
+
+func _fill_region_child(control: Control) -> void:
+	control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func _process(delta: float) -> void:
@@ -462,38 +658,10 @@ func clear_sub_hero_slots() -> void:
 
 ## Keeps the support row immediately below the battlefield and the combat log
 ## in the remaining gap before the bottom controls.
-func layout_battle_support(grid_bottom: float, viewport_size: Vector2) -> void:
-	if _sub_hero_row == null:
-		return
-	const SUB_HERO_HORIZONTAL_MARGIN: float = 24.0
-	const GRID_TO_SUB_HERO_GAP: float = 8.0
-	const SUPPORT_TO_LOG_GAP: float = 4.0
-	const COMBAT_LOG_HEIGHT: float = 120.0
-
-	_sub_hero_row.anchor_left = 0.0
-	_sub_hero_row.anchor_top = 0.0
-	_sub_hero_row.anchor_right = 1.0
-	_sub_hero_row.anchor_bottom = 0.0
-	_sub_hero_row.offset_left = SUB_HERO_HORIZONTAL_MARGIN
-	_sub_hero_row.offset_right = -SUB_HERO_HORIZONTAL_MARGIN
-	var row_top: float = grid_bottom + GRID_TO_SUB_HERO_GAP
-	var row_height: float = maxf(_sub_hero_row.get_combined_minimum_size().y, 1.0)
-	_sub_hero_row.offset_top = row_top
-	_sub_hero_row.offset_bottom = row_top + row_height
-
-	if _combat_log == null:
-		return
-	var bottom_panel_top: float = viewport_size.y - 300.0
-	var log_bottom: float = bottom_panel_top - SUPPORT_TO_LOG_GAP
-	var log_top: float = minf(row_top + row_height + SUPPORT_TO_LOG_GAP, log_bottom - COMBAT_LOG_HEIGHT)
-	_combat_log.anchor_left = 0.0
-	_combat_log.anchor_top = 0.0
-	_combat_log.anchor_right = 0.62
-	_combat_log.anchor_bottom = 0.0
-	_combat_log.offset_left = 16.0
-	_combat_log.offset_right = 0.0
-	_combat_log.offset_top = log_top
-	_combat_log.offset_bottom = log_bottom
+func layout_battle_support(_grid_bottom: float, _viewport_size: Vector2) -> void:
+	# The HUD owns support/log placement through MainVBox. Keep this method as a
+	# compatibility hook for GridTest; it intentionally performs no positioning.
+	return
 
 
 func show_sub_hero_attack_feedback(hero_id: StringName, damage: int) -> bool:
