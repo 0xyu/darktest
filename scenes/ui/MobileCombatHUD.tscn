@@ -4,10 +4,7 @@
 [ext_resource type="Script" uid="uid://jlhfbbbk7bxr" path="res://scripts/ui/loot_presentation.gd" id="2_loot"]
 [ext_resource type="PackedScene" path="res://scenes/ui/EquipmentInventoryPanel.tscn" id="3_inventory"]
 [ext_resource type="PackedScene" uid="uid://wtidbs6nnroc" path="res://scenes/ui/enemy_summary_panel.tscn" id="3_p0jh1"]
-[ext_resource type="PackedScene" path="res://scenes/ui/combat_actions.tscn" id="26_actions"]
-[ext_resource type="Texture2D" uid="uid://c2viwev4lmnll" path="res://assets/characters/portraits/HP_Portrait_frame_bg.png" id="4_avatar_bg"]
-[ext_resource type="Texture2D" uid="uid://d1kxmsx2xp7q2" path="res://assets/characters/portraits/Avatar_ref.png" id="5_avatar"]
-[ext_resource type="Texture2D" uid="uid://c80gtsswsic5p" path="res://assets/characters/portraits/HP_Portrait_frame.png" id="6_avatar_frame"]
+[ext_resource type="PackedScene" uid="uid://ungtp5l0pt6n" path="res://scenes/ui/header_row.tscn" id="4_r7gtg"]
 [ext_resource type="Texture2D" uid="uid://cubpxxjiwkgfx" path="res://assets/ui/hud/Hp_frame.png" id="7_hp_frame"]
 [ext_resource type="Texture2D" uid="uid://qen7qg7wgkcy" path="res://assets/ui/hud/Hp_red.png" id="8_hp_red"]
 [ext_resource type="Texture2D" uid="uid://c2hq4lx8pr1w" path="res://assets/ui/hud/Hud_icon_inventory.png" id="16_inventory"]
@@ -19,6 +16,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroRow.tscn" id="23_subhero_row"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroShopPanel.tscn" id="24_shop"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroAssignmentPanel.tscn" id="25_assignment"]
+[ext_resource type="PackedScene" path="res://scenes/ui/combat_actions.tscn" id="26_actions"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.0706, 0.0627, 0.102, 0.97)
@@ -210,66 +208,8 @@ theme_override_constants/separation = 5
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="Header" type="HBoxContainer" parent="Root/TopPanel/Margin/Content" unique_id=679827907]
+[node name="Header" parent="Root/TopPanel/Margin/Content" unique_id=2110599094 instance=ExtResource("4_r7gtg")]
 layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="AvatarBox" type="Control" parent="Root/TopPanel/Margin/Content/Header" unique_id=561380817]
-custom_minimum_size = Vector2(46, 46)
-layout_mode = 2
-mouse_filter = 2
-
-[node name="Background" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox" unique_id=1042496547]
-layout_mode = 0
-offset_right = 46.0
-offset_bottom = 46.0
-mouse_filter = 2
-texture = ExtResource("4_avatar_bg")
-expand_mode = 1
-
-[node name="Portrait" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox" unique_id=1339770874]
-layout_mode = 0
-offset_left = 4.0
-offset_top = 4.0
-offset_right = 42.0
-offset_bottom = 42.0
-mouse_filter = 2
-texture = ExtResource("5_avatar")
-expand_mode = 1
-
-[node name="Frame" type="TextureRect" parent="Root/TopPanel/Margin/Content/Header/AvatarBox" unique_id=353347375]
-layout_mode = 0
-offset_right = 46.0
-offset_bottom = 46.0
-mouse_filter = 2
-texture = ExtResource("6_avatar_frame")
-expand_mode = 1
-
-[node name="StageLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header" unique_id=561527669]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
-theme_override_font_sizes/font_size = 20
-text = "STAGE 01"
-
-[node name="GoldLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header" unique_id=554984179]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(92, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
-theme_override_font_sizes/font_size = 14
-text = "GOLD 0"
-horizontal_alignment = 2
-vertical_alignment = 1
-
-[node name="TurnLabel" type="Label" parent="Root/TopPanel/Margin/Content/Header" unique_id=1846356070]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.847, 0.678, 0.349, 1)
-theme_override_font_sizes/font_size = 16
-text = "YOUR TURN"
-horizontal_alignment = 2
 
 [node name="EncounterLabel" type="Label" parent="Root/TopPanel/Margin/Content" unique_id=1185896246]
 unique_name_in_owner = true
@@ -360,7 +300,7 @@ theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
 theme_override_font_sizes/font_size = 11
 text = "SKILLS  •  ONE ACTION PER TURN"
 
-[node name="CombatActions" parent="Root/BottomPanel/Margin/Content" instance=ExtResource("26_actions")]
+[node name="CombatActions" parent="Root/BottomPanel/Margin/Content" unique_id=1420957238 instance=ExtResource("26_actions")]
 unique_name_in_owner = true
 layout_mode = 2
 

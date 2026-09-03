@@ -16,9 +16,7 @@ signal game_speed_requested(speed: int)
 @onready var _turn_manager: Node = get_parent().get_node_or_null("TurnManager")
 @onready var _player: Node = get_parent().get_node_or_null("Player")
 
-@onready var _stage_label: Label = %StageLabel
-@onready var _gold_label: Label = %GoldLabel
-@onready var _turn_label: Label = %TurnLabel
+@onready var _header_row: HeaderRow = get_node("Root/TopPanel/Margin/Content/Header") as HeaderRow
 @onready var _encounter_label: Label = %EncounterLabel
 @onready var _sub_hero_row: Control = %SubHeroRow
 @onready var _player_hp_bar: ProgressBar = %PlayerHPBar
@@ -207,9 +205,8 @@ func _refresh() -> void:
 	if stage_state == null:
 		return
 
-	_stage_label.text = "STAGE %02d" % stage_state.stage_number
-	_turn_label.text = _get_turn_label()
-	_turn_label.modulate = _get_turn_color()
+	_header_row.stage_number = stage_state.stage_number
+	_header_row.turn_phase = _turn_manager.get_phase()
 	_encounter_label.text = _get_encounter_text(stage_state)
 	if _enemy_summary_panel != null:
 		var spawned_enemies: Array[EnemyController] = _stage_manager.get_spawned_enemies() if _stage_manager.has_method("get_spawned_enemies") else []
@@ -228,7 +225,7 @@ func _refresh() -> void:
 	var experience_ratio: float = player_progression.get_experience_ratio() if player_progression != null else 0.0
 	_main_navigation.set_player_status(current_hp, max_hp, player_level, 0, 0, experience_ratio)
 	if player_progression != null:
-		_gold_label.text = "GOLD %s" % _format_number(player_progression.gold)
+		_header_row.gold = player_progression.gold
 	if player_stats != null:
 		_player_hp_bar.max_value = maxi(player_stats.max_hp, 1)
 		_player_hp_bar.value = clampi(player_stats.current_hp, 0, maxi(player_stats.max_hp, 1))
@@ -402,40 +399,3 @@ func _get_encounter_text(stage_state: StageState) -> String:
 	elif stage_state.is_special_encounter:
 		encounter = "SPECIAL ENCOUNTER"
 	return "%s   •   FOES %d / %d" % [encounter, stage_state.defeated_enemy_count, stage_state.spawned_enemy_count]
-
-
-func _get_turn_label() -> String:
-	match _turn_manager.get_phase():
-		TurnState.PLAYER_TURN:
-			return "YOUR TURN"
-		TurnState.ENEMY_TURN:
-			return "ENEMY TURN"
-		TurnState.VICTORY:
-			return "VICTORY"
-		TurnState.DEFEAT:
-			return "DEFEAT"
-		_:
-			return "-"
-
-
-func _get_turn_color() -> Color:
-	match _turn_manager.get_phase():
-		TurnState.PLAYER_TURN:
-			return Color("d9b565")
-		TurnState.ENEMY_TURN:
-			return Color("d46a78")
-		TurnState.VICTORY:
-			return Color("89c797")
-		TurnState.DEFEAT:
-			return Color("d46a78")
-		_:
-			return Color("b9afc6")
-
-
-func _format_number(value: int) -> String:
-	var text_value: String = str(maxi(value, 0))
-	var formatted: String = ""
-	while text_value.length() > 3:
-		formatted = "," + text_value.substr(text_value.length() - 3, 3) + formatted
-		text_value = text_value.substr(0, text_value.length() - 3)
-	return text_value + formatted

@@ -1,0 +1,67 @@
+[gd_scene format=3 uid="uid://ungtp5l0pt6n"]
+
+[ext_resource type="Texture2D" uid="uid://c2viwev4lmnll" path="res://assets/characters/portraits/HP_Portrait_frame_bg.png" id="1_s1h7k"]
+[ext_resource type="Texture2D" uid="uid://d1kxmsx2xp7q2" path="res://assets/characters/portraits/Avatar_ref.png" id="2_264be"]
+[ext_resource type="Texture2D" uid="uid://c80gtsswsic5p" path="res://assets/characters/portraits/HP_Portrait_frame.png" id="3_btte7"]
+[ext_resource type="Script" path="res://scripts/ui/header_row.gd" id="4_header_script"]
+
+[node name="Header" type="HBoxContainer" unique_id=2110599094]
+theme_override_constants/separation = 8
+script = ExtResource("4_header_script")
+
+[node name="AvatarBox" type="Control" parent="." unique_id=1478029125]
+custom_minimum_size = Vector2(46, 46)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Background" type="TextureRect" parent="AvatarBox" unique_id=1011850304]
+layout_mode = 0
+offset_right = 46.0
+offset_bottom = 46.0
+mouse_filter = 2
+texture = ExtResource("1_s1h7k")
+expand_mode = 1
+
+[node name="Portrait" type="TextureRect" parent="AvatarBox" unique_id=1577112320]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = 42.0
+offset_bottom = 42.0
+mouse_filter = 2
+texture = ExtResource("2_264be")
+expand_mode = 1
+
+[node name="Frame" type="TextureRect" parent="AvatarBox" unique_id=102712065]
+layout_mode = 0
+offset_right = 46.0
+offset_bottom = 46.0
+mouse_filter = 2
+texture = ExtResource("3_btte7")
+expand_mode = 1
+
+[node name="StageLabel" type="Label" parent="." unique_id=885030749]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
+theme_override_font_sizes/font_size = 20
+text = "STAGE 01"
+
+[node name="GoldLabel" type="Label" parent="." unique_id=847166926]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
+theme_override_font_sizes/font_size = 14
+text = "GOLD 0"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="TurnLabel" type="Label" parent="." unique_id=697888687]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.847, 0.678, 0.349, 1)
+theme_override_font_sizes/font_size = 16
+text = "YOUR TURN"
+horizontal_alignment = 2
