@@ -16,7 +16,7 @@ signal game_speed_requested(speed: int)
 @onready var _turn_manager: Node = get_parent().get_node_or_null("TurnManager")
 @onready var _player: Node = get_parent().get_node_or_null("Player")
 
-@onready var _header_row: HeaderRow = get_node_or_null("Root/SafeArea/MainLayout/TopPanel/Margin/Content/Header") as HeaderRow
+@onready var _header_row: HeaderRow = get_node_or_null("Root/SafeArea/MainContent/Content/MainLayout/TopPanel/Margin/Content/Header") as HeaderRow
 @onready var _encounter_label: Label = %EncounterLabel
 @onready var _sub_hero_row: Control = %SubHeroRow
 @onready var _player_hp_bar: ProgressBar = %PlayerHPBar

@@ -1,5 +1,5 @@
 class_name HeaderRow
-extends HBoxContainer
+extends Control
 
 ## Data displayed by the combat header. The HUD owns the game state and writes
 ## these properties; the header owns the presentation of its three labels.
@@ -40,7 +40,7 @@ func _refresh_stage_label() -> void:
 
 func _refresh_gold_label() -> void:
 	if _gold_label != null:
-		_gold_label.text = "GOLD %s" % _format_number(gold)
+		_gold_label.text = _format_number(gold)
 
 
 func _refresh_turn_label() -> void:

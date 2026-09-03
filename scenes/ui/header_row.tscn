@@ -3,64 +3,148 @@
 [ext_resource type="Texture2D" uid="uid://c2viwev4lmnll" path="res://assets/characters/portraits/HP_Portrait_frame_bg.png" id="1_s1h7k"]
 [ext_resource type="Texture2D" uid="uid://d1kxmsx2xp7q2" path="res://assets/characters/portraits/Avatar_ref.png" id="2_264be"]
 [ext_resource type="Texture2D" uid="uid://c80gtsswsic5p" path="res://assets/characters/portraits/HP_Portrait_frame.png" id="3_btte7"]
-[ext_resource type="Script" path="res://scripts/ui/header_row.gd" id="4_header_script"]
+[ext_resource type="Script" uid="uid://d33cms0qm4511" path="res://scripts/ui/header_row.gd" id="4_header_script"]
+[ext_resource type="Texture2D" uid="uid://c73skqhgenfhl" path="res://assets/ui/hud/money-display.png" id="5_money_display"]
+[ext_resource type="Texture2D" uid="uid://bfajkqww6bl4s" path="res://assets/ui/hud/power-level-display.png" id="6_power_level_display"]
 
-[node name="Header" type="HBoxContainer" unique_id=2110599094]
-theme_override_constants/separation = 8
+[node name="HeaderRow" type="Control" unique_id=594259273]
+custom_minimum_size = Vector2(720, 100)
+layout_mode = 3
+anchor_right = 1.0
+anchor_bottom = 0.07300001
+offset_right = -720.0
+offset_bottom = -93.44001
 script = ExtResource("4_header_script")
 
-[node name="AvatarBox" type="Control" parent="." unique_id=1478029125]
+[node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=851469806]
+layout_mode = 0
+offset_right = 720.0
+offset_bottom = 97.0
+
+[node name="AvatarBox" type="Control" parent="HBoxContainer" unique_id=1478029125]
 custom_minimum_size = Vector2(46, 46)
 layout_mode = 2
+size_flags_horizontal = 3
 mouse_filter = 2
 
-[node name="Background" type="TextureRect" parent="AvatarBox" unique_id=1011850304]
+[node name="Background" type="TextureRect" parent="HBoxContainer/AvatarBox" unique_id=1011850304]
+visible = false
 layout_mode = 0
-offset_right = 46.0
-offset_bottom = 46.0
+offset_left = 6.0
+offset_top = 15.0
+offset_right = 86.0
+offset_bottom = 95.0
 mouse_filter = 2
 texture = ExtResource("1_s1h7k")
 expand_mode = 1
 
-[node name="Portrait" type="TextureRect" parent="AvatarBox" unique_id=1577112320]
+[node name="Portrait" type="TextureRect" parent="HBoxContainer/AvatarBox" unique_id=1577112320]
 layout_mode = 0
-offset_left = 4.0
-offset_top = 4.0
-offset_right = 42.0
-offset_bottom = 42.0
+offset_left = 13.0
+offset_top = 8.0
+offset_right = 93.0
+offset_bottom = 88.0
 mouse_filter = 2
 texture = ExtResource("2_264be")
 expand_mode = 1
 
-[node name="Frame" type="TextureRect" parent="AvatarBox" unique_id=102712065]
+[node name="Frame" type="TextureRect" parent="HBoxContainer/AvatarBox" unique_id=102712065]
+visible = false
 layout_mode = 0
-offset_right = 46.0
-offset_bottom = 46.0
+offset_left = 6.0
+offset_top = 15.0
+offset_right = 86.0
+offset_bottom = 95.0
 mouse_filter = 2
 texture = ExtResource("3_btte7")
 expand_mode = 1
 
+[node name="GoldDisplay" type="Control" parent="HBoxContainer" unique_id=847166927]
+custom_minimum_size = Vector2(208, 60)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Background" type="TextureRect" parent="HBoxContainer/GoldDisplay" unique_id=16111230]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("5_money_display")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="GoldLabel" type="Label" parent="HBoxContainer/GoldDisplay" unique_id=847166926]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 58.0
+offset_top = 16.0
+offset_right = 174.0
+offset_bottom = 60.0
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 16
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PowerLevelDisplay" type="Control" parent="HBoxContainer" unique_id=847166928]
+custom_minimum_size = Vector2(233, 77)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Background" type="TextureRect" parent="HBoxContainer/PowerLevelDisplay" unique_id=750020682]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("6_power_level_display")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Label" type="Label" parent="HBoxContainer/PowerLevelDisplay" unique_id=345561565]
+layout_mode = 0
+offset_left = 72.0
+offset_top = 18.0
+offset_right = 202.0
+offset_bottom = 59.0
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 18
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="StageLabel" type="Label" parent="." unique_id=885030749]
 unique_name_in_owner = true
-layout_mode = 2
+layout_mode = 0
+offset_left = 108.0
+offset_top = 55.0
+offset_right = 198.0
+offset_bottom = 83.0
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
 theme_override_font_sizes/font_size = 20
 text = "STAGE 01"
 
-[node name="GoldLabel" type="Label" parent="." unique_id=847166926]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(92, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
-theme_override_font_sizes/font_size = 14
-text = "GOLD 0"
-horizontal_alignment = 2
-vertical_alignment = 1
-
 [node name="TurnLabel" type="Label" parent="." unique_id=697888687]
 unique_name_in_owner = true
-layout_mode = 2
+layout_mode = 0
+offset_left = 103.0
+offset_top = 22.0
+offset_right = 196.0
+offset_bottom = 45.0
 theme_override_colors/font_color = Color(0.847, 0.678, 0.349, 1)
 theme_override_font_sizes/font_size = 16
 text = "YOUR TURN"
