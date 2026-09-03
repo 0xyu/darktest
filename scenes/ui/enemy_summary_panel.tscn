@@ -1,0 +1,32 @@
+[gd_scene format=3 uid="uid://wtidbs6nnroc"]
+
+[ext_resource type="Script" path="res://scripts/ui/enemy_summary_panel.gd" id="1_panel"]
+
+[sub_resource type="StyleBoxFlat" id="StyleEnemySummary"]
+bg_color = Color(0.043, 0.039, 0.067, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.275, 0.22, 0.29, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[node name="EnemySummaryPanel" type="PanelContainer" unique_id=2119667898]
+script = ExtResource("1_panel")
+custom_minimum_size = Vector2(0, 64)
+theme_override_styles/panel = SubResource("StyleEnemySummary")
+
+[node name="Margin" type="MarginContainer" parent="." unique_id=202290986]
+layout_mode = 2
+theme_override_constants/margin_left = 7
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 7
+theme_override_constants/margin_bottom = 5
+
+[node name="EnemySummaryRow" type="HBoxContainer" parent="Margin" unique_id=557849176]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 5
