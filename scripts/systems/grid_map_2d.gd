@@ -160,9 +160,9 @@ func _draw() -> void:
 		for x in range(grid_size.x):
 			var cell := Vector2i(x, y)
 			var rect: Rect2 = get_cell_rect(cell)
-			var fill_color := Color("171522") if (x + y) % 2 == 0 else Color("1c1929")
+			var fill_color := Color("171522", 0.68) if (x + y) % 2 == 0 else Color("1c1929", 0.68)
 			if not is_walkable(cell):
-				fill_color = Color("0b0a10")
+				fill_color = Color("0b0a10", 0.78)
 			if _highlighted_cells.has(cell) and is_walkable(cell):
 				fill_color = Color("3a344d")
 			draw_rect(rect, fill_color, true)

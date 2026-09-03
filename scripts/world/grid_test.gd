@@ -5,6 +5,7 @@ const SpecialEncounterTypeResource = preload("res://scripts/systems/special_enco
 const SubHeroAttackEffectResource = preload("res://scripts/combat/sub_hero_attack_effect.gd")
 
 @onready var grid: GridMap2D = $Grid
+@onready var dungeon_background: Sprite2D = $DungeonBackground
 @onready var player: PlayerController = $Player
 @onready var turn_manager: TurnManager = $TurnManager
 @onready var combat_system: CombatSystem = $CombatSystem
@@ -170,6 +171,12 @@ func _on_viewport_size_changed() -> void:
 
 func _layout_portrait_grid() -> void:
 	var viewport_size: Vector2 = get_viewport_rect().size
+	var background_size: Vector2 = dungeon_background.texture.get_size()
+	dungeon_background.position = viewport_size * 0.5
+	dungeon_background.scale = Vector2.ONE * maxf(
+		viewport_size.x / background_size.x,
+		viewport_size.y / background_size.y
+	)
 	var top_reserved: float = clampf(viewport_size.y * 0.17, 220.0, 240.0)
 	var bottom_reserved: float = clampf(viewport_size.y * 0.36, 450.0, 480.0)
 	var side_margin: float = clampf(viewport_size.x * 0.045, 18.0, 36.0)
