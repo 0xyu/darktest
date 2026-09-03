@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bsioi2y8tul2k"]
 
 [ext_resource type="Script" uid="uid://dt3tup545hjr6" path="res://scripts/ui/mobile_combat_hud.gd" id="1_hud"]
-[ext_resource type="Script" uid="uid://jlhfbbbk7bxr" path="res://scripts/ui/loot_presentation.gd" id="2_loot"]
+[ext_resource type="PackedScene" uid="uid://bpes3gxdb084o" path="res://scenes/ui/loot_presentation.tscn" id="2_r7gtg"]
 [ext_resource type="PackedScene" path="res://scenes/ui/EquipmentInventoryPanel.tscn" id="3_inventory"]
 [ext_resource type="PackedScene" uid="uid://wtidbs6nnroc" path="res://scenes/ui/enemy_summary_panel.tscn" id="3_p0jh1"]
 [ext_resource type="PackedScene" uid="uid://ungtp5l0pt6n" path="res://scenes/ui/header_row.tscn" id="4_r7gtg"]
@@ -97,90 +97,9 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="LootPresentation" type="Control" parent="Root" unique_id=1272694900]
+[node name="LootPresentation" parent="Root" unique_id=1580496363 instance=ExtResource("2_r7gtg")]
 unique_name_in_owner = true
 layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("2_loot")
-
-[node name="LootPanel" type="PanelContainer" parent="Root/LootPresentation" unique_id=513014345]
-unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -214.0
-offset_top = -142.0
-offset_right = 214.0
-offset_bottom = 142.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Margin" type="MarginContainer" parent="Root/LootPresentation/LootPanel" unique_id=1238119601]
-layout_mode = 2
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 16
-
-[node name="Content" type="VBoxContainer" parent="Root/LootPresentation/LootPanel/Margin" unique_id=798262481]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="LootBurst" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=303997999]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "✦"
-horizontal_alignment = 1
-
-[node name="LootTitle" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=863283668]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 13
-text = "LOOT FOUND"
-horizontal_alignment = 1
-
-[node name="LootRarity" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=1508754770]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "RARE"
-horizontal_alignment = 1
-
-[node name="LootItem" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=462603125]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 22
-text = "Equipment"
-horizontal_alignment = 1
-clip_text = true
-
-[node name="LootDetails" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=1674170878]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.741, 0.706, 0.808, 1)
-theme_override_font_sizes/font_size = 12
-text = "WEAPON  •  ITEM LEVEL 1"
-horizontal_alignment = 1
-
-[node name="LootBest" type="Label" parent="Root/LootPresentation/LootPanel/Margin/Content" unique_id=1106919456]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = "NEW BEST ITEM"
-horizontal_alignment = 1
 
 [node name="TopPanel" type="PanelContainer" parent="Root" unique_id=1188517692]
 layout_mode = 1
