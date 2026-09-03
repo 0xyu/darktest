@@ -16,7 +16,7 @@ signal game_speed_requested(speed: int)
 @onready var _turn_manager: Node = get_parent().get_node_or_null("TurnManager")
 @onready var _player: Node = get_parent().get_node_or_null("Player")
 
-@onready var _header_row: HeaderRow = get_node("Root/TopPanel/Margin/Content/Header") as HeaderRow
+@onready var _header_row: HeaderRow = get_node_or_null("Root/SafeArea/MainLayout/TopPanel/Margin/Content/Header") as HeaderRow
 @onready var _encounter_label: Label = %EncounterLabel
 @onready var _sub_hero_row: Control = %SubHeroRow
 @onready var _player_hp_bar: ProgressBar = %PlayerHPBar
@@ -144,7 +144,7 @@ func _on_overlay_panel_visibility_changed() -> void:
 	if _combat_log == null:
 		return
 	_combat_log.visible = not (
-	_inventory_panel.visible or _bestiary_panel.visible or _development_panel.visible
+	_inventory_panel.visible or _development_panel.visible
 		or _skill_panel.visible or _shop_panel.visible or _assignment_panel.visible
 	)
 
@@ -205,8 +205,9 @@ func _refresh() -> void:
 	if stage_state == null:
 		return
 
-	_header_row.stage_number = stage_state.stage_number
-	_header_row.turn_phase = _turn_manager.get_phase()
+	if _header_row != null:
+		_header_row.stage_number = stage_state.stage_number
+		_header_row.turn_phase = _turn_manager.get_phase()
 	_encounter_label.text = _get_encounter_text(stage_state)
 	if _enemy_summary_panel != null:
 		var spawned_enemies: Array[EnemyController] = _stage_manager.get_spawned_enemies() if _stage_manager.has_method("get_spawned_enemies") else []
@@ -224,7 +225,7 @@ func _refresh() -> void:
 	var max_hp: int = player_stats.max_hp if player_stats != null else 0
 	var experience_ratio: float = player_progression.get_experience_ratio() if player_progression != null else 0.0
 	_main_navigation.set_player_status(current_hp, max_hp, player_level, 0, 0, experience_ratio)
-	if player_progression != null:
+	if player_progression != null and _header_row != null:
 		_header_row.gold = player_progression.gold
 	if player_stats != null:
 		_player_hp_bar.max_value = maxi(player_stats.max_hp, 1)

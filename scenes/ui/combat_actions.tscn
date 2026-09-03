@@ -1,6 +1,6 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://phebfkgyuq0m"]
 
-[ext_resource type="Script" path="res://scripts/ui/combat_actions.gd" id="1_actions"]
+[ext_resource type="Script" uid="uid://x4hr23hs4v23" path="res://scripts/ui/combat_actions.gd" id="1_actions"]
 [ext_resource type="Texture2D" uid="uid://cpe2wwvqou25g" path="res://assets/ui/hud/11_cross.png" id="2_cross"]
 [ext_resource type="Texture2D" uid="uid://chex144lbifd3" path="res://assets/ui/hud/12_potion.png" id="3_potion"]
 [ext_resource type="Texture2D" uid="uid://xf5y08b85pp5" path="res://assets/items/icons/Icon_Eq_Weapon.png" id="4_sword"]
@@ -46,16 +46,31 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[node name="CombatActions" type="VBoxContainer"]
-script = ExtResource("1_actions")
+[node name="CombatActions" type="VBoxContainer" unique_id=474849696]
+offset_right = 717.0
+offset_bottom = 150.0
 theme_override_constants/separation = 6
+script = ExtResource("1_actions")
 
-[node name="SkillRow" type="HBoxContainer" parent="."]
+[node name="SkillRow" type="HBoxContainer" parent="." unique_id=658687753]
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="WhirlwindButton" type="Button" parent="SkillRow"]
+[node name="AttackButton" type="Button" parent="SkillRow" unique_id=642595908]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "ATTACK"
+icon = ExtResource("4_sword")
+
+[node name="WhirlwindButton" type="Button" parent="SkillRow" unique_id=165249554]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -69,7 +84,7 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "WHIRLWIND
 AOE 1"
 
-[node name="ArcaneBoltButton" type="Button" parent="SkillRow"]
+[node name="ArcaneBoltButton" type="Button" parent="SkillRow" unique_id=1057778170]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -83,7 +98,7 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "ARCANE BOLT
 RANGE 2"
 
-[node name="ExecutionButton" type="Button" parent="SkillRow"]
+[node name="ExecutionButton" type="Button" parent="SkillRow" unique_id=1737659324]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -97,38 +112,7 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "EXECUTION
 MELEE 1.5x"
 
-[node name="ActionRow" type="HBoxContainer" parent="."]
-custom_minimum_size = Vector2(0, 50)
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="AttackButton" type="Button" parent="ActionRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 13
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "ATTACK"
-icon = ExtResource("4_sword")
-
-[node name="ItemButton" type="Button" parent="ActionRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 13
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "POTION 3"
-icon = ExtResource("3_potion")
-
-[node name="EndTurnButton" type="Button" parent="ActionRow"]
+[node name="EndTurnButton" type="Button" parent="SkillRow" unique_id=193738481]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -141,12 +125,25 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "END TURN"
 icon = ExtResource("2_cross")
 
-[node name="AutoRow" type="HBoxContainer" parent="."]
+[node name="AutoRow" type="HBoxContainer" parent="." unique_id=2067187605]
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="AutoButton" type="Button" parent="AutoRow"]
+[node name="ItemButton" type="Button" parent="AutoRow" unique_id=1653253517]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "POTION 3"
+icon = ExtResource("3_potion")
+
+[node name="AutoButton" type="Button" parent="AutoRow" unique_id=1501015420]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -159,7 +156,7 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "AUTO: OFF"
 icon = ExtResource("5_auto")
 
-[node name="AutoStageButton" type="Button" parent="AutoRow"]
+[node name="AutoStageButton" type="Button" parent="AutoRow" unique_id=254448900]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
