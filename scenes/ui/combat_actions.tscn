@@ -1,0 +1,173 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/combat_actions.gd" id="1_actions"]
+[ext_resource type="Texture2D" uid="uid://cpe2wwvqou25g" path="res://assets/ui/hud/11_cross.png" id="2_cross"]
+[ext_resource type="Texture2D" uid="uid://chex144lbifd3" path="res://assets/ui/hud/12_potion.png" id="3_potion"]
+[ext_resource type="Texture2D" uid="uid://xf5y08b85pp5" path="res://assets/items/icons/Icon_Eq_Weapon.png" id="4_sword"]
+[ext_resource type="Texture2D" uid="uid://cmqsx327uul1t" path="res://assets/ui/hud/2_options_off.png" id="5_auto"]
+
+[sub_resource type="StyleBoxFlat" id="StyleButton"]
+content_margin_left = 5.0
+content_margin_top = 3.0
+content_margin_right = 5.0
+content_margin_bottom = 3.0
+bg_color = Color(0.145, 0.125, 0.196, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.424, 0.325, 0.192, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleButtonPressed"]
+bg_color = Color(0.341, 0.259, 0.149, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.918, 0.765, 0.443, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleButtonHover"]
+bg_color = Color(0.231, 0.192, 0.29, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.847, 0.678, 0.349, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="CombatActions" type="VBoxContainer"]
+script = ExtResource("1_actions")
+theme_override_constants/separation = 6
+
+[node name="SkillRow" type="HBoxContainer" parent="."]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="WhirlwindButton" type="Button" parent="SkillRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Hits enemies in the four adjacent cells (0.8x damage)."
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "WHIRLWIND
+AOE 1"
+
+[node name="ArcaneBoltButton" type="Button" parent="SkillRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Single-target ranged attack with a two-cell range."
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "ARCANE BOLT
+RANGE 2"
+
+[node name="ExecutionButton" type="Button" parent="SkillRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Powerful single-target attack with a one-cell range."
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "EXECUTION
+MELEE 1.5x"
+
+[node name="ActionRow" type="HBoxContainer" parent="."]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AttackButton" type="Button" parent="ActionRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "ATTACK"
+icon = ExtResource("4_sword")
+
+[node name="ItemButton" type="Button" parent="ActionRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "POTION 3"
+icon = ExtResource("3_potion")
+
+[node name="EndTurnButton" type="Button" parent="ActionRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "END TURN"
+icon = ExtResource("2_cross")
+
+[node name="AutoRow" type="HBoxContainer" parent="."]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AutoButton" type="Button" parent="AutoRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "AUTO: OFF"
+icon = ExtResource("5_auto")
+
+[node name="AutoStageButton" type="Button" parent="AutoRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "AUTO STAGE: OFF"
+icon = ExtResource("5_auto")

@@ -55,26 +55,4 @@ The game should be easy to understand while gradually becoming deeper through eq
 - `AGENTS.md` — AI coding rules and project conventions
 - `docs/game-design.md` — gameplay and balance design
 
-## Character Sprite Catalog
-
-`scripts/systems/character_sprite_catalog.gd` is the single source of truth
-for the enemy character sprite sheet, slice coordinates, and unique character
-IDs. Enemy data stores only `character_sprite_id`; UI and gameplay code resolve
-the corresponding texture through `CharacterSpriteCatalog`.
-
-## MVP Priority
-
-The first version should focus on:
-
-1. Combat feeling responsive
-2. Loot being exciting
-3. Equipment comparison being easy
-4. Character power increasing noticeably
-5. Stage progression being rewarding
-6. Special encounters feeling surprising
-7. Auto mode being reliable
-8. Build diversity emerging from equipment
-
-Do not expand into multiplayer, PvP, guilds, trading, complex crafting, or large meta systems before the core loop is proven fun.
-
 ## GoDot Engine Path: D:\IDE\godotEngine

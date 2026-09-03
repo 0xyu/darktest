@@ -12,9 +12,6 @@ signal auto_toggle_requested
 signal auto_stage_toggle_requested
 signal game_speed_requested(speed: int)
 
-const AUTO_OFF_ICON: Texture2D = preload("res://assets/ui/hud/2_options_off.png")
-const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
-
 @onready var _stage_manager: Node = get_parent().get_node_or_null("StageManager")
 @onready var _turn_manager: Node = get_parent().get_node_or_null("TurnManager")
 @onready var _player: Node = get_parent().get_node_or_null("Player")
@@ -28,15 +25,7 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 @onready var _player_hp_value: Label = %PlayerHPValue
 @onready var _combat_info_label: Label = %CombatInfoLabel
 @onready var _event_label: Label = %EventLabel
-@onready var _attack_button: Button = %AttackButton
-@onready var _whirlwind_button: Button = %WhirlwindButton
-@onready var _arcane_bolt_button: Button = %ArcaneBoltButton
-@onready var _execution_button: Button = %ExecutionButton
 @onready var _skills_button: Button = %SkillsButton
-@onready var _item_button: Button = %ItemButton
-@onready var _end_turn_button: Button = %EndTurnButton
-@onready var _auto_button: Button = %AutoButton
-@onready var _auto_stage_button: Button = %AutoStageButton
 @onready var _speed_x1_button: Button = %SpeedX1Button
 @onready var _speed_x2_button: Button = %SpeedX2Button
 @onready var _speed_fastest_button: Button = %SpeedFastestButton
@@ -59,21 +48,20 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 
 @onready var _main_navigation: MainNavigation = %MainNavigation
 @onready var _enemy_summary_panel: EnemySummaryPanel = %EnemySummaryPanel
+@onready var _combat_actions: CombatActions = %CombatActions
 
 
 var _critical_time_remaining: float = 0.0
 
 
 func _ready() -> void:
-	_attack_button.pressed.connect(func() -> void: attack_requested.emit())
-	_whirlwind_button.pressed.connect(func() -> void: skill_requested.emit(SkillCatalog.WHIRLWIND))
-	_arcane_bolt_button.pressed.connect(func() -> void: skill_requested.emit(SkillCatalog.ARCANE_BOLT))
-	_execution_button.pressed.connect(func() -> void: skill_requested.emit(SkillCatalog.EXECUTION_STRIKE))
+	_combat_actions.attack_requested.connect(func() -> void: attack_requested.emit())
+	_combat_actions.skill_requested.connect(func(skill_id: StringName) -> void: skill_requested.emit(skill_id))
+	_combat_actions.item_requested.connect(func() -> void: item_requested.emit())
+	_combat_actions.end_turn_requested.connect(func() -> void: end_turn_requested.emit())
+	_combat_actions.auto_toggle_requested.connect(func() -> void: auto_toggle_requested.emit())
+	_combat_actions.auto_stage_toggle_requested.connect(func() -> void: auto_stage_toggle_requested.emit())
 	_skills_button.pressed.connect(_on_skills_button_pressed)
-	_item_button.pressed.connect(func() -> void: item_requested.emit())
-	_end_turn_button.pressed.connect(func() -> void: end_turn_requested.emit())
-	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
-	_auto_stage_button.pressed.connect(func() -> void: auto_stage_toggle_requested.emit())
 	_speed_x1_button.pressed.connect(func() -> void: game_speed_requested.emit(0))
 	_speed_x2_button.pressed.connect(func() -> void: game_speed_requested.emit(1))
 	_speed_fastest_button.pressed.connect(func() -> void: game_speed_requested.emit(2))
@@ -264,30 +252,20 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 	var player_turn: bool = _turn_manager.get_phase() == TurnState.PLAYER_TURN
 	var input_enabled: bool = bool(_player.get("is_selected")) and bool(_player.call("is_input_enabled"))
 	var can_attack: bool = player_turn and input_enabled and _get_target() != null
-	_attack_button.disabled = not can_attack
+	_combat_actions.set_attack_usable(can_attack)
 	var can_use_skill: bool = player_turn and input_enabled
-	_whirlwind_button.disabled = not can_use_skill or not _can_use_skill(SkillCatalog.WHIRLWIND)
-	_arcane_bolt_button.disabled = not can_use_skill or not _can_use_skill(SkillCatalog.ARCANE_BOLT)
-	_execution_button.disabled = not can_use_skill or not _can_use_skill(SkillCatalog.EXECUTION_STRIKE)
+	_combat_actions.set_skill_usable(SkillCatalog.WHIRLWIND, can_use_skill and _can_use_skill(SkillCatalog.WHIRLWIND))
+	_combat_actions.set_skill_usable(SkillCatalog.ARCANE_BOLT, can_use_skill and _can_use_skill(SkillCatalog.ARCANE_BOLT))
+	_combat_actions.set_skill_usable(SkillCatalog.EXECUTION_STRIKE, can_use_skill and _can_use_skill(SkillCatalog.EXECUTION_STRIKE))
 	var potion_count: int = _player.get_healing_item_count() if _player.has_method("get_healing_item_count") else 0
-	_item_button.text = "POTION %d" % potion_count
 	var can_use_item: bool = player_turn and input_enabled and potion_count > 0
 	if player_stats != null:
 		can_use_item = can_use_item and player_stats.current_hp < player_stats.max_hp
-	_item_button.disabled = not can_use_item
+	_combat_actions.set_item_button(potion_count, can_use_item)
 
 	var phase: int = _turn_manager.get_phase()
-	if phase == TurnState.VICTORY:
-		_end_turn_button.text = "NEXT STAGE"
-		_end_turn_button.disabled = false
-	elif phase == TurnState.DEFEAT:
-		_end_turn_button.text = "DEFEATED"
-		_end_turn_button.disabled = true
-	else:
-		_end_turn_button.text = "END TURN"
-		_end_turn_button.disabled = not player_turn
-	_auto_button.disabled = phase == TurnState.DEFEAT
-	_auto_stage_button.disabled = phase == TurnState.DEFEAT
+	_combat_actions.set_end_turn_state(phase, player_turn)
+	_combat_actions.set_auto_controls(phase)
 	# Victory is a brief status effect, not a modal result screen. Keep the
 	# compact banner mouse-transparent so it never covers combat controls.
 	_state_banner.visible = phase == TurnState.VICTORY or phase == TurnState.DEFEAT
@@ -295,11 +273,7 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 	_state_label.text = "VICTORY" if phase == TurnState.VICTORY else "DEFEAT"
 	_state_label.modulate = Color("89c797") if phase == TurnState.VICTORY else Color("d46a78")
 	if player_stats == null:
-		_attack_button.disabled = true
-		_whirlwind_button.disabled = true
-		_arcane_bolt_button.disabled = true
-		_execution_button.disabled = true
-		_item_button.disabled = true
+		_combat_actions.disable_player_actions()
 
 
 func _can_use_skill(skill_id: StringName) -> bool:
@@ -308,19 +282,13 @@ func _can_use_skill(skill_id: StringName) -> bool:
 
 
 func set_auto_mode(enabled: bool) -> void:
-	if _auto_button == null:
-		return
-	_auto_button.text = "AUTO: ON" if enabled else "AUTO: OFF"
-	_auto_button.icon = AUTO_ON_ICON if enabled else AUTO_OFF_ICON
-	_auto_button.modulate = Color("89c797") if enabled else Color("f0e7d2")
+	if _combat_actions != null:
+		_combat_actions.set_auto_mode(enabled)
 
 
 func set_auto_stage_mode(enabled: bool) -> void:
-	if _auto_stage_button == null:
-		return
-	_auto_stage_button.text = "AUTO STAGE: ON" if enabled else "AUTO STAGE: OFF"
-	_auto_stage_button.icon = AUTO_ON_ICON if enabled else AUTO_OFF_ICON
-	_auto_stage_button.modulate = Color("89c797") if enabled else Color("f0e7d2")
+	if _combat_actions != null:
+		_combat_actions.set_auto_stage_mode(enabled)
 
 
 func set_game_speed(speed: int) -> void:

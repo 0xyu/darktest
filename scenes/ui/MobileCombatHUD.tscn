@@ -4,16 +4,13 @@
 [ext_resource type="Script" uid="uid://jlhfbbbk7bxr" path="res://scripts/ui/loot_presentation.gd" id="2_loot"]
 [ext_resource type="PackedScene" path="res://scenes/ui/EquipmentInventoryPanel.tscn" id="3_inventory"]
 [ext_resource type="PackedScene" uid="uid://wtidbs6nnroc" path="res://scenes/ui/enemy_summary_panel.tscn" id="3_p0jh1"]
+[ext_resource type="PackedScene" path="res://scenes/ui/combat_actions.tscn" id="26_actions"]
 [ext_resource type="Texture2D" uid="uid://c2viwev4lmnll" path="res://assets/characters/portraits/HP_Portrait_frame_bg.png" id="4_avatar_bg"]
 [ext_resource type="Texture2D" uid="uid://d1kxmsx2xp7q2" path="res://assets/characters/portraits/Avatar_ref.png" id="5_avatar"]
 [ext_resource type="Texture2D" uid="uid://c80gtsswsic5p" path="res://assets/characters/portraits/HP_Portrait_frame.png" id="6_avatar_frame"]
 [ext_resource type="Texture2D" uid="uid://cubpxxjiwkgfx" path="res://assets/ui/hud/Hp_frame.png" id="7_hp_frame"]
 [ext_resource type="Texture2D" uid="uid://qen7qg7wgkcy" path="res://assets/ui/hud/Hp_red.png" id="8_hp_red"]
-[ext_resource type="Texture2D" uid="uid://cpe2wwvqou25g" path="res://assets/ui/hud/11_cross.png" id="13_end_turn"]
-[ext_resource type="Texture2D" uid="uid://chex144lbifd3" path="res://assets/ui/hud/12_potion.png" id="14_potion"]
-[ext_resource type="Texture2D" uid="uid://xf5y08b85pp5" path="res://assets/items/icons/Icon_Eq_Weapon.png" id="15_attack"]
 [ext_resource type="Texture2D" uid="uid://c2hq4lx8pr1w" path="res://assets/ui/hud/Hud_icon_inventory.png" id="16_inventory"]
-[ext_resource type="Texture2D" uid="uid://cmqsx327uul1t" path="res://assets/ui/hud/2_options_off.png" id="17_auto_off"]
 [ext_resource type="PackedScene" path="res://scenes/ui/EnemyBestiaryPanel.tscn" id="19_bestiary"]
 [ext_resource type="PackedScene" path="res://scenes/ui/DevelopmentPanel.tscn" id="20_dev"]
 [ext_resource type="PackedScene" path="res://scenes/ui/CombatLogPanel.tscn" id="21_log"]
@@ -363,109 +360,9 @@ theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
 theme_override_font_sizes/font_size = 11
 text = "SKILLS  •  ONE ACTION PER TURN"
 
-[node name="SkillRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content" unique_id=1375908508]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="WhirlwindButton" type="Button" parent="Root/BottomPanel/Margin/Content/SkillRow" unique_id=901088570]
+[node name="CombatActions" parent="Root/BottomPanel/Margin/Content" instance=ExtResource("26_actions")]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-tooltip_text = "Hits enemies in the four adjacent cells (0.8x damage)."
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 12
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "WHIRLWIND
-AOE 1"
-
-[node name="ArcaneBoltButton" type="Button" parent="Root/BottomPanel/Margin/Content/SkillRow" unique_id=216743585]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-tooltip_text = "Single-target ranged attack with a two-cell range."
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 12
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "ARCANE BOLT
-RANGE 2"
-
-[node name="ExecutionButton" type="Button" parent="Root/BottomPanel/Margin/Content/SkillRow" unique_id=893283580]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-tooltip_text = "Powerful single-target attack with a one-cell range."
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 12
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "EXECUTION
-MELEE 1.5x"
-
-[node name="ActionRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content" unique_id=155588933]
-custom_minimum_size = Vector2(0, 50)
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="AttackButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow" unique_id=993958164]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 13
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "ATTACK"
-icon = ExtResource("15_attack")
-
-[node name="ItemButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow" unique_id=379770835]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 13
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "POTION 3"
-icon = ExtResource("14_potion")
-
-[node name="EndTurnButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow" unique_id=838827908]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 13
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "END TURN"
-icon = ExtResource("13_end_turn")
-
-[node name="AutoButton" type="Button" parent="Root/BottomPanel/Margin/Content/ActionRow" unique_id=900396088]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 13
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "AUTO: OFF"
-icon = ExtResource("17_auto_off")
 
 [node name="UtilityRow" type="HBoxContainer" parent="Root/BottomPanel/Margin/Content" unique_id=1611719087]
 layout_mode = 2
@@ -504,20 +401,6 @@ theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "SKILLS 0"
-
-[node name="AutoStageButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow" unique_id=1089259161]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 38)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 12
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "AUTO STAGE: OFF"
-icon = ExtResource("17_auto_off")
 
 [node name="BestiaryButton" type="Button" parent="Root/BottomPanel/Margin/Content/UtilityRow" unique_id=1514740107]
 unique_name_in_owner = true
