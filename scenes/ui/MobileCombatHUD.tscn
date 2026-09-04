@@ -199,6 +199,7 @@ expand_mode = 1
 stretch_mode = 5
 
 [node name="CombatSection" type="Control" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout" unique_id=1243278984]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 0.21

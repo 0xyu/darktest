@@ -39,6 +39,7 @@ signal game_speed_requested(speed: int)
 @onready var _development_panel: DevelopmentPanel = %DevelopmentPanel
 @onready var _skill_panel: SkillPanel = %SkillPanel
 @onready var _combat_log: CombatLogPanel = %CombatLogPanel
+@onready var _combat_section: Control = %CombatSection
 @onready var _shop_panel: SubHeroShopPanel = %SubHeroShopPanel
 # Keep this reference as Control so a cold headless harness does not depend on
 # the newly-added panel class being present in Godot's global class cache.
@@ -344,6 +345,13 @@ func layout_battle_support(grid_bottom: float, viewport_size: Vector2) -> void:
 	_combat_log.offset_right = 0.0
 	_combat_log.offset_top = log_top
 	_combat_log.offset_bottom = log_bottom
+
+
+## Returns the expanded battlefield area reserved by the combat layout.
+func get_combat_section_rect() -> Rect2:
+	if _combat_section == null:
+		return Rect2()
+	return Rect2(_combat_section.global_position, _combat_section.size)
 
 
 func show_sub_hero_attack_feedback(hero_id: StringName, damage: int) -> bool:

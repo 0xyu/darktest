@@ -170,34 +170,27 @@ func _on_viewport_size_changed() -> void:
 
 
 func _layout_portrait_grid() -> void:
-	var viewport_size: Vector2 = get_viewport_rect().size
+	var combat_rect: Rect2 = hud.get_combat_section_rect()
+	if combat_rect.size.x <= 0.0 or combat_rect.size.y <= 0.0:
+		return
 	var background_size: Vector2 = dungeon_background.texture.get_size()
-	dungeon_background.position = viewport_size * 0.5
+	dungeon_background.position = get_viewport_rect().size * 0.5
 	dungeon_background.scale = Vector2.ONE * maxf(
-		viewport_size.x / background_size.x,
-		viewport_size.y / background_size.y
-	)
-	var top_reserved: float = clampf(viewport_size.y * 0.17, 220.0, 240.0)
-	var bottom_reserved: float = clampf(viewport_size.y * 0.36, 450.0, 480.0)
-	var side_margin: float = clampf(viewport_size.x * 0.045, 18.0, 36.0)
-	var available_size := Vector2(
-		maxf(viewport_size.x - side_margin * 2.0, 1.0),
-		maxf(viewport_size.y - top_reserved - bottom_reserved - 24.0, 1.0)
+		get_viewport_rect().size.x / background_size.x,
+		get_viewport_rect().size.y / background_size.y
 	)
 	var cell_size: int = maxi(floori(minf(
-		available_size.x / float(grid.grid_size.x),
-		available_size.y / float(grid.grid_size.y)
+		combat_rect.size.x / float(grid.grid_size.x),
+		combat_rect.size.y / float(grid.grid_size.y)
 	)), 1)
 	var grid_pixel_size := Vector2(grid.grid_size * cell_size)
-	var play_area_top: float = top_reserved + 12.0
-	var play_area_height: float = maxf(viewport_size.y - top_reserved - bottom_reserved - 24.0, grid_pixel_size.y)
 	grid.cell_size = cell_size
 	grid.origin = Vector2(
-		(viewport_size.x - grid_pixel_size.x) * 0.5,
-		play_area_top + (play_area_height - grid_pixel_size.y) * 0.5
+		combat_rect.position.x + (combat_rect.size.x - grid_pixel_size.x) * 0.5,
+		combat_rect.position.y + (combat_rect.size.y - grid_pixel_size.y) * 0.5
 	)
 	_grid_play_area = Rect2(grid.origin - Vector2(8.0, 8.0), grid_pixel_size + Vector2(16.0, 16.0))
-	hud.layout_battle_support(grid.origin.y + grid_pixel_size.y, viewport_size)
+	hud.layout_battle_support(grid.origin.y + grid_pixel_size.y, get_viewport_rect().size)
 	grid.queue_redraw()
 	player.global_position = grid.grid_to_world(player.grid_position)
 	for enemy_node in _active_enemies:
