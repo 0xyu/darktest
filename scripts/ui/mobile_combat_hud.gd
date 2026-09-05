@@ -48,6 +48,8 @@ signal game_speed_requested(speed: int)
 @onready var _main_navigation: MainNavigation = %MainNavigation
 @onready var _enemy_summary_panel: EnemySummaryPanel = %EnemySummaryPanel
 @onready var _combat_actions: CombatActions = %CombatActions
+@onready var _combat_view: Control = %CombatView
+@onready var _town_view: Control = %TownView
 
 
 var _critical_time_remaining: float = 0.0
@@ -74,6 +76,17 @@ func _ready() -> void:
 	_inventory_panel.set_player(_player)
 	_development_panel.set_player(_player)
 	_development_panel.data_changed.connect(_on_dev_data_changed)
+	# The DEV panel owns the town entry. Connect by string so a cold headless
+	# harness never depends on the cached class schema knowing the new signal.
+	if _development_panel.has_signal("town_view_requested"):
+		_development_panel.connect("town_view_requested", Callable(self, "_on_town_view_requested"))
+	if _town_view != null:
+		if _town_view.has_signal("close_requested"):
+			_town_view.connect("close_requested", Callable(self, "_on_town_close_requested"))
+		if _town_view.has_signal("warehouse_requested"):
+			_town_view.connect("warehouse_requested", Callable(self, "_on_town_warehouse_requested"))
+		if _town_view.has_signal("skills_requested"):
+			_town_view.connect("skills_requested", Callable(self, "_on_town_skills_requested"))
 	_skill_panel.set_player(_player)
 	_shop_panel.set_player(_player)
 	_shop_panel.data_changed.connect(_on_shop_data_changed)
@@ -132,6 +145,44 @@ func _on_bestiary_button_pressed() -> void:
 
 func _on_dev_button_pressed() -> void:
 	_development_panel.toggle_panel()
+
+
+func _on_town_view_requested() -> void:
+	open_town_view()
+
+
+## Shows the town hub in place of the combat screen. Entered from the DEV
+## panel; the town view's own back button restores the combat screen.
+func open_town_view() -> void:
+	if _development_panel != null:
+		_development_panel.hide_panel()
+	if _combat_view != null:
+		_combat_view.visible = false
+	if _town_view != null:
+		_town_view.visible = true
+
+
+## Closes the town hub and returns to the combat screen.
+func close_town_view() -> void:
+	if _town_view != null:
+		_town_view.visible = false
+	if _combat_view != null:
+		_combat_view.visible = true
+
+
+func _on_town_close_requested() -> void:
+	close_town_view()
+
+
+## The warehouse facility opens the character panel on the Items tab, where the
+## bag and the separate 仓库 (storage) block both live.
+func _on_town_warehouse_requested() -> void:
+	_inventory_panel.show_warehouse()
+
+
+## The skill mentor facility opens the existing learn/upgrade skill panel.
+func _on_town_skills_requested() -> void:
+	_skill_panel.show_panel()
 
 
 func _on_skills_button_pressed() -> void:

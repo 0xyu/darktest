@@ -10,6 +10,9 @@ signal panel_closed
 ## Emitted after any action mutates the player's data/inventory, so the HUD
 ## can re-sync panels bound to the (possibly replaced) inventory object.
 signal data_changed
+## Emitted when the DEV panel's town entry is pressed; the HUD switches the
+## main view from CombatView to the town hub (TownView).
+signal town_view_requested
 
 const UIFixtureScript = preload("res://tests/fixtures/ui_fixture.gd")
 const SubHeroCatalogResource = preload("res://scripts/sub_hero/sub_hero_catalog.gd")
@@ -71,6 +74,13 @@ func toggle_panel() -> void:
 		hide_panel()
 	else:
 		show_panel()
+
+
+## QA entry point for the town hub. Hides the DEV panel and lets the combat HUD
+## know it should switch the main view over to TownView.
+func open_town() -> void:
+	hide_panel()
+	town_view_requested.emit()
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +235,8 @@ func _build_ui() -> void:
 	margin.add_child(content)
 
 	content.add_child(_build_header())
+	content.add_child(_section_title("TOWN"))
+	content.add_child(_build_town_actions())
 	content.add_child(_section_title("GENERATE ITEM"))
 	content.add_child(_build_rarity_grid())
 	content.add_child(_section_title("FIXTURES"))
@@ -264,6 +276,13 @@ func _build_header() -> HBoxContainer:
 	close.pressed.connect(hide_panel)
 	header.add_child(close)
 	return header
+
+
+func _build_town_actions() -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.add_child(_make_button("OPEN TOWN VIEW", COLOR_GOLD, open_town))
+	return box
 
 
 func _build_rarity_grid() -> GridContainer:

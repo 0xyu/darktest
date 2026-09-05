@@ -18,20 +18,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroShopPanel.tscn" id="24_shop"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroAssignmentPanel.tscn" id="25_assignment"]
 [ext_resource type="PackedScene" uid="uid://phebfkgyuq0m" path="res://scenes/ui/combat_actions.tscn" id="26_actions"]
-
-[sub_resource type="StyleBoxTexture" id="StyleBarBackground"]
-texture = ExtResource("7_hp_frame")
-texture_margin_left = 6.0
-texture_margin_top = 4.0
-texture_margin_right = 6.0
-texture_margin_bottom = 4.0
-
-[sub_resource type="StyleBoxTexture" id="StyleBarFill"]
-texture = ExtResource("8_hp_red")
-texture_margin_left = 4.0
-texture_margin_top = 3.0
-texture_margin_right = 4.0
-texture_margin_bottom = 3.0
+[ext_resource type="PackedScene" path="res://scenes/ui/TownView.tscn" id="27_town"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.0706, 0.0627, 0.102, 0.97)
@@ -85,6 +72,20 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
+[sub_resource type="StyleBoxTexture" id="StyleBarBackground"]
+texture = ExtResource("7_hp_frame")
+texture_margin_left = 6.0
+texture_margin_top = 4.0
+texture_margin_right = 6.0
+texture_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxTexture" id="StyleBarFill"]
+texture = ExtResource("8_hp_red")
+texture_margin_left = 4.0
+texture_margin_top = 3.0
+texture_margin_right = 4.0
+texture_margin_bottom = 3.0
+
 [node name="MobileCombatHUD" type="CanvasLayer" unique_id=2140394397]
 layer = 10
 script = ExtResource("1_hud")
@@ -97,6 +98,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+metadata/_edit_lock_ = true
 
 [node name="SafeArea" type="MarginContainer" parent="Root" unique_id=190716265]
 layout_mode = 1
@@ -114,83 +116,36 @@ custom_minimum_size = Vector2(0, 700)
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="TownView" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer" unique_id=1128319344]
-layout_mode = 0
-offset_right = 40.0
-offset_bottom = 40.0
+[node name="TownView" parent="Root/SafeArea/MainContent/ViewContainer" unique_id=1128319344 instance=ExtResource("27_town")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
 
-[node name="MainLayout" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer" unique_id=1087228164]
+[node name="CombatView" type="Control" parent="Root/SafeArea/MainContent/ViewContainer" unique_id=795183663]
+unique_name_in_owner = true
+anchors_preset = 0
+
+[node name="MainLayout" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView" unique_id=1087228164]
 layout_mode = 0
 offset_right = 744.0
 offset_bottom = 1080.0
 size_flags_vertical = 3
+metadata/_edit_lock_ = true
 
-[node name="TopPanel" type="PanelContainer" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout" unique_id=1188517692]
+[node name="TopPanel" type="PanelContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=1188517692]
 layout_mode = 2
 
-[node name="Margin" type="MarginContainer" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/TopPanel" unique_id=2016389163]
+[node name="Margin" type="MarginContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/TopPanel" unique_id=2016389163]
 layout_mode = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 10
 
-[node name="Content" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/TopPanel/Margin" unique_id=467865011]
-layout_mode = 2
-theme_override_constants/separation = 5
-
-[node name="Header" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/TopPanel/Margin/Content" unique_id=2110599094 instance=ExtResource("4_r7gtg")]
+[node name="Header" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/TopPanel/Margin" unique_id=2110599094 instance=ExtResource("4_r7gtg")]
 layout_mode = 2
 
-[node name="EncounterLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/TopPanel/Margin/Content" unique_id=1185896246]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
-theme_override_font_sizes/font_size = 12
-text = "NORMAL ENCOUNTER   •   FOES 0 / 0"
-clip_text = true
-
-[node name="PlayerHPRow" type="HBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/TopPanel/Margin/Content" unique_id=727602032]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="PlayerLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/TopPanel/Margin/Content/PlayerHPRow" unique_id=136111178]
-custom_minimum_size = Vector2(72, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
-theme_override_font_sizes/font_size = 12
-text = "HERO HP"
-vertical_alignment = 1
-
-[node name="PlayerHPBar" type="ProgressBar" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/TopPanel/Margin/Content/PlayerHPRow" unique_id=1044474573]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(80, 16)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_styles/background = SubResource("StyleBarBackground")
-theme_override_styles/fill = SubResource("StyleBarFill")
-value = 100.0
-show_percentage = false
-
-[node name="PlayerHPValue" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/TopPanel/Margin/Content/PlayerHPRow" unique_id=1796258548]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(76, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 12
-text = "100 / 100"
-horizontal_alignment = 2
-vertical_alignment = 1
-
-[node name="CombatInfoLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/TopPanel/Margin/Content" unique_id=1731306067]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
-theme_override_font_sizes/font_size = 12
-text = "MP 3 / 3   •   CELL 2, 4"
-clip_text = true
-
-[node name="HeaderDivider" type="TextureRect" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/TopPanel" unique_id=2110599095]
+[node name="HeaderDivider" type="TextureRect" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/TopPanel" unique_id=2110599095]
 custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 mouse_filter = 2
@@ -198,42 +153,42 @@ texture = ExtResource("9_divider")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="CombatSection" type="Control" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout" unique_id=1243278984]
+[node name="CombatSection" type="Control" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=1243278984]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 0.21
 
-[node name="EnemySummaryPanel" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/CombatSection" unique_id=2119667898 instance=ExtResource("3_p0jh1")]
+[node name="EnemySummaryPanel" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/CombatSection" unique_id=2119667898 instance=ExtResource("3_p0jh1")]
 unique_name_in_owner = true
 layout_mode = 0
 offset_right = 694.0
 offset_bottom = 64.0
 
-[node name="SubHeroRow" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout" unique_id=815259273 instance=ExtResource("23_subhero_row")]
+[node name="SubHeroRow" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=815259273 instance=ExtResource("23_subhero_row")]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="CombatLogPanel" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout" unique_id=1057368619 instance=ExtResource("21_log")]
+[node name="CombatLogPanel" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=1057368619 instance=ExtResource("21_log")]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="BottomPanel" type="PanelContainer" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout" unique_id=1729398184]
+[node name="BottomPanel" type="PanelContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=1729398184]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StylePanel")
 
-[node name="Margin" type="MarginContainer" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel" unique_id=501170006]
+[node name="Margin" type="MarginContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel" unique_id=501170006]
 layout_mode = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 10
 
-[node name="Content" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin" unique_id=1034160719]
+[node name="Content" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin" unique_id=1034160719]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="EventLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content" unique_id=131080532]
+[node name="EventLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content" unique_id=131080532]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 31)
 layout_mode = 2
@@ -243,21 +198,21 @@ text = "Awaiting input"
 vertical_alignment = 1
 text_overrun_behavior = 3
 
-[node name="SkillHintLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content" unique_id=1282099482]
+[node name="SkillHintLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content" unique_id=1282099482]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
 theme_override_font_sizes/font_size = 11
 text = "SKILLS  •  ONE ACTION PER TURN"
 
-[node name="CombatActions" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content" unique_id=1420957238 instance=ExtResource("26_actions")]
+[node name="CombatActions" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content" unique_id=1420957238 instance=ExtResource("26_actions")]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="UtilityRow" type="HBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content" unique_id=1611719087]
+[node name="UtilityRow" type="HBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content" unique_id=1611719087]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="InventoryButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=406332830]
+[node name="InventoryButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=406332830]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
@@ -267,7 +222,7 @@ theme_override_font_sizes/font_size = 12
 text = "INVENTORY 0"
 icon = ExtResource("16_inventory")
 
-[node name="ShopButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=1992445606]
+[node name="ShopButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=1992445606]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
@@ -279,7 +234,7 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "SHOP"
 
-[node name="SkillsButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=974430699]
+[node name="SkillsButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=974430699]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
@@ -291,7 +246,7 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "SKILLS 0"
 
-[node name="BestiaryButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=1514740107]
+[node name="BestiaryButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=1514740107]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
@@ -303,7 +258,7 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "BESTIARY"
 
-[node name="DevButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=2079950874]
+[node name="DevButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=2079950874]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(72, 38)
 layout_mode = 2
@@ -314,12 +269,12 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "DEV"
 
-[node name="SpeedRow" type="HBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content" unique_id=1358145806]
+[node name="SpeedRow" type="HBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content" unique_id=1358145806]
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="SpeedLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=459139155]
+[node name="SpeedLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=459139155]
 custom_minimum_size = Vector2(92, 38)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
@@ -327,7 +282,7 @@ theme_override_font_sizes/font_size = 11
 text = "GAME SPEED"
 vertical_alignment = 1
 
-[node name="SpeedX1Button" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=718885610]
+[node name="SpeedX1Button" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=718885610]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -338,7 +293,7 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "x1"
 
-[node name="SpeedX2Button" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=1593171958]
+[node name="SpeedX2Button" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=1593171958]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -349,7 +304,7 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "x2"
 
-[node name="SpeedFastestButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=339873638]
+[node name="SpeedFastestButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=339873638]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -360,14 +315,14 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "FASTEST"
 
-[node name="StateBanner" type="PanelContainer" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout" unique_id=510967552]
+[node name="StateBanner" type="PanelContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=510967552]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StylePanel")
 
-[node name="StateLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/MainLayout/StateBanner" unique_id=942743284]
+[node name="StateLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/StateBanner" unique_id=942743284]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
@@ -376,8 +331,64 @@ text = "VICTORY"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="HPBar" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView" unique_id=483732419]
+layout_mode = 0
+offset_right = 744.0
+offset_bottom = 59.0
+metadata/_edit_group_ = true
+metadata/_edit_lock_ = true
+
+[node name="EncounterLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/HPBar" unique_id=1185896246]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
+theme_override_font_sizes/font_size = 12
+text = "NORMAL ENCOUNTER   •   FOES 0 / 0"
+clip_text = true
+
+[node name="PlayerHPRow" type="HBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/HPBar" unique_id=727602032]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PlayerLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/HPBar/PlayerHPRow" unique_id=136111178]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
+theme_override_font_sizes/font_size = 12
+text = "HERO HP"
+vertical_alignment = 1
+
+[node name="PlayerHPBar" type="ProgressBar" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/HPBar/PlayerHPRow" unique_id=1044474573]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 16)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/background = SubResource("StyleBarBackground")
+theme_override_styles/fill = SubResource("StyleBarFill")
+value = 100.0
+show_percentage = false
+
+[node name="PlayerHPValue" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/HPBar/PlayerHPRow" unique_id=1796258548]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(76, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_font_sizes/font_size = 12
+text = "100 / 100"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="CombatInfoLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/HPBar" unique_id=1731306067]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
+theme_override_font_sizes/font_size = 12
+text = "MP 3 / 3   •   CELL 2, 4"
+clip_text = true
+
 [node name="SkillPanel" parent="Root/SafeArea/MainContent/ViewContainer" unique_id=1154190298 instance=ExtResource("22_skills")]
 unique_name_in_owner = true
+z_index = 100
 layout_mode = 1
 
 [node name="Footer" type="Control" parent="Root/SafeArea/MainContent" unique_id=22225795]

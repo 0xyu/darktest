@@ -158,6 +158,7 @@ var _inventory_grid: GridContainer
 var _inventory_count_label: Label
 var _filter_row: Control
 var _filter_label: Label
+var _item_scroll: ScrollContainer
 
 # Storage (warehouse)
 var _storage: StorageInventory
@@ -226,6 +227,32 @@ func toggle_inventory() -> void:
 		hide_inventory()
 	else:
 		show_inventory()
+
+
+## Town warehouse entry: shows the panel on the Items tab, where the bag and the
+## separate 仓库 (storage) block live, and reveals the storage grid.
+func show_warehouse() -> void:
+	visible = true
+	_set_tab(Tab.ITEMS)
+	_request_refresh()
+	_reveal_warehouse_block()
+
+
+## Waits a frame for the refreshed grids to lay out, then scrolls the item list
+## down so the separate 仓库 (storage) block is on screen.
+func _reveal_warehouse_block() -> void:
+	if _item_scroll == null:
+		return
+	var tween := create_tween()
+	tween.tween_interval(0.0)
+	tween.tween_callback(_jump_to_storage)
+
+
+func _jump_to_storage() -> void:
+	if _item_scroll == null or not is_instance_valid(_item_scroll):
+		return
+	var scrollbar := _item_scroll.get_v_scroll_bar()
+	_item_scroll.scroll_vertical = int(scrollbar.max_value)
 
 
 func select_item(item: EquipmentInstance) -> bool:
@@ -656,15 +683,15 @@ func _build_inventory_section() -> Control:
 
 	# Only the item list scrolls; the character/equipment/details stay fixed.
 	# The scroll body holds the bag grid followed by the separate warehouse grid.
-	var item_scroll := ScrollContainer.new()
-	item_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	item_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	section.add_child(item_scroll)
+	_item_scroll = ScrollContainer.new()
+	_item_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_item_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	section.add_child(_item_scroll)
 
 	_inventory_body = VBoxContainer.new()
 	_inventory_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_inventory_body.add_theme_constant_override("separation", 10)
-	item_scroll.add_child(_inventory_body)
+	_item_scroll.add_child(_inventory_body)
 
 	_inventory_grid = GridContainer.new()
 	_inventory_grid.columns = 6

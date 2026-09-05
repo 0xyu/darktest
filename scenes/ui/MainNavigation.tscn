@@ -374,7 +374,7 @@ grow_horizontal = 2
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.91, 0.875, 0.816, 1)
 theme_override_font_sizes/font_size = 10
-text = "MODES"
+text = "COMBAT"
 horizontal_alignment = 1
 
 [node name="RewardsNavigationItem" type="TextureButton" parent="Panel/Margin/Row/RightNavigationItems" unique_id=1589675786]
