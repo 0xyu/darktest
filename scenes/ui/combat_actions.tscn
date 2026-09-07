@@ -112,7 +112,23 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "EXECUTION
 MELEE 1.5x"
 
-[node name="EndTurnButton" type="Button" parent="SkillRow" unique_id=193738481]
+[node name="VBoxContainer" type="VBoxContainer" parent="SkillRow" unique_id=1518828456]
+layout_mode = 2
+
+[node name="FarmingButton" type="Button" parent="SkillRow/VBoxContainer" unique_id=254448900]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "FARMING: OFF"
+icon = ExtResource("5_auto")
+
+[node name="AutoButton" type="Button" parent="SkillRow/VBoxContainer" unique_id=1501015420]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -122,8 +138,8 @@ theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "END TURN"
-icon = ExtResource("2_cross")
+text = "AUTO: OFF"
+icon = ExtResource("5_auto")
 
 [node name="AutoRow" type="HBoxContainer" parent="." unique_id=2067187605]
 custom_minimum_size = Vector2(0, 44)
@@ -143,7 +159,7 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "POTION 3"
 icon = ExtResource("3_potion")
 
-[node name="AutoButton" type="Button" parent="AutoRow" unique_id=1501015420]
+[node name="EndTurnButton" type="Button" parent="AutoRow" unique_id=193738481]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -153,18 +169,5 @@ theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "AUTO: OFF"
-icon = ExtResource("5_auto")
-
-[node name="FarmingButton" type="Button" parent="AutoRow" unique_id=254448900]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_disabled_color = Color(0.459, 0.435, 0.514, 1)
-theme_override_font_sizes/font_size = 12
-theme_override_styles/normal = SubResource("StyleButton")
-theme_override_styles/pressed = SubResource("StyleButtonPressed")
-theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "FARMING: OFF"
-icon = ExtResource("5_auto")
+text = "END TURN"
+icon = ExtResource("2_cross")

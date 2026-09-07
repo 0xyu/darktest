@@ -109,11 +109,13 @@ grow_vertical = 2
 
 [node name="MainContent" type="VBoxContainer" parent="Root/SafeArea" unique_id=120789996]
 layout_mode = 2
+metadata/_edit_lock_ = true
 
 [node name="ViewContainer" type="Control" parent="Root/SafeArea/MainContent" unique_id=1052930507]
 custom_minimum_size = Vector2(0, 700)
 layout_mode = 2
 size_flags_vertical = 3
+metadata/_edit_lock_ = true
 
 [node name="TownView" parent="Root/SafeArea/MainContent/ViewContainer" unique_id=1128319344 instance=ExtResource("27_town")]
 unique_name_in_owner = true
@@ -157,6 +159,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 0.21
+metadata/_edit_lock_ = true
 
 [node name="EnemySummaryPanel" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/CombatSection" unique_id=2119667898 instance=ExtResource("3_p0jh1")]
 unique_name_in_owner = true
@@ -164,9 +167,21 @@ layout_mode = 0
 offset_right = 694.0
 offset_bottom = 64.0
 
+[node name="CombatActions" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/CombatSection" unique_id=1420957238 instance=ExtResource("26_actions")]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -102.0
+offset_right = 718.0
+offset_bottom = 0.0
+grow_vertical = 0
+
 [node name="SubHeroRow" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=815259273 instance=ExtResource("23_subhero_row")]
 unique_name_in_owner = true
 layout_mode = 2
+metadata/_edit_lock_ = true
 
 [node name="CombatLogPanel" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=1057368619 instance=ExtResource("21_log")]
 unique_name_in_owner = true
@@ -202,10 +217,6 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
 theme_override_font_sizes/font_size = 11
 text = "SKILLS  •  ONE ACTION PER TURN"
-
-[node name="CombatActions" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content" unique_id=1420957238 instance=ExtResource("26_actions")]
-unique_name_in_owner = true
-layout_mode = 2
 
 [node name="UtilityRow" type="HBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content" unique_id=1611719087]
 layout_mode = 2
@@ -436,6 +447,7 @@ layout_mode = 1
 
 [node name="LootPresentation" parent="Root" unique_id=1580496363 instance=ExtResource("2_r7gtg")]
 unique_name_in_owner = true
+visible = false
 layout_mode = 0
 anchors_preset = 0
 anchor_right = 0.0
