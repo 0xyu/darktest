@@ -13,7 +13,7 @@ signal skill_requested(skill_id: StringName)
 signal item_requested
 signal end_turn_requested
 signal auto_toggle_requested
-signal auto_stage_toggle_requested
+signal farming_toggle_requested
 
 const AUTO_OFF_ICON: Texture2D = preload("res://assets/ui/hud/2_options_off.png")
 const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
@@ -31,7 +31,7 @@ const ACTIVE_COLOR := Color(0.537, 0.78, 0.592, 1.0)
 @onready var _item_button: Button = %ItemButton
 @onready var _end_turn_button: Button = %EndTurnButton
 @onready var _auto_button: Button = %AutoButton
-@onready var _auto_stage_button: Button = %AutoStageButton
+@onready var _farming_button: Button = %FarmingButton
 
 var _skill_buttons: Dictionary = {}
 
@@ -48,7 +48,7 @@ func _ready() -> void:
 	_item_button.pressed.connect(func() -> void: item_requested.emit())
 	_end_turn_button.pressed.connect(func() -> void: end_turn_requested.emit())
 	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
-	_auto_stage_button.pressed.connect(func() -> void: auto_stage_toggle_requested.emit())
+	_farming_button.pressed.connect(func() -> void: farming_toggle_requested.emit())
 
 
 func set_attack_usable(usable: bool) -> void:
@@ -84,11 +84,11 @@ func set_end_turn_state(phase: int, player_turn: bool) -> void:
 
 
 func set_auto_controls(phase: int) -> void:
-	if _auto_button == null or _auto_stage_button == null:
+	if _auto_button == null or _farming_button == null:
 		return
 	var defeated: bool = phase == TurnState.DEFEAT
 	_auto_button.disabled = defeated
-	_auto_stage_button.disabled = defeated
+	_farming_button.disabled = defeated
 
 
 func set_auto_mode(enabled: bool) -> void:
@@ -99,12 +99,12 @@ func set_auto_mode(enabled: bool) -> void:
 	_auto_button.modulate = ACTIVE_COLOR if enabled else ENABLED_COLOR
 
 
-func set_auto_stage_mode(enabled: bool) -> void:
-	if _auto_stage_button == null:
+func set_farming_mode(enabled: bool) -> void:
+	if _farming_button == null:
 		return
-	_auto_stage_button.text = "AUTO STAGE: ON" if enabled else "AUTO STAGE: OFF"
-	_auto_stage_button.icon = AUTO_ON_ICON if enabled else AUTO_OFF_ICON
-	_auto_stage_button.modulate = ACTIVE_COLOR if enabled else ENABLED_COLOR
+	_farming_button.text = "FARMING: ON" if enabled else "FARMING: OFF"
+	_farming_button.icon = AUTO_ON_ICON if enabled else AUTO_OFF_ICON
+	_farming_button.modulate = ACTIVE_COLOR if enabled else ENABLED_COLOR
 
 
 ## Disables every action that depends on a valid player-stat snapshot.

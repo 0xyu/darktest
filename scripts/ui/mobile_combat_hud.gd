@@ -9,7 +9,7 @@ signal skill_requested(skill_id: StringName)
 signal item_requested
 signal end_turn_requested
 signal auto_toggle_requested
-signal auto_stage_toggle_requested
+signal farming_toggle_requested
 signal game_speed_requested(speed: int)
 
 @onready var _stage_manager: Node = get_parent().get_node_or_null("StageManager")
@@ -27,7 +27,6 @@ signal game_speed_requested(speed: int)
 @onready var _speed_x1_button: Button = %SpeedX1Button
 @onready var _speed_x2_button: Button = %SpeedX2Button
 @onready var _speed_fastest_button: Button = %SpeedFastestButton
-@onready var _inventory_button: Button = %InventoryButton
 @onready var _shop_button: Button = %ShopButton
 @onready var _bestiary_button: Button = %BestiaryButton
 @onready var _dev_button: Button = %DevButton
@@ -48,8 +47,6 @@ signal game_speed_requested(speed: int)
 @onready var _main_navigation: MainNavigation = %MainNavigation
 @onready var _enemy_summary_panel: EnemySummaryPanel = %EnemySummaryPanel
 @onready var _combat_actions: CombatActions = %CombatActions
-@onready var _combat_view: Control = %CombatView
-@onready var _town_view: Control = %TownView
 
 
 var _critical_time_remaining: float = 0.0
@@ -61,12 +58,11 @@ func _ready() -> void:
 	_combat_actions.item_requested.connect(func() -> void: item_requested.emit())
 	_combat_actions.end_turn_requested.connect(func() -> void: end_turn_requested.emit())
 	_combat_actions.auto_toggle_requested.connect(func() -> void: auto_toggle_requested.emit())
-	_combat_actions.auto_stage_toggle_requested.connect(func() -> void: auto_stage_toggle_requested.emit())
+	_combat_actions.farming_toggle_requested.connect(func() -> void: farming_toggle_requested.emit())
 	_skills_button.pressed.connect(_on_skills_button_pressed)
 	_speed_x1_button.pressed.connect(func() -> void: game_speed_requested.emit(0))
 	_speed_x2_button.pressed.connect(func() -> void: game_speed_requested.emit(1))
 	_speed_fastest_button.pressed.connect(func() -> void: game_speed_requested.emit(2))
-	_inventory_button.pressed.connect(_on_inventory_button_pressed)
 	_shop_button.pressed.connect(_on_shop_button_pressed)
 	_bestiary_button.pressed.connect(_on_bestiary_button_pressed)
 	_dev_button.pressed.connect(_on_dev_button_pressed)
@@ -76,17 +72,6 @@ func _ready() -> void:
 	_inventory_panel.set_player(_player)
 	_development_panel.set_player(_player)
 	_development_panel.data_changed.connect(_on_dev_data_changed)
-	# The DEV panel owns the town entry. Connect by string so a cold headless
-	# harness never depends on the cached class schema knowing the new signal.
-	if _development_panel.has_signal("town_view_requested"):
-		_development_panel.connect("town_view_requested", Callable(self, "_on_town_view_requested"))
-	if _town_view != null:
-		if _town_view.has_signal("close_requested"):
-			_town_view.connect("close_requested", Callable(self, "_on_town_close_requested"))
-		if _town_view.has_signal("warehouse_requested"):
-			_town_view.connect("warehouse_requested", Callable(self, "_on_town_warehouse_requested"))
-		if _town_view.has_signal("skills_requested"):
-			_town_view.connect("skills_requested", Callable(self, "_on_town_skills_requested"))
 	_skill_panel.set_player(_player)
 	_shop_panel.set_player(_player)
 	_shop_panel.data_changed.connect(_on_shop_data_changed)
@@ -123,11 +108,6 @@ func _process(delta: float) -> void:
 func _on_viewport_size_changed() -> void:
 	_refresh()
 
-
-func _on_inventory_button_pressed() -> void:
-	_inventory_panel.toggle_inventory()
-
-
 func _on_shop_button_pressed() -> void:
 	_shop_panel.toggle_panel()
 
@@ -145,44 +125,6 @@ func _on_bestiary_button_pressed() -> void:
 
 func _on_dev_button_pressed() -> void:
 	_development_panel.toggle_panel()
-
-
-func _on_town_view_requested() -> void:
-	open_town_view()
-
-
-## Shows the town hub in place of the combat screen. Entered from the DEV
-## panel; the town view's own back button restores the combat screen.
-func open_town_view() -> void:
-	if _development_panel != null:
-		_development_panel.hide_panel()
-	if _combat_view != null:
-		_combat_view.visible = false
-	if _town_view != null:
-		_town_view.visible = true
-
-
-## Closes the town hub and returns to the combat screen.
-func close_town_view() -> void:
-	if _town_view != null:
-		_town_view.visible = false
-	if _combat_view != null:
-		_combat_view.visible = true
-
-
-func _on_town_close_requested() -> void:
-	close_town_view()
-
-
-## The warehouse facility opens the character panel on the Items tab, where the
-## bag and the separate 仓库 (storage) block both live.
-func _on_town_warehouse_requested() -> void:
-	_inventory_panel.show_warehouse()
-
-
-## The skill mentor facility opens the existing learn/upgrade skill panel.
-func _on_town_skills_requested() -> void:
-	_skill_panel.show_panel()
 
 
 func _on_skills_button_pressed() -> void:
@@ -266,8 +208,6 @@ func _refresh() -> void:
 		_enemy_summary_panel.update_enemies(spawned_enemies)
 	_event_label.text = str(get_parent().get("_last_move_text"))
 	var inventory: EquipmentInventory = _player.get_inventory() if _player.has_method("get_inventory") else null
-	if inventory != null:
-		_inventory_button.text = "INVENTORY %d" % inventory.get_item_count()
 	_skills_button.text = "SKILLS %d" % _player.get_skill_points()
 
 	var player_stats: PlayerStats = _player.get("player_stats") as PlayerStats
@@ -336,9 +276,9 @@ func set_auto_mode(enabled: bool) -> void:
 		_combat_actions.set_auto_mode(enabled)
 
 
-func set_auto_stage_mode(enabled: bool) -> void:
+func set_farming_mode(enabled: bool) -> void:
 	if _combat_actions != null:
-		_combat_actions.set_auto_stage_mode(enabled)
+		_combat_actions.set_farming_mode(enabled)
 
 
 func set_game_speed(speed: int) -> void:

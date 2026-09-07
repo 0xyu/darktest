@@ -156,7 +156,7 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "AUTO: OFF"
 icon = ExtResource("5_auto")
 
-[node name="AutoStageButton" type="Button" parent="AutoRow" unique_id=254448900]
+[node name="FarmingButton" type="Button" parent="AutoRow" unique_id=254448900]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -166,5 +166,5 @@ theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
-text = "AUTO STAGE: OFF"
+text = "FARMING: OFF"
 icon = ExtResource("5_auto")

@@ -321,18 +321,25 @@ pending automatic decision without resetting the current turn or other combat
 state. The setting only affects main-hero auto decisions; it does not change
 global engine time or unrelated systems.
 
-## 4.2 Auto Stage Toggle
+## 4.2 Farming Toggle
 
-AUTO STAGE controls what happens after a victory:
+FARMING (previously labelled AUTO STAGE) controls what happens after a
+cleared stage. It is off by default.
 
 ```text
-AUTO STAGE ON   →  advance to the next stage automatically
-AUTO STAGE OFF  →  stay on the cleared stage until NEXT STAGE is pressed
+FARMING ON   →  stay on the cleared stage and re-spawn its enemies so the
+                stage can be fought again (repeat farming)
+FARMING OFF  →  advance to the next stage after a clear
 ```
 
-When AUTO STAGE is ON, clearing the final enemy advances immediately whether
-combat is running in AUTO or being controlled manually. When it is OFF, AUTO
-refreshes the cleared stage and manual mode waits for the NEXT STAGE button.
+FARMING applies regardless of the AUTO toggle. When FARMING is ON, defeating
+every enemy on the current stage re-spawns that stage's enemies — AUTO keeps
+attacking it automatically (idle farming), and manual play continues on the
+same stage. No NEXT STAGE prompt appears while FARMING is on.
+
+When FARMING is OFF a cleared stage advances to the next one: AUTO moves on
+automatically, while manual mode stays on the cleared stage and shows the
+NEXT STAGE button (or SPACE) for the player to proceed.
 
 ---
 

@@ -6,7 +6,7 @@ extends Node
 ## next automatic decision is made.
 signal auto_mode_changed(enabled: bool)
 signal auto_action_taken(description: String)
-signal auto_stage_changed(enabled: bool)
+signal farming_changed(enabled: bool)
 signal game_speed_changed(speed: int)
 
 enum GameSpeed {
@@ -27,10 +27,12 @@ enum GameSpeed {
 @export_range(0.10, 2.0, 0.01) var x1_action_delay_seconds: float = 0.40
 @export_range(0.05, 2.0, 0.01) var x2_action_delay_seconds: float = 0.20
 
-## When true, a cleared stage advances automatically, including when the
-## player is controlling attacks manually. When false, AUTO stays on the
-## cleared stage and refreshes its enemies for repeat farming.
-var auto_stage_enabled: bool = true
+## FARMING keeps the fight on the current stage: once every enemy is defeated
+## the stage re-spawns them so it can be repeated (AUTO keeps attacking, manual
+## play resumes on the same stage). When false a cleared stage advances to the
+## next one: AUTO moves on automatically and manual mode waits for the NEXT
+## STAGE button.
+var farming_enabled: bool = false
 var _game_speed: int = GameSpeed.X1
 
 var _player: PlayerController
@@ -107,19 +109,19 @@ func stop_auto() -> void:
 	set_auto_enabled(false)
 
 
-func set_auto_stage_enabled(enabled: bool) -> void:
-	if auto_stage_enabled == enabled:
+func set_farming_enabled(enabled: bool) -> void:
+	if farming_enabled == enabled:
 		return
-	auto_stage_enabled = enabled
-	auto_stage_changed.emit(auto_stage_enabled)
+	farming_enabled = enabled
+	farming_changed.emit(farming_enabled)
 
 
-func is_auto_stage_enabled() -> bool:
-	return auto_stage_enabled
+func is_farming_enabled() -> bool:
+	return farming_enabled
 
 
-func toggle_auto_stage() -> void:
-	set_auto_stage_enabled(not auto_stage_enabled)
+func toggle_farming() -> void:
+	set_farming_enabled(not farming_enabled)
 
 
 func set_game_speed(speed: int) -> void:
@@ -192,28 +194,29 @@ func _schedule_for_current_state() -> void:
 	if _turn_manager == null:
 		return
 	if _turn_manager.get_phase() == TurnState.VICTORY:
-		_schedule_stage_advance()
+		_schedule_post_clear_transition()
 	elif _turn_manager.get_phase() == TurnState.PLAYER_TURN:
 		_schedule_decision()
 
 
 func _on_combat_victory() -> void:
-	if not _auto_enabled or _stage_manager == null or _stage_advance_scheduled:
-		return
-	_schedule_stage_advance()
+	_schedule_post_clear_transition()
 
 
 func _on_stage_completed(_stage_state: StageState) -> void:
 	# StageManager is the source of truth for "all enemies defeated". This
 	# also covers clears caused by skills and Sub Heroes, before any turn-state
 	# transition is required.
-	if not auto_stage_enabled:
-		return
-	_schedule_stage_advance()
+	_schedule_post_clear_transition()
 
 
-func _schedule_stage_advance() -> void:
+## After a clear, FARMING re-spawns the current stage (regardless of AUTO);
+## with FARMING off, AUTO advances to the next stage. Manual play without
+## FARMING waits on the NEXT STAGE button and schedules nothing here.
+func _schedule_post_clear_transition() -> void:
 	if _stage_manager == null or _stage_advance_scheduled:
+		return
+	if not _auto_enabled and not farming_enabled:
 		return
 	_stage_advance_scheduled = true
 	var token: int = _run_token
@@ -222,7 +225,9 @@ func _schedule_stage_advance() -> void:
 
 func _advance_after_victory(token: int) -> void:
 	_stage_advance_scheduled = false
-	if token != _run_token or (not _auto_enabled and not auto_stage_enabled):
+	if token != _run_token:
+		return
+	if not _auto_enabled and not farming_enabled:
 		return
 	if _stage_manager == null:
 		return
@@ -230,13 +235,14 @@ func _advance_after_victory(token: int) -> void:
 		if _stage_manager.stage_state == null or not _stage_manager.stage_state.is_complete:
 			return
 	var stage_started: bool
-	if auto_stage_enabled:
-		stage_started = _stage_manager.start_next_stage()
-	else:
+	if farming_enabled:
 		stage_started = _stage_manager.initialize_stage(_stage_manager.stage_state.stage_number)
+	else:
+		stage_started = _stage_manager.start_next_stage()
 	if not stage_started:
-		stop_auto()
-		auto_action_taken.emit("AUTO stopped: next stage could not start")
+		if _auto_enabled:
+			stop_auto()
+		auto_action_taken.emit("Cleared stage could not be restarted")
 
 
 func _on_combat_defeat() -> void:

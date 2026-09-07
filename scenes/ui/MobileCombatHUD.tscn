@@ -8,7 +8,6 @@
 [ext_resource type="Texture2D" uid="uid://cubpxxjiwkgfx" path="res://assets/ui/hud/Hp_frame.png" id="7_hp_frame"]
 [ext_resource type="Texture2D" uid="uid://qen7qg7wgkcy" path="res://assets/ui/hud/Hp_red.png" id="8_hp_red"]
 [ext_resource type="Texture2D" uid="uid://oapcws70wxnd" path="res://assets/ui/hud/divider1.png" id="9_divider"]
-[ext_resource type="Texture2D" uid="uid://c2hq4lx8pr1w" path="res://assets/ui/hud/Hud_icon_inventory.png" id="16_inventory"]
 [ext_resource type="PackedScene" path="res://scenes/ui/EnemyBestiaryPanel.tscn" id="19_bestiary"]
 [ext_resource type="PackedScene" path="res://scenes/ui/DevelopmentPanel.tscn" id="20_dev"]
 [ext_resource type="PackedScene" path="res://scenes/ui/CombatLogPanel.tscn" id="21_log"]
@@ -212,16 +211,6 @@ layout_mode = 2
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="InventoryButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=406332830]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 38)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 12
-text = "INVENTORY 0"
-icon = ExtResource("16_inventory")
-
 [node name="ShopButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=1992445606]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 38)
@@ -269,12 +258,12 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "DEV"
 
-[node name="SpeedRow" type="HBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content" unique_id=1358145806]
+[node name="SpeedRow" type="HBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=1358145806]
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="SpeedLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=459139155]
+[node name="SpeedLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow/SpeedRow" unique_id=459139155]
 custom_minimum_size = Vector2(92, 38)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
@@ -282,7 +271,7 @@ theme_override_font_sizes/font_size = 11
 text = "GAME SPEED"
 vertical_alignment = 1
 
-[node name="SpeedX1Button" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=718885610]
+[node name="SpeedX1Button" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow/SpeedRow" unique_id=718885610]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -293,7 +282,7 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "x1"
 
-[node name="SpeedX2Button" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=1593171958]
+[node name="SpeedX2Button" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow/SpeedRow" unique_id=1593171958]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -304,7 +293,7 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "x2"
 
-[node name="SpeedFastestButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/SpeedRow" unique_id=339873638]
+[node name="SpeedFastestButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow/SpeedRow" unique_id=339873638]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3

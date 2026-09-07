@@ -64,14 +64,14 @@ func _ready() -> void:
 	hud.item_requested.connect(_on_hud_item_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
 	hud.auto_toggle_requested.connect(_on_hud_auto_toggle_requested)
-	hud.auto_stage_toggle_requested.connect(_on_hud_auto_stage_toggle_requested)
+	hud.farming_toggle_requested.connect(_on_hud_farming_toggle_requested)
 	hud.game_speed_requested.connect(_on_hud_game_speed_requested)
 	auto_combat.attach_systems(player, turn_manager, combat_system, stage_manager, grid)
 	auto_combat.auto_mode_changed.connect(_on_auto_mode_changed)
-	auto_combat.auto_stage_changed.connect(_on_auto_stage_changed)
+	auto_combat.farming_changed.connect(_on_farming_changed)
 	auto_combat.auto_action_taken.connect(_on_auto_action_taken)
 	auto_combat.game_speed_changed.connect(_on_game_speed_changed)
-	hud.set_auto_stage_mode(auto_combat.is_auto_stage_enabled())
+	hud.set_farming_mode(auto_combat.is_farming_enabled())
 	hud.set_game_speed(auto_combat.get_game_speed())
 	_sync_sub_hero_combatants()
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
@@ -86,7 +86,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("primary_action") and turn_manager.get_phase() == TurnState.VICTORY:
-		if stage_manager.start_next_stage():
+		if _advance_after_clear():
 			get_viewport().set_input_as_handled()
 
 
@@ -123,17 +123,28 @@ func _on_hud_item_requested() -> void:
 
 func _on_hud_end_turn_requested() -> void:
 	if turn_manager.get_phase() == TurnState.VICTORY:
-		stage_manager.start_next_stage()
+		_advance_after_clear()
 	elif turn_manager.get_phase() == TurnState.PLAYER_TURN:
 		turn_manager.complete_player_turn()
+
+
+## Advances past a cleared stage: FARMING re-spawns the current stage so it can
+## be repeated, otherwise the next stage starts. Used by the NEXT STAGE button
+## and the SPACE shortcut during manual (non-AUTO) play.
+func _advance_after_clear() -> bool:
+	if stage_manager.stage_state == null or not stage_manager.stage_state.is_complete:
+		return false
+	if auto_combat.is_farming_enabled():
+		return stage_manager.initialize_stage(stage_manager.stage_state.stage_number)
+	return stage_manager.start_next_stage()
 
 
 func _on_hud_auto_toggle_requested() -> void:
 	auto_combat.toggle_auto()
 
 
-func _on_hud_auto_stage_toggle_requested() -> void:
-	auto_combat.toggle_auto_stage()
+func _on_hud_farming_toggle_requested() -> void:
+	auto_combat.toggle_farming()
 
 
 func _on_hud_game_speed_requested(speed: int) -> void:
@@ -152,9 +163,9 @@ func _on_auto_mode_changed(enabled: bool) -> void:
 	queue_redraw()
 
 
-func _on_auto_stage_changed(enabled: bool) -> void:
-	hud.set_auto_stage_mode(enabled)
-	_last_move_text = "AUTO STAGE %s" % ("NEXT STAGE" if enabled else "STAY & REFRESH")
+func _on_farming_changed(enabled: bool) -> void:
+	hud.set_farming_mode(enabled)
+	_last_move_text = "FARMING ON — STAY & REFRESH THIS STAGE" if enabled else "FARMING OFF — NEXT STAGE AFTER CLEAR"
 	queue_redraw()
 
 
@@ -243,7 +254,10 @@ func _register_enemy(enemy: EnemyController) -> void:
 
 func _on_stage_completed(stage_state: StageState) -> void:
 	sub_hero_combat_manager.stop_combat()
-	_last_move_text = "STAGE %d CLEARED — SPACE FOR NEXT STAGE" % stage_state.stage_number
+	if auto_combat.is_farming_enabled():
+		_last_move_text = "STAGE %d CLEARED — FARMING STAYS ON STAGE" % stage_state.stage_number
+	else:
+		_last_move_text = "STAGE %d CLEARED — SPACE FOR NEXT STAGE" % stage_state.stage_number
 	hud.log_event("log.stage_clear", {"stage": stage_state.stage_number})
 	turn_manager.set_victory()
 	queue_redraw()
