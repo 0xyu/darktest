@@ -337,9 +337,21 @@ every enemy on the current stage re-spawns that stage's enemies — AUTO keeps
 attacking it automatically (idle farming), and manual play continues on the
 same stage. No NEXT STAGE prompt appears while FARMING is on.
 
-When FARMING is OFF a cleared stage advances to the next one: AUTO moves on
-automatically, while manual mode stays on the cleared stage and shows the
-NEXT STAGE button (or SPACE) for the player to proceed.
+When FARMING is OFF a cleared stage advances to the next one through the
+**Next Stage Point** (exit). The hero must physically stand on the top exit
+cell before the stage can advance:
+
+```text
+FARMING OFF + MANUAL  →  after a clear the hero free-roams; the NEXT STAGE
+                        button (to the right of END TURN) stays disabled until
+                        the hero stands on the exit cell, then it may be pressed
+                        (SPACE works the same way)
+FARMING OFF + AUTO    →  after a clear the AUTO controller walks the hero to
+                        the exit cell and auto-starts the next stage when the
+                        hero reaches it
+FARMING ON + AUTO     →  the stage re-spawns as usual; standing on the exit
+                        cell does nothing
+```
 
 ---
 
@@ -375,6 +387,23 @@ overrides. Fixed levels are authored as `LevelConfig` resources under
 `resources/levels/`. Levels without a fixed resource are generated from a
 `LevelTemplate` using the level ID as the procedural seed. Both paths return
 the same `StageDefinition` shape.
+
+### Stage Arena Points
+
+Every combat arena uses the same grid layout with two fixed gate cells in a
+configured lane column (default `x = 3`, the 4th column from the left):
+
+- **Stage Starting Point** — bottom row (`y = grid_height - 1`). The hero is
+  teleported here whenever a **new** stage number is generated (first boot,
+  advancing, or a defeat retreat to the previous stage). FARMING re-spawn of
+  the *same* stage number does not move the hero.
+- **Next Stage Point** (exit) — top row (`y = 0`). The hero must stand on this
+  cell to advance (see §4.2).
+
+Both cells are derived from `StageManager.stage_gate_column` and the grid size.
+Enemies never spawn on the Starting Point (it is occupied by the hero), and any
+enemy sitting on the exit cell is gone once the stage is fully cleared, so the
+exit is always reachable after victory.
 
 ## 5.2 Normal Stage
 

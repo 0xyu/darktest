@@ -8,6 +8,7 @@ signal attack_requested
 signal skill_requested(skill_id: StringName)
 signal item_requested
 signal end_turn_requested
+signal next_stage_requested
 signal auto_toggle_requested
 signal farming_toggle_requested
 signal game_speed_requested(speed: int)
@@ -50,6 +51,10 @@ signal game_speed_requested(speed: int)
 
 
 var _critical_time_remaining: float = 0.0
+## Cached toggle state so the HUD can gate the NEXT STAGE button without
+## reaching into the AutoCombatController (kept for isolated headless tests).
+var _auto_enabled_cache: bool = false
+var _farming_enabled_cache: bool = false
 
 
 func _ready() -> void:
@@ -57,6 +62,7 @@ func _ready() -> void:
 	_combat_actions.skill_requested.connect(func(skill_id: StringName) -> void: skill_requested.emit(skill_id))
 	_combat_actions.item_requested.connect(func() -> void: item_requested.emit())
 	_combat_actions.end_turn_requested.connect(func() -> void: end_turn_requested.emit())
+	_combat_actions.next_stage_requested.connect(func() -> void: next_stage_requested.emit())
 	_combat_actions.auto_toggle_requested.connect(func() -> void: auto_toggle_requested.emit())
 	_combat_actions.farming_toggle_requested.connect(func() -> void: farming_toggle_requested.emit())
 	_skills_button.pressed.connect(_on_skills_button_pressed)
@@ -256,6 +262,7 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 	var phase: int = _turn_manager.get_phase()
 	_combat_actions.set_end_turn_state(phase, player_turn)
 	_combat_actions.set_auto_controls(phase)
+	_combat_actions.set_next_stage_state(phase, _next_stage_enabled(phase))
 	# Victory is a brief status effect, not a modal result screen. Keep the
 	# compact banner mouse-transparent so it never covers combat controls.
 	_state_banner.visible = phase == TurnState.VICTORY or phase == TurnState.DEFEAT
@@ -266,17 +273,35 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 		_combat_actions.disable_player_actions()
 
 
+## The NEXT STAGE button is enabled only after a full clear while the player
+## stands on the stage exit cell, outside FARMING (which re-spawns in place)
+## and outside AUTO (which advances on its own after walking to the exit).
+func _next_stage_enabled(phase: int) -> bool:
+	if phase != TurnState.VICTORY:
+		return false
+	if _stage_manager == null or not _stage_manager.has_method("is_player_on_stage_exit"):
+		return false
+	var stage_state_variant: Variant = _stage_manager.get("stage_state")
+	if stage_state_variant == null or not bool((stage_state_variant as StageState).get("is_complete")):
+		return false
+	if _farming_enabled_cache or _auto_enabled_cache:
+		return false
+	return bool(_stage_manager.call("is_player_on_stage_exit"))
+
+
 func _can_use_skill(skill_id: StringName) -> bool:
 	var combat_scene: Node = get_parent()
 	return combat_scene.has_method("can_use_skill") and bool(combat_scene.call("can_use_skill", skill_id))
 
 
 func set_auto_mode(enabled: bool) -> void:
+	_auto_enabled_cache = enabled
 	if _combat_actions != null:
 		_combat_actions.set_auto_mode(enabled)
 
 
 func set_farming_mode(enabled: bool) -> void:
+	_farming_enabled_cache = enabled
 	if _combat_actions != null:
 		_combat_actions.set_farming_mode(enabled)
 

@@ -46,6 +46,8 @@ var _decision_remaining_seconds: float = 0.0
 var _decision_wait_duration: float = 0.0
 var _stage_advance_scheduled: bool = false
 var _run_token: int = 0
+var _exit_roam_active: bool = false
+var _exit_roam_remaining_seconds: float = 0.0
 
 
 func _ready() -> void:
@@ -54,6 +56,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _exit_roam_active:
+		_process_exit_roam(delta)
+		return
 	if not _decision_scheduled:
 		return
 	if not _auto_enabled or _turn_manager == null or _turn_manager.get_phase() != TurnState.PLAYER_TURN:
@@ -92,6 +97,7 @@ func set_auto_enabled(enabled: bool) -> void:
 	_run_token += 1
 	_decision_scheduled = false
 	_stage_advance_scheduled = false
+	_exit_roam_active = false
 	auto_mode_changed.emit(_auto_enabled)
 	if _auto_enabled:
 		_schedule_for_current_state()
@@ -113,6 +119,17 @@ func set_farming_enabled(enabled: bool) -> void:
 	if farming_enabled == enabled:
 		return
 	farming_enabled = enabled
+	if farming_enabled:
+		# Farming takes priority over an in-progress walk to the exit.
+		if _exit_roam_active:
+			_cancel_exit_roam()
+		if _is_cleared_victory():
+			_schedule_post_clear_transition()
+	else:
+		# Turning farming off mid-victory restores the auto walk-to-exit.
+		if _auto_enabled and _is_cleared_victory():
+			_stage_advance_scheduled = false
+			_begin_exit_roam()
 	farming_changed.emit(farming_enabled)
 
 
@@ -211,38 +228,126 @@ func _on_stage_completed(_stage_state: StageState) -> void:
 
 
 ## After a clear, FARMING re-spawns the current stage (regardless of AUTO);
-## with FARMING off, AUTO advances to the next stage. Manual play without
-## FARMING waits on the NEXT STAGE button and schedules nothing here.
+## with FARMING off, AUTO walks the hero to the exit cell and only then starts
+## the next stage. Manual play without FARMING waits on the NEXT STAGE button
+## and schedules nothing here.
 func _schedule_post_clear_transition() -> void:
 	if _stage_manager == null or _stage_advance_scheduled:
 		return
 	if not _auto_enabled and not farming_enabled:
 		return
+	if _auto_enabled and not farming_enabled:
+		# AUTO & non-farming: no immediate advance. The deferred pass starts the
+		# walk-to-exit once the victory phase has been set.
+		_stage_advance_scheduled = true
+		var token: int = _run_token
+		call_deferred("_begin_exit_roam", token)
+		return
 	_stage_advance_scheduled = true
-	var token: int = _run_token
-	call_deferred("_advance_after_victory", token)
+	var farming_token: int = _run_token
+	call_deferred("_advance_after_victory", farming_token)
 
 
 func _advance_after_victory(token: int) -> void:
 	_stage_advance_scheduled = false
 	if token != _run_token:
 		return
-	if not _auto_enabled and not farming_enabled:
-		return
-	if _stage_manager == null:
+	if _stage_manager == null or not farming_enabled:
 		return
 	if _turn_manager == null or _turn_manager.get_phase() != TurnState.VICTORY:
 		if _stage_manager.stage_state == null or not _stage_manager.stage_state.is_complete:
 			return
-	var stage_started: bool
-	if farming_enabled:
-		stage_started = _stage_manager.initialize_stage(_stage_manager.stage_state.stage_number)
-	else:
-		stage_started = _stage_manager.start_next_stage()
+	var stage_started: bool = _stage_manager.initialize_stage(_stage_manager.stage_state.stage_number)
 	if not stage_started:
 		if _auto_enabled:
 			stop_auto()
 		auto_action_taken.emit("Cleared stage could not be restarted")
+
+
+func _is_cleared_victory() -> bool:
+	return (
+		_turn_manager != null
+		and _turn_manager.get_phase() == TurnState.VICTORY
+		and _stage_manager != null
+		and _stage_manager.stage_state != null
+		and _stage_manager.stage_state.is_complete
+	)
+
+
+func _begin_exit_roam(token: int = -1) -> void:
+	_stage_advance_scheduled = false
+	if token != -1 and token != _run_token:
+		return
+	if _exit_roam_active:
+		return
+	if not _auto_enabled or farming_enabled:
+		return
+	if not _is_cleared_victory():
+		return
+	if _stage_manager == null or not _stage_manager.has_method("get_stage_exit_cell"):
+		return
+	if _player == null or _player.is_defeated():
+		return
+	_decision_scheduled = false
+	_exit_roam_active = true
+	_exit_roam_remaining_seconds = _get_action_delay_seconds()
+
+
+func _cancel_exit_roam() -> void:
+	if _exit_roam_active:
+		_exit_roam_active = false
+		_run_token += 1
+
+
+func _process_exit_roam(delta: float) -> void:
+	if _turn_manager == null or not _auto_enabled or farming_enabled:
+		_cancel_exit_roam()
+		if farming_enabled and _is_cleared_victory():
+			_schedule_post_clear_transition()
+		return
+	if _turn_manager.get_phase() != TurnState.VICTORY or _player == null or _player.is_defeated():
+		_cancel_exit_roam()
+		return
+	_exit_roam_remaining_seconds -= delta
+	if _exit_roam_remaining_seconds > 0.0:
+		return
+	_step_exit_roam()
+
+
+func _step_exit_roam() -> void:
+	if _stage_manager == null:
+		_cancel_exit_roam()
+		return
+	var exit_cell: Vector2i = _stage_manager.get_stage_exit_cell()
+	if _player.grid_position == exit_cell:
+		_exit_roam_active = false
+		_start_next_stage_from_exit()
+		return
+	if _grid == null:
+		_cancel_exit_roam()
+		return
+	var path: Array[Vector2i] = _grid.find_path(_player.grid_position, exit_cell)
+	if path.size() < 2:
+		_cancel_exit_roam()
+		return
+	var direction: Vector2i = path[1] - _player.grid_position
+	if _player.try_move(direction):
+		_exit_roam_remaining_seconds = _get_action_delay_seconds()
+		auto_action_taken.emit("AUTO: heading to the exit")
+	else:
+		_cancel_exit_roam()
+
+
+func _start_next_stage_from_exit() -> void:
+	if not _auto_enabled or farming_enabled:
+		return
+	if _turn_manager == null or _turn_manager.get_phase() != TurnState.VICTORY:
+		return
+	var stage_started: bool = _stage_manager.start_next_stage()
+	if not stage_started:
+		if _auto_enabled:
+			stop_auto()
+		auto_action_taken.emit("Could not start the next stage")
 
 
 func _on_combat_defeat() -> void:

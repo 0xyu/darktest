@@ -10,7 +10,7 @@
 [ext_resource type="Texture2D" uid="uid://oapcws70wxnd" path="res://assets/ui/hud/divider1.png" id="9_divider"]
 [ext_resource type="PackedScene" path="res://scenes/ui/EnemyBestiaryPanel.tscn" id="19_bestiary"]
 [ext_resource type="PackedScene" path="res://scenes/ui/DevelopmentPanel.tscn" id="20_dev"]
-[ext_resource type="PackedScene" path="res://scenes/ui/CombatLogPanel.tscn" id="21_log"]
+[ext_resource type="PackedScene" uid="uid://cw65igmbhhnyo" path="res://scenes/ui/CombatLogPanel.tscn" id="21_log"]
 [ext_resource type="PackedScene" uid="uid://c8c3uy5khbnen" path="res://scenes/ui/MainNavigation.tscn" id="22_navigation"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SkillPanel.tscn" id="22_skills"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroRow.tscn" id="23_subhero_row"]
@@ -185,6 +185,7 @@ metadata/_edit_lock_ = true
 
 [node name="CombatLogPanel" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=1057368619 instance=ExtResource("21_log")]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
 
 [node name="BottomPanel" type="PanelContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=1729398184]

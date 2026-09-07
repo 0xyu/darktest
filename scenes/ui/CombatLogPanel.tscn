@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://cw65igmbhhnyo"]
 
-[ext_resource type="Script" path="res://scripts/ui/combat_log_panel.gd" id="1_log"]
+[ext_resource type="Script" uid="uid://bm0qq0r25c73f" path="res://scripts/ui/combat_log_panel.gd" id="1_log"]
+[ext_resource type="Texture2D" uid="uid://3ngl3tq68ee1" path="res://assets/ui/panels/panel2.png" id="2_panel"]
 
 [sub_resource type="StyleBoxFlat" id="StyleLogPanel"]
 bg_color = Color(0.039, 0.033, 0.059, 0.9)
@@ -14,14 +15,13 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[node name="CombatLogPanel" type="PanelContainer"]
+[node name="CombatLogPanel" type="PanelContainer" unique_id=36223138]
 anchors_preset = -1
 anchor_top = 1.0
 anchor_right = 0.62
 anchor_bottom = 1.0
 offset_left = 16.0
 offset_top = -466.0
-offset_right = 0.0
 offset_bottom = -346.0
 grow_horizontal = 2
 grow_vertical = 0
@@ -29,25 +29,29 @@ mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleLogPanel")
 script = ExtResource("1_log")
 
-[node name="Margin" type="MarginContainer" parent="."]
+[node name="NinePatch" type="NinePatchRect" parent="." unique_id=1952047783]
 layout_mode = 2
+texture = ExtResource("2_panel")
+
+[node name="Margin" type="MarginContainer" parent="NinePatch" unique_id=1907331786]
+layout_mode = 0
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 8
 
-[node name="Content" type="VBoxContainer" parent="Margin"]
+[node name="Content" type="VBoxContainer" parent="NinePatch/Margin" unique_id=1827407007]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="LogHeader" type="Label" parent="Margin/Content"]
+[node name="LogHeader" type="Label" parent="NinePatch/Margin/Content" unique_id=1950219644]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
 theme_override_font_sizes/font_size = 10
 text = "COMBAT LOG"
 
-[node name="LogEntryList" type="VBoxContainer" parent="Margin/Content"]
+[node name="LogEntryList" type="VBoxContainer" parent="NinePatch/Margin/Content" unique_id=615652302]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 1

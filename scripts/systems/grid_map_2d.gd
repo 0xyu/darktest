@@ -21,6 +21,7 @@ const ORTHOGONAL_DIRECTIONS: Array[Vector2i] = [
 var _occupied_cells: Dictionary = {}
 var _highlighted_cells: Array[Vector2i] = []
 var _selected_cell: Vector2i = Vector2i(-1, -1)
+var _marker_cells: Dictionary = {}
 
 
 func _ready() -> void:
@@ -153,6 +154,19 @@ func set_selected_cell(cell: Vector2i) -> void:
 	queue_redraw()
 
 
+## Marks a special arena cell (e.g. the stage exit / entrance) with a colored
+## frame so the player can find it. Draws after the normal cell loop.
+func set_arena_marker(cell: Vector2i, color: Color) -> void:
+	_marker_cells[cell] = color
+	queue_redraw()
+
+
+func clear_arena_markers() -> void:
+	if not _marker_cells.is_empty():
+		_marker_cells.clear()
+		queue_redraw()
+
+
 func _draw() -> void:
 	if not draw_grid:
 		return
@@ -171,3 +185,8 @@ func _draw() -> void:
 			draw_rect(rect, Color("4d465e", 0.8), false, 1.0)
 			if not is_walkable(cell):
 				draw_rect(rect.grow(-8.0), Color("342b3c"), true)
+	for marker_cell in _marker_cells:
+		var marker_color: Color = _marker_cells[marker_cell]
+		var marker_rect: Rect2 = get_cell_rect(marker_cell).grow(-6.0)
+		draw_rect(marker_rect, Color(marker_color, 0.12), true)
+		draw_rect(marker_rect, marker_color, false, 2.0)

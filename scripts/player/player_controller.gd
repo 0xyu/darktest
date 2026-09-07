@@ -35,6 +35,7 @@ var _grid: GridMap2D
 var _input_enabled: bool = true
 var _turn_manager: Node
 var _is_defeated: bool = false
+var _free_movement: bool = false
 var _target: Node
 var _applied_equipment_bonuses: Dictionary = {}
 var _attack_count: int = 0
@@ -314,7 +315,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func try_move(direction: Vector2i) -> bool:
-	if not _input_enabled or not is_selected or movement_points_remaining <= 0 or _grid == null:
+	if _grid == null or not is_selected:
+		return false
+	# Free movement (victory roam / walking to the exit) bypasses the normal
+	# turn input and movement-point gates so the hero can walk freely.
+	if not _free_movement and (not _input_enabled or movement_points_remaining <= 0):
 		return false
 	var target_cell: Vector2i = grid_position + direction
 	if not _grid.is_walkable(target_cell) or _grid.is_occupied(target_cell):
@@ -324,8 +329,9 @@ func try_move(direction: Vector2i) -> bool:
 	_grid.clear_occupied(previous_cell, player_id)
 	_grid.set_occupied(target_cell, player_id)
 	grid_position = target_cell
-	movement_points_remaining -= 1
-	_cells_moved_since_attack += 1
+	if not _free_movement:
+		movement_points_remaining -= 1
+		_cells_moved_since_attack += 1
 	global_position = _grid.grid_to_world(grid_position)
 	_refresh_grid_feedback()
 	queue_redraw()
@@ -341,8 +347,49 @@ func reset_movement_points() -> void:
 	queue_redraw()
 
 
+## Places the hero directly on `cell` (teleport), updating grid occupancy and
+## world position. Used by StageManager to walk the hero to the arena entrance
+## whenever a new stage is generated.
+func place_at(cell: Vector2i) -> bool:
+	if _grid == null or not _grid.is_walkable(cell):
+		return false
+	if _grid.is_occupied(cell) and _grid.get_occupant(cell) != player_id:
+		return false
+	if _grid.is_occupied(grid_position) and _grid.get_occupant(grid_position) == player_id:
+		_grid.clear_occupied(grid_position, player_id)
+	grid_position = cell
+	if not _grid.is_occupied(grid_position):
+		_grid.set_occupied(grid_position, player_id)
+	global_position = _grid.grid_to_world(grid_position)
+	if is_instance_valid(_target):
+		_target = null
+	_refresh_grid_feedback()
+	queue_redraw()
+	return true
+
+
+## Enables/disables unrestricted roaming used after a stage clear so the hero
+## can walk to the exit (or be auto-pathed there) without spending turns.
+func set_free_movement(enabled: bool) -> void:
+	if _free_movement == enabled:
+		return
+	_free_movement = enabled
+	# Roaming must be able to move the hero even if the player had deselected it
+	# during combat (a click toggles selection).
+	if enabled and not is_selected:
+		set_selected(true)
+	else:
+		_refresh_grid_feedback()
+		queue_redraw()
+
+
+func is_free_moving() -> bool:
+	return _free_movement
+
+
 func begin_player_turn(movement_points: int = -1) -> void:
 	_input_enabled = true
+	_free_movement = false
 	if movement_points >= 0:
 		movement_points_remaining = movement_points
 		_refresh_grid_feedback()
@@ -410,6 +457,7 @@ func handle_defeat() -> void:
 	_is_defeated = true
 	player_stats.current_hp = 0
 	_input_enabled = false
+	_free_movement = false
 	if _grid != null:
 		_grid.clear_occupied(grid_position, player_id)
 	queue_redraw()
@@ -519,7 +567,7 @@ func _refresh_grid_feedback() -> void:
 	if _grid == null:
 		return
 	_grid.set_selected_cell(grid_position)
-	if is_selected:
+	if is_selected and not _free_movement:
 		_grid.set_highlighted_cells(_grid.get_reachable_cells(grid_position, movement_points_remaining))
 	else:
 		_grid.set_highlighted_cells([])

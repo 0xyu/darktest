@@ -12,6 +12,7 @@ signal attack_requested
 signal skill_requested(skill_id: StringName)
 signal item_requested
 signal end_turn_requested
+signal next_stage_requested
 signal auto_toggle_requested
 signal farming_toggle_requested
 
@@ -19,7 +20,6 @@ const AUTO_OFF_ICON: Texture2D = preload("res://assets/ui/hud/2_options_off.png"
 const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 
 const END_TURN_TEXT := "END TURN"
-const NEXT_STAGE_TEXT := "NEXT STAGE"
 const DEFEATED_TEXT := "DEFEATED"
 const ENABLED_COLOR := Color(0.941, 0.906, 0.824, 1.0)
 const ACTIVE_COLOR := Color(0.537, 0.78, 0.592, 1.0)
@@ -30,6 +30,7 @@ const ACTIVE_COLOR := Color(0.537, 0.78, 0.592, 1.0)
 @onready var _execution_button: Button = %ExecutionButton
 @onready var _item_button: Button = %ItemButton
 @onready var _end_turn_button: Button = %EndTurnButton
+@onready var _next_stage_button: Button = %NextStageButton
 @onready var _auto_button: Button = %AutoButton
 @onready var _farming_button: Button = %FarmingButton
 
@@ -47,6 +48,7 @@ func _ready() -> void:
 	_execution_button.pressed.connect(func() -> void: skill_requested.emit(SkillCatalog.EXECUTION_STRIKE))
 	_item_button.pressed.connect(func() -> void: item_requested.emit())
 	_end_turn_button.pressed.connect(func() -> void: end_turn_requested.emit())
+	_next_stage_button.pressed.connect(func() -> void: next_stage_requested.emit())
 	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
 	_farming_button.pressed.connect(func() -> void: farming_toggle_requested.emit())
 
@@ -73,14 +75,25 @@ func set_end_turn_state(phase: int, player_turn: bool) -> void:
 	if _end_turn_button == null:
 		return
 	if phase == TurnState.VICTORY:
-		_end_turn_button.text = NEXT_STAGE_TEXT
-		_end_turn_button.disabled = false
+		# The dedicated NEXT STAGE button handles stage progression; END TURN
+		# no longer relabels or advances in victory.
+		_end_turn_button.text = END_TURN_TEXT
+		_end_turn_button.disabled = true
 	elif phase == TurnState.DEFEAT:
 		_end_turn_button.text = DEFEATED_TEXT
 		_end_turn_button.disabled = true
 	else:
 		_end_turn_button.text = END_TURN_TEXT
 		_end_turn_button.disabled = not player_turn
+
+
+## Victory-only NEXT STAGE control. Only revealed during VICTORY, and only
+## enabled once the caller confirms the player stands on the stage exit cell.
+func set_next_stage_state(phase: int, enabled: bool) -> void:
+	if _next_stage_button == null:
+		return
+	_next_stage_button.visible = phase == TurnState.VICTORY
+	_next_stage_button.disabled = not enabled
 
 
 func set_auto_controls(phase: int) -> void:

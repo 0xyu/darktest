@@ -63,6 +63,7 @@ func _ready() -> void:
 	hud.skill_requested.connect(_on_hud_skill_requested)
 	hud.item_requested.connect(_on_hud_item_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
+	hud.next_stage_requested.connect(_on_hud_next_stage_requested)
 	hud.auto_toggle_requested.connect(_on_hud_auto_toggle_requested)
 	hud.farming_toggle_requested.connect(_on_hud_farming_toggle_requested)
 	hud.game_speed_requested.connect(_on_hud_game_speed_requested)
@@ -77,6 +78,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_layout_portrait_grid()
 	stage_manager.initialize_stage(1)
+	_refresh_arena_markers()
 	queue_redraw()
 
 
@@ -122,21 +124,48 @@ func _on_hud_item_requested() -> void:
 
 
 func _on_hud_end_turn_requested() -> void:
-	if turn_manager.get_phase() == TurnState.VICTORY:
-		_advance_after_clear()
-	elif turn_manager.get_phase() == TurnState.PLAYER_TURN:
+	if turn_manager.get_phase() == TurnState.PLAYER_TURN:
 		turn_manager.complete_player_turn()
 
 
-## Advances past a cleared stage: FARMING re-spawns the current stage so it can
-## be repeated, otherwise the next stage starts. Used by the NEXT STAGE button
-## and the SPACE shortcut during manual (non-AUTO) play.
+func _on_hud_next_stage_requested() -> void:
+	if _advance_after_clear():
+		get_viewport().set_input_as_handled()
+
+
+## Advances to the next stage once the player is standing on the Next Stage
+## Point (exit) after clearing the stage. Manual (non-AUTO, non-FARMING) only.
 func _advance_after_clear() -> bool:
-	if stage_manager.stage_state == null or not stage_manager.stage_state.is_complete:
+	if not _can_advance_to_next_stage():
 		return false
-	if auto_combat.is_farming_enabled():
-		return stage_manager.initialize_stage(stage_manager.stage_state.stage_number)
 	return stage_manager.start_next_stage()
+
+
+func _player_is_on_stage_exit() -> bool:
+	if player == null or stage_manager == null:
+		return false
+	if not stage_manager.has_method("get_stage_exit_cell"):
+		return false
+	return player.get_grid_position() == stage_manager.get_stage_exit_cell()
+
+
+func _can_advance_to_next_stage() -> bool:
+	return (
+		turn_manager.get_phase() == TurnState.VICTORY
+		and stage_manager.stage_state != null
+		and stage_manager.stage_state.is_complete
+		and not auto_combat.is_farming_enabled()
+		and not auto_combat.is_auto_enabled()
+		and _player_is_on_stage_exit()
+	)
+
+
+func _refresh_arena_markers() -> void:
+	if grid == null or stage_manager == null or not stage_manager.has_method("get_stage_exit_cell"):
+		return
+	if grid.has_method("set_arena_marker"):
+		grid.set_arena_marker(stage_manager.get_stage_exit_cell(), Color("e0c06a"))
+		grid.set_arena_marker(stage_manager.get_stage_start_cell(), Color("8fb3b7"))
 
 
 func _on_hud_auto_toggle_requested() -> void:
@@ -211,6 +240,7 @@ func _layout_portrait_grid() -> void:
 
 
 func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
+	player.set_free_movement(false)
 	_active_enemies = enemies
 	for enemy_node in _active_enemies:
 		_register_enemy(enemy_node as EnemyController)
@@ -257,7 +287,9 @@ func _on_stage_completed(stage_state: StageState) -> void:
 	if auto_combat.is_farming_enabled():
 		_last_move_text = "STAGE %d CLEARED — FARMING STAYS ON STAGE" % stage_state.stage_number
 	else:
-		_last_move_text = "STAGE %d CLEARED — SPACE FOR NEXT STAGE" % stage_state.stage_number
+		# Free roam lets the player walk to the top exit cell to advance.
+		player.set_free_movement(true)
+		_last_move_text = "STAGE %d CLEARED — REACH THE TOP EXIT TO ADVANCE" % stage_state.stage_number
 	hud.log_event("log.stage_clear", {"stage": stage_state.stage_number})
 	turn_manager.set_victory()
 	queue_redraw()
@@ -270,6 +302,8 @@ func _on_stage_generation_failed(stage_number: int, reason: String) -> void:
 
 func _on_player_moved(from_cell: Vector2i, to_cell: Vector2i, points_remaining: int) -> void:
 	_last_move_text = "Moved %s → %s" % [from_cell, to_cell]
+	if turn_manager.get_phase() == TurnState.VICTORY and _player_is_on_stage_exit():
+		_last_move_text = "ON THE EXIT — NEXT STAGE READY"
 	queue_redraw()
 
 
@@ -412,6 +446,7 @@ func _on_sub_hero_combat_cleared() -> void:
 func _on_actor_died(actor: Node) -> void:
 	if actor == player:
 		sub_hero_combat_manager.stop_combat()
+		player.set_free_movement(false)
 		_last_move_text = "PLAYER DEFEATED"
 		hud.log_event("log.player_defeated")
 		turn_manager.set_defeat()

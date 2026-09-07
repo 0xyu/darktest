@@ -19,6 +19,9 @@ signal stage_generation_failed(stage_number: int, reason: String)
 ## Random per-spawn stat variance around the scaled base values.
 ## 0.15 means stats may vary by up to +/-15 percent.
 @export_range(0.0, 1.0, 0.01) var enemy_stat_variance: float = 0.15
+## 0-based x column of the arena gate lane: the Stage Starting Point (bottom
+## row) and the Next Stage Point / exit (top row) both sit in this column.
+@export_range(0, 63, 1) var stage_gate_column: int = 3
 
 var stage_state: StageState = StageState.new()
 var current_definition: StageDefinition
@@ -30,6 +33,10 @@ var _level_manager: LevelManager
 var _spawned_enemies: Array[EnemyController] = []
 var _defeated_enemy_ids: Dictionary = {}
 var _random_number_generator := RandomNumberGenerator.new()
+## The stage number that is currently generated. -1 means no stage has been
+## generated yet (boot), so the first initialize_stage must place the hero at
+## the Stage Starting Point. Farming re-spawn of the same number keeps position.
+var _active_stage_number: int = -1
 
 ## Kept as a read-only compatibility property for GoldSystem.
 var gold_growth_rate: float:
@@ -59,10 +66,16 @@ func initialize_stage(new_stage_number: int = -1, requested_special_encounter_ty
 		push_error(missing_scene_reason)
 		return false
 
+	# A new stage (different number from the one currently generated, including
+	# the first boot) re-enters the arena through the Stage Starting Point.
+	# Farming re-spawns the SAME number, so the hero stays where it is.
+	var teleport_to_start: bool = _active_stage_number != target_stage
 	_clear_spawned_enemies()
 	current_definition = _level_manager.request_level(target_stage, requested_special_encounter_type)
 	if current_definition == null:
 		return false
+	if teleport_to_start:
+		_place_player_at_start()
 	stage_state.reset_for_stage(target_stage, current_definition.is_mini_boss_stage)
 	stage_state.is_special_encounter = current_definition.is_special_encounter
 	stage_state.special_encounter_type = current_definition.special_encounter_type
@@ -110,6 +123,7 @@ func initialize_stage(new_stage_number: int = -1, requested_special_encounter_ty
 
 	if spawned_nodes.is_empty():
 		return _fail_spawn(target_stage, "StageDefinition contains no spawnable enemies.")
+	_active_stage_number = target_stage
 	stage_started.emit(stage_state, spawned_nodes)
 	return true
 
@@ -126,6 +140,30 @@ func start_previous_stage() -> bool:
 
 func get_spawned_enemies() -> Array[EnemyController]:
 	return _spawned_enemies.duplicate()
+
+
+## The bottom arrival cell of the arena (Stage Starting Point). The hero is
+## teleported here when a new stage is generated.
+func get_stage_start_cell() -> Vector2i:
+	if _grid == null:
+		return Vector2i.ZERO
+	return Vector2i(clampi(stage_gate_column, 0, _grid.grid_size.x - 1), _grid.grid_size.y - 1)
+
+
+## The top exit cell of the arena (Next Stage Point). The player must stand
+## here before the next stage can start.
+func get_stage_exit_cell() -> Vector2i:
+	if _grid == null:
+		return Vector2i.ZERO
+	return Vector2i(clampi(stage_gate_column, 0, _grid.grid_size.x - 1), 0)
+
+
+func is_player_on_stage_exit() -> bool:
+	return (
+		_player != null
+		and _player.has_method("get_grid_position")
+		and _player.get_grid_position() == get_stage_exit_cell()
+	)
 
 
 ## Completes the current stage when every spawned enemy has been defeated.
@@ -154,6 +192,14 @@ func _resolve_references() -> void:
 		_player = get_node_or_null(player_path)
 	if _level_manager == null:
 		_level_manager = get_node_or_null(level_manager_path) as LevelManager
+
+
+## Best-effort teleport of the hero onto the Stage Starting Point so enemies
+## spawn away from the arena entrance. Runs before enemies spawn, therefore the
+## start cell is occupied and excluded from spawn candidates.
+func _place_player_at_start() -> void:
+	if _player != null and _player.has_method("place_at"):
+		_player.place_at(get_stage_start_cell())
 
 
 func _get_available_spawn_cells() -> Array[Vector2i]:
