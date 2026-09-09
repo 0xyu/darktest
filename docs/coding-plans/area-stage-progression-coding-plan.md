@@ -332,7 +332,14 @@ battle 侧 `PlayerProgression`（Resource，角色**数值成长**：level / exp
 
 ---
 
-# Phase 4 — StageRouter（进入哪种玩法）
+# Phase 4 — StageRouter（已完成，进入哪种玩法）
+
+> 产物见 `docs/coding-plans/reports/area-stage-progression-phase-04-report.md`。
+>
+> 实现备注（落地范围）：
+> - StageRouter 为**纯路由壳**：`route()` / `destination_for_stage()` / `request_enter()`（signal `enter_requested`），headless 测试走通 **Forest 01→COMBAT / 06→EVENT / 08→TOWN / 10→BOSS**。
+> - **Destination 词汇独立于 StageType**：BOSS（作者类型）路由进 `Destination.COMBAT`（当前仓库无独立 BossScene，boss/mini-boss 是 battle 层特性）；将来若确有独立 Boss/Shrine 场景，只扩展 `Destination` 枚举，Data 类不动。
+> - **未接内容**：不进战斗、不显示 TownView、无 Event 内容（Phase 5）；未做解锁门槛（Phase 7）。只做"进入哪种玩法"的决定与入口请求信号。
 
 ## 目标
 
@@ -615,8 +622,8 @@ Chat 01  Phase 0   Repository Audit                 ✅ 完成
 Chat 02  Phase 1   Core Stage Data Model             ✅ 完成
 Chat 03  Phase 2   Stage Database + Forest            ✅ 完成
 Chat 04  Phase 3   Player Progress                    ✅ 完成
-Chat 05  Phase 4   StageRouter                        ← 当前
-Chat 06  Phase 5   Combat / Town Integration
+Chat 05  Phase 4   StageRouter                        ✅ 完成
+Chat 06  Phase 5   Combat / Town Integration          ← 当前
 Chat 07  Phase 6   WorldMap Integration
 Chat 08  Phase 7   Completion / Return Flow
 Chat 09  Phase 8   Save / Load
