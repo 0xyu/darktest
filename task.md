@@ -37,8 +37,8 @@
 ## P5 表现系统主序列 + 场景接线
 
 - [x] 新建 `scripts/combat/combat_presentation_system.gd`：计划 §4.4（attack_resolved 主序列、actor_died 延迟死亡、shake、notify_layout_changed、单位 moved 连接、viewport size_changed 相机居中）。
-- [x] `scenes/world/GridTest.tscn`：加 CombatCamera(Camera2D) 与 CombatPresentation 节点。
-- [x] `scripts/world/grid_test.gd`：@onready combat_presentation；_layout_portrait_grid 末尾 notify_layout_changed()。
+- [x] `scenes/world/grid_combat.tscn`：加 CombatCamera(Camera2D) 与 CombatPresentation 节点。
+- [x] `scripts/world/grid_combat.gd`：@onready combat_presentation；_layout_portrait_grid 末尾 notify_layout_changed()。
 - [x] hit stop：freeze 双方 token + create_timer 恢复；不使用 Engine.time_scale。
 - [x] 验证：headless 启动；手动/截图确认攻击序列、crit 震动、HUD 不震、震动后归零。
 

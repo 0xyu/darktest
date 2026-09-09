@@ -55,10 +55,10 @@
 
 ### 2.3 场景 / HUD / 相机
 
-- `scenes/world/GridTest.tscn` 为战斗场景（Main.tscn 仅实例化它）。**当前没有 Camera2D**。
+- `scenes/world/grid_combat.tscn` 为战斗场景（Main.tscn 仅实例化它）。**当前没有 Camera2D**。
 - `scenes/ui/MobileCombatHUD.tscn` 根节点是 **CanvasLayer**（:88）→ Camera2D 震动天然不影响 HUD；TownView 也在 HUD 内，不受影响。
 - `project.godot`：720×1280，`stretch/canvas_items + expand`，`gl_compatibility`（additive CanvasItemMaterial 可用）。
-- `scripts/world/grid_test.gd`
+- `scripts/world/grid_combat.gd`
   - `_ready()`（:26-83）集中接线所有系统；新系统按同样方式加入。
   - `_layout_portrait_grid()`（:212-239）在视口变化时**直接重设** player/enemies 的 `global_position` → 重排后必须让 token `snap()`。
   - `_on_sub_hero_attack_feedback_requested()`（:421-431）已在 HUD 画布生成 `SubHeroAttackEffect` 投射物（保留，不重复造）。
@@ -73,7 +73,7 @@
 - 验证工具链：
   - Godot：`D:\IDE\godotEngine\Godot_v4.7.2-stable_win64_console.exe`
   - 导入新资源：`--headless --editor --quit --path G:/godotproject/darkrpg`
-  - 启动自检：`--headless --quit-after 120 --path G:/godotproject/darkrpg res://scenes/world/GridTest.tscn`
+  - 启动自检：`--headless --quit-after 120 --path G:/godotproject/darkrpg res://scenes/world/grid_combat.tscn`
   - 测试：`res://tests/*.gd`（见 `docs/testing-fixtures.md`；新测试套件 headless 跑，参考 McpTestRunner 方式）。
 
 ## 3. 架构设计
@@ -82,14 +82,14 @@
 CombatSystem（玩法：伤害立即结算，保持不变）
    │  attack_resolved(DamageResult{+attacker,+target})   actor_died(actor)
    ▼
-CombatPresentationSystem（Node，GridTest 新子节点；只读事件，不回写玩法）
+CombatPresentationSystem（Node，grid_combat 新子节点；只读事件，不回写玩法）
    ├─ CharacterToken ×N（Player/每个 Enemy 的子节点）
    │     ├─ Avatar（Node2D，draw_texture_rect 静态头像）
    │     ├─ Flash（Node2D，additive CanvasItemMaterial 叠画同纹理 → 闪白/红闪）
    │     └─ 阴影（token 自身 _draw，随抬升/落地缩放）
    ├─ CombatVFX 实例（表现层子节点，程序化 _draw，短命自删）
    ├─ DamageNumber 实例（表现层子节点，tween 浮字）
-   └─ CombatCamera（Camera2D，GridTest 新子节点；只震 offset）
+   └─ CombatCamera（Camera2D，grid_combat 新子节点；只震 offset）
 MobileCombatHUD（CanvasLayer）── 不受相机影响，保持独立
 ```
 
@@ -101,7 +101,7 @@ MobileCombatHUD（CanvasLayer）── 不受相机影响，保持独立
 4. **速度集成**：`CombatPresentationConfig.get_speed_multiplier(auto_or_farming, game_speed)` 为唯一换算点；结果写入各 `token.speed_multiplier` 与 VFX/浮字 spawn 参数。FASTEST=0.45、X2=0.7、X1+(auto|farming)=0.7、X1 手动=1.0（乘到所有时长上）。
 5. **死亡表现接管隐藏**：enemy `handle_defeat()` 删除 `visible = false`（保留 `PROCESS_MODE_DISABLED`）；`_draw()` 在 `_is_defeated` 时提前 return（不画 HP 条/环）；`actor_died` 延迟约 0.12s（×速度）后 `token.play_death()`，动画结束 token 自 `visible=false`。`revive_for_retry()` → `token.reset_visuals()`。
 6. **伤害数字归属迁移**：生成点从 CombatSystem 移到表现层（impact 时刻），CombatSystem 删除 `_spawn_damage_number()` 与 `feedback_parent_path`。`hud.show_critical_indicator()` 等 HUD 反馈保留不动。
-7. **相机**：GridTest 新增 `CombatCamera`（Camera2D），`position = get_viewport_rect().size * 0.5`（_ready 与 `size_changed` 时重设，等价当前无相机取景）；震动只写 `camera.offset`，结束/退出归零。
+7. **相机**：grid_combat 新增 `CombatCamera`（Camera2D），`position = get_viewport_rect().size * 0.5`（_ready 与 `size_changed` 时重设，等价当前无相机取景）；震动只写 `camera.offset`，结束/退出归零。
 8. **闪白实现**：additive 叠画子节点（决策见上），不写 shader、不复制纹理；天然"失败也无害"（最坏只是不闪）。
 9. **VFX 数据驱动**：`StringName` 类别 → `match` 分派绘制；敌人/技能只携带类别 id；禁止按敌人名字分支。
 10. **玩家优先**：攻击方为玩家时预备/冲刺/VFX 强度×1.15~1.25（config 常量），敌人用通用弱档。
@@ -196,9 +196,9 @@ freeze(duration: float)                                 # 当前 motion tween se
    - `_move_toward_target()`：同 player 记 old/new → `token.play_move(offset, 曼哈顿距离, false)`。
    - `_draw()`：删除阴影/sprite/占位圆，仅保留 boss 环 + HP 条；`if _is_defeated: return`。
    - `handle_defeat()`：删除 `visible = false`（保留 PROCESS_MODE_DISABLED）。
-5. `scenes/world/GridTest.tscn`：+`[node name="CombatCamera" type="Camera2D" parent="."]`、+`[node name="CombatPresentation" type="Node" parent="."] script=...`（load_steps +1×2，新 ext_resource）。
-6. `scripts/world/grid_test.gd`：+`@onready var combat_presentation := $CombatPresentation`；`_layout_portrait_grid()` 末尾调用 `combat_presentation.notify_layout_changed()`。
-7. `scripts/ui/development_panel.gd`：`_build_ui()` 增加 `_section_title("COMBAT FX TEST")` + 9 个 `_make_button(...)`；回调经 `get_tree().root.get_node_or_null("Main/GridTest/CombatPresentation")` 调 `test_effect(&"case")`。
+5. `scenes/world/grid_combat.tscn`：+`[node name="CombatCamera" type="Camera2D" parent="."]`、+`[node name="CombatPresentation" type="Node" parent="."] script=...`（load_steps +1×2，新 ext_resource）。
+6. `scripts/world/grid_combat.gd`：+`@onready var combat_presentation := $CombatPresentation`；`_layout_portrait_grid()` 末尾调用 `combat_presentation.notify_layout_changed()`。
+7. `scripts/ui/development_panel.gd`：`_build_ui()` 增加 `_section_title("COMBAT FX TEST")` + 9 个 `_make_button(...)`；回调经 `get_tree().root.get_node_or_null("Main/grid_combat/CombatPresentation")` 调 `test_effect(&"case")`。
 8. `scripts/systems/game_locale.gd`：`_STRINGS` 增 `fx.miss`/`fx.dodge`/`fx.block`/`fx.critical`（en/zh_Hant 双语，参照现有条目格式）。
 
 ## 6. 实施阶段（与 task.md 对应）
@@ -235,7 +235,7 @@ freeze(duration: float)                                 # 当前 motion tween se
 "D:/IDE/godotEngine/Godot_v4.7.2-stable_win64_console.exe" --headless --editor --quit --path G:/godotproject/darkrpg
 
 # 战斗场景 120 帧启动自检（过滤 error/warning）
-"D:/IDE/godotEngine/Godot_v4.7.2-stable_win64_console.exe" --headless --quit-after 120 --path G:/godotproject/darkrpg res://scenes/world/GridTest.tscn
+"D:/IDE/godotEngine/Godot_v4.7.2-stable_win64_console.exe" --headless --quit-after 120 --path G:/godotproject/darkrpg res://scenes/world/grid_combat.tscn
 
 # 既有测试（headless，见 docs/testing-fixtures.md）
 ```

@@ -356,11 +356,11 @@ func _get_presentation_system() -> CombatPresentationSystem:
 	var tree := get_tree()
 	if tree == null:
 		return null
-	# Main scene boots as Main/GridTest; running GridTest.tscn directly has no
+	# Main scene boots as Main/grid_combat; running grid_combat.tscn directly has no
 	# Main wrapper.
-	var node := tree.root.get_node_or_null(^"Main/GridTest/CombatPresentation")
+	var node := tree.root.get_node_or_null(^"Main/grid_combat/CombatPresentation")
 	if node == null:
-		node = tree.root.get_node_or_null(^"GridTest/CombatPresentation")
+		node = tree.root.get_node_or_null(^"grid_combat/CombatPresentation")
 	return node as CombatPresentationSystem
 
 

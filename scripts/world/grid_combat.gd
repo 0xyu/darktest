@@ -1,4 +1,4 @@
-class_name GridTest
+class_name grid_combat
 extends Node2D
 
 const SpecialEncounterTypeResource = preload("res://scripts/systems/special_encounter_type.gd")

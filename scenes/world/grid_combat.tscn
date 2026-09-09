@@ -1,6 +1,6 @@
 [gd_scene load_steps=18 format=3]
 
-[ext_resource type="Script" path="res://scripts/world/grid_test.gd" id="1_test"]
+[ext_resource type="Script" path="res://scripts/world/grid_combat.gd" id="1_test"]
 [ext_resource type="Script" path="res://scripts/systems/grid_map_2d.gd" id="2_grid"]
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="3_player"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/Enemy.tscn" id="4_enemy"]
@@ -19,7 +19,7 @@
 [ext_resource type="Texture2D" path="res://assets/environment/dungeon.jpg" id="17_dungeon"]
 [ext_resource type="Script" path="res://scripts/combat/combat_presentation_system.gd" id="18_presentation"]
 
-[node name="GridTest" type="Node2D"]
+[node name="grid_combat" type="Node2D"]
 script = ExtResource("1_test")
 
 [node name="CombatCamera" type="Camera2D" parent="."]

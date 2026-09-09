@@ -19,7 +19,7 @@ func _run_tests() -> void:
 	await process_frame
 	await process_frame
 
-	var game := main.get_node("GridTest") as GridTest
+	var game := main.get_node("grid_combat") as grid_combat
 	_expect(game.stage_manager.initialize_stage(3), "stage three initializes before defeat")
 	await process_frame
 	await process_frame

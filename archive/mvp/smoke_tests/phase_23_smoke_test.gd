@@ -18,7 +18,7 @@ func _run_tests() -> void:
 	root.add_child(main)
 	await process_frame
 	await process_frame
-	var game := main.get_node("GridTest") as GridTest
+	var game := main.get_node("grid_combat") as grid_combat
 	var panel := game.hud.get_node("Root/InventoryPanel") as EquipmentInventoryPanel
 	_expect(panel != null, "combat HUD contains the inventory panel")
 	if panel == null:

@@ -88,7 +88,7 @@ func _exit_tree() -> void:
 		_camera.offset = Vector2.ZERO
 
 
-## Called by GridTest after _layout_portrait_grid() teleports units: clears
+## Called by grid_combat after _layout_portrait_grid() teleports units: clears
 ## any residual token offset so visuals re-anchor to the new positions.
 func notify_layout_changed() -> void:
 	for token in _all_tokens():

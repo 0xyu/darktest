@@ -18,7 +18,7 @@ func _run_tests() -> void:
 	root.add_child(main)
 	await process_frame
 	await process_frame
-	var game := main.get_node("GridTest") as GridTest
+	var game := main.get_node("grid_combat") as grid_combat
 	var hud := game.hud
 	_expect(hud.get_node("Root/TopPanel/Margin/Content/Header/StageLabel").text == "STAGE 01", "HUD displays the current stage")
 	_expect(hud.get_node("Root/TopPanel/Margin/Content/PlayerHPRow/PlayerHPBar") is ProgressBar, "HUD displays player HP")
@@ -44,7 +44,7 @@ func _run_tests() -> void:
 	root.add_child(defeat_main)
 	await process_frame
 	await process_frame
-	var defeat_game := defeat_main.get_node("GridTest") as GridTest
+	var defeat_game := defeat_main.get_node("grid_combat") as grid_combat
 	defeat_game.turn_manager.set_defeat()
 	await process_frame
 	var defeat_hud := defeat_game.hud

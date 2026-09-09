@@ -19,7 +19,7 @@ func _run_tests() -> void:
 	await process_frame
 	await process_frame
 
-	var game := main.get_node("GridTest") as GridTest
+	var game := main.get_node("grid_combat") as grid_combat
 	var auto_combat := game.get_node("AutoCombatController") as AutoCombatController
 	_expect(auto_combat != null, "combat scene contains an auto controller")
 	if auto_combat == null:

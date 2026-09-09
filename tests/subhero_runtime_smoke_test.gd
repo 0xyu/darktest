@@ -1,6 +1,6 @@
 extends SceneTree
 
-const GameScene = preload("res://scenes/world/GridTest.tscn")
+const GameScene = preload("res://scenes/world/grid_combat.tscn")
 const InstanceScript = preload("res://scripts/sub_hero/sub_hero_instance.gd")
 
 var _failures: Array[String] = []

@@ -20,7 +20,7 @@ func _mount_game() -> void:
 	var instance: Node = MAIN_SCENE.instantiate()
 	_tree.root.add_child(instance)
 	track_node(instance)
-	_grid_test = instance.find_child("GridTest", true, false)
+	_grid_test = instance.find_child("grid_combat", true, false)
 	# Let stage generation, turn start, and HUD refresh settle.
 	await flush_frames(5)
 

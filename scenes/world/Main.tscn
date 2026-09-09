@@ -1,7 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3]
 
-[ext_resource type="PackedScene" path="res://scenes/world/GridTest.tscn" id="1_grid_test"]
+[ext_resource type="PackedScene" path="res://scenes/world/grid_combat.tscn" id="1_grid_test"]
 
 [node name="Main" type="Node2D"]
 
-[node name="GridTest" parent="." instance=ExtResource("1_grid_test")]
+[node name="grid_combat" parent="." instance=ExtResource("1_grid_test")]

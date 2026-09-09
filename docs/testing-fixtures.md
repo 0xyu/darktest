@@ -119,7 +119,7 @@ replaces the player's inventory *object*, orphaning panels bound to the old one)
 The DEV panel has a **COMBAT FX TEST** section (9 buttons: normal / critical /
 heavy / miss / block / fire / lightning / heal / death). Each button calls
 `CombatPresentationSystem.test_effect(case)` on
-`Main/GridTest/CombatPresentation`, which plays the presentation case against
+`Main/grid_combat/CombatPresentation`, which plays the presentation case against
 the live combat scene with a fabricated `DamageResult` — no damage, turn, or
 grid state is touched. The death case plays the token death animation on the
 first living enemy and restores it (`reset_visuals()`) when finished, so every
@@ -128,7 +128,7 @@ button is safely repeatable.
 Agent/runtime tests can call the same entry point directly:
 
 ```gdscript
-var presentation = get_tree().root.get_node_or_null("Main/GridTest/CombatPresentation")
+var presentation = get_tree().root.get_node_or_null("Main/grid_combat/CombatPresentation")
 presentation.test_effect(&"critical")
 ```
 

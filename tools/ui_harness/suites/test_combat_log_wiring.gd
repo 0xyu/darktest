@@ -5,7 +5,7 @@ extends "res://tools/ui_harness/ui_harness_suite.gd"
 ## Mounts the real game scene (res://scenes/world/Main.tscn), drives an actual
 ## kill through CombatSystem.resolve_attack, and asserts the bottom-left
 ## CombatLogPanel records the kill + rewards through the existing signal chain
-## (combat_system.actor_died -> grid_test.gd -> hud.log_event).
+## (combat_system.actor_died -> grid_combat.gd -> hud.log_event).
 ##
 ## Kept headless so it does not depend on the editor's game window being
 ## focused (the window freezes its main loop when backgrounded).
@@ -23,7 +23,7 @@ func _mount_game() -> void:
 	var instance: Node = MAIN_SCENE.instantiate()
 	_tree.root.add_child(instance)
 	track_node(instance)
-	_grid_test = instance.find_child("GridTest", true, false)
+	_grid_test = instance.find_child("grid_combat", true, false)
 	# Let stage generation, turn start, and HUD refresh settle.
 	await flush_frames(5)
 
@@ -38,7 +38,7 @@ func _find_living_enemy() -> Node:
 
 func test_kill_logs_event_end_to_end() -> void:
 	await _mount_game()
-	expect(_grid_test != null, "GridTest scene mounted")
+	expect(_grid_test != null, "grid_combat scene mounted")
 	if _grid_test == null:
 		return
 	var player: Node = _grid_test.find_child("Player", true, false)
