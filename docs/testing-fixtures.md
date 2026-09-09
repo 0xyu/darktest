@@ -44,8 +44,8 @@ UIFixture.create_inventory() -> EquipmentInventory  # 8 items, legendary+mythic 
 
 # Character
 UIFixture.create_player_stats(overrides) -> PlayerStats
-UIFixture.create_player_progression(level, gold, stage) -> PlayerProgression
-UIFixture.create_character(level, gold, stage) -> Dictionary  # {stats, progression, inventory}
+UIFixture.create_player_progression(level, gold) -> PlayerProgression
+UIFixture.create_character(level, gold) -> Dictionary  # {stats, progression, inventory}
 UIFixture.apply_character_to_player(player, bundle) -> void
 ```
 

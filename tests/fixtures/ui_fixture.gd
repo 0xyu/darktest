@@ -16,7 +16,7 @@ extends RefCounted
 ## Usage:
 ##   var inventory := UIFixture.create_inventory()
 ##   var item := UIFixture.create_equipment(EquipmentRarity.MYTHIC, EquipmentSlot.RING, 40)
-##   var character := UIFixture.create_character(10, 2500, 5)
+##   var character := UIFixture.create_character(10, 2500)
 ##   UIFixture.apply_character_to_player(player, character)
 
 ## Deterministic unique-id counter so several identical generic items can
@@ -158,16 +158,14 @@ static func create_player_stats(overrides: Dictionary = {}) -> PlayerStats:
 	return stats
 
 
-## Builds progression data with explicit level, gold, and stage.
+## Builds progression data with explicit level and gold.
 static func create_player_progression(
 	level: int = 1,
-	gold: int = 0,
-	current_stage: int = 1
+	gold: int = 0
 ) -> PlayerProgression:
 	var progression := PlayerProgression.new()
 	progression.level = maxi(level, 1)
 	progression.gold = maxi(gold, 0)
-	progression.current_stage = maxi(current_stage, 1)
 	return progression
 
 
@@ -176,8 +174,7 @@ static func create_player_progression(
 ## Stats scale with level so higher-level fixtures look like a real character.
 static func create_character(
 	level: int = 10,
-	gold: int = 2500,
-	current_stage: int = 5
+	gold: int = 2500
 ) -> Dictionary:
 	var safe_level: int = maxi(level, 1)
 	var stats := create_player_stats({
@@ -185,7 +182,7 @@ static func create_character(
 		"attack": 10 + (safe_level - 1) * 2,
 		"defense": 5 + (safe_level - 1),
 	})
-	var progression := create_player_progression(safe_level, gold, current_stage)
+	var progression := create_player_progression(safe_level, gold)
 	return {
 		"stats": stats,
 		"progression": progression,

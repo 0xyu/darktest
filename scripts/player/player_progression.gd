@@ -2,6 +2,9 @@ class_name PlayerProgression
 extends Resource
 
 ## Persistent progression values independent from the player's derived stats.
+## This is the CHARACTER's numeric growth (level / experience / gold / skills).
+## It does NOT track where the player is on the world map: area / stage position
+## and completion live in PlayerProgress (scripts/progress/player_progress.gd).
 signal experience_changed(current_experience: int, required_experience: int)
 signal level_up(new_level: int)
 signal gold_changed(current_gold: int, amount: int)
@@ -14,7 +17,6 @@ const EXPERIENCE_GROWTH_RATE: float = 1.15
 @export_range(1, 999999, 1) var level: int = 1
 @export var experience: int = 0
 @export var gold: int = 0
-@export_range(1, 999999, 1) var current_stage: int = 1
 @export_range(0, 999999, 1) var skill_points: int = 0
 @export var skill_levels: Dictionary = {}
 

@@ -170,7 +170,9 @@ StageData (静态)         completed_stages
 
 ---
 
-# Phase 2 — Stage Database + Forest 数据（当前阶段，Rev 2 重写）
+# Phase 2 — Stage Database + Forest 数据（已完成，Rev 2 重写）
+
+> 产物见 `docs/coding-plans/reports/area-stage-progression-phase-02-report.md`。
 
 ## 目标
 
@@ -273,7 +275,10 @@ PlayerProgress / Save / WorldMap / Combat 接线 / Town 接线 / Event 玩法 / 
 
 ---
 
-# Phase 3 — Player Progress
+# Phase 3 — Player Progress（已完成）
+
+> 产物见 `docs/coding-plans/reports/area-stage-progression-phase-03-report.md`。
+> `PlayerProgression.current_stage` 死字段清理（见下方「命名注意」）并入本 Phase 一并完成。
 
 ## 目标
 
@@ -317,9 +322,9 @@ get_current_stage()  # → { area_id, stage_number }
 
 `unlocked = (n == 1) or (n-1 in completed_stages)`，读取 `StageDatabase.stage_count` 判定是否越界。
 
-## 命名注意
+## 命名注意（已清理）
 
-现有 battle 侧 `PlayerProgression`（Resource，含 `current_stage` 但未用）与本 `PlayerProgress` **是两回事**。不要混淆；建议后续把 `PlayerProgression.current_stage` 的展示迁移到位后清理。
+battle 侧 `PlayerProgression`（Resource，角色**数值成长**：level / experience / gold / skills）与本 `PlayerProgress`（**地图/关卡进度**）是两回事。混淆源 `PlayerProgression.current_stage`（从未被任何玩法代码读取的死字段——战斗 HUD 阶段条实际读 battle `StageState`）已在 Phase 3 **一并移除**（含 UI fixture / 测试），现仓库不再有两套「current stage」并存。长期若仍想消除一字之差，可单独发 `refactor:` commit 把旧类改名 `CharacterProgression`，勿混入 gameplay Phase。
 
 ## Output
 
@@ -608,9 +613,9 @@ PlayerProgress
 ```text
 Chat 01  Phase 0   Repository Audit                 ✅ 完成
 Chat 02  Phase 1   Core Stage Data Model             ✅ 完成
-Chat 03  Phase 2   Stage Database + Forest            ← 当前
-Chat 04  Phase 3   Player Progress
-Chat 05  Phase 4   StageRouter
+Chat 03  Phase 2   Stage Database + Forest            ✅ 完成
+Chat 04  Phase 3   Player Progress                    ✅ 完成
+Chat 05  Phase 4   StageRouter                        ← 当前
 Chat 06  Phase 5   Combat / Town Integration
 Chat 07  Phase 6   WorldMap Integration
 Chat 08  Phase 7   Completion / Return Flow

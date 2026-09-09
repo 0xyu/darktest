@@ -155,13 +155,12 @@ func test_custom_affixes_are_respected() -> void:
 
 
 func test_character_fixture() -> void:
-	var character := UIFixtureScript.create_character(15, 999, 7)
+	var character := UIFixtureScript.create_character(15, 999)
 	assert_true(character.stats is PlayerStats)
 	assert_true(character.progression is PlayerProgression)
 	assert_true(character.inventory is EquipmentInventory)
 	assert_eq(character.progression.level, 15)
 	assert_eq(character.progression.gold, 999)
-	assert_eq(character.progression.current_stage, 7)
 	assert_true(character.inventory.get_item_count() >= 5, "character inventory should contain the rarity set")
 	assert_gt(character.stats.max_hp, 100, "stats should scale with level")
 

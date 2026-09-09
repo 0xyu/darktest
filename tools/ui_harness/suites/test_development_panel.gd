@@ -9,7 +9,7 @@ var _panel: Control
 func _mount_panel() -> void:
 	_player = PlayerController.new()
 	track_node(_player)
-	_player.player_progression = UIFixtureScript.create_player_progression(1, 0, 1)
+	_player.player_progression = UIFixtureScript.create_player_progression(1, 0)
 	_panel = await mount_scene("res://scenes/ui/DevelopmentPanel.tscn")
 	_panel.call("set_player", _player)
 	await flush_frames(1)

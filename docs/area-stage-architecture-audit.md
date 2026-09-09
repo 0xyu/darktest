@@ -1,6 +1,6 @@
 # Area / Stage / StageType 系统 — Phase 0 Repository Audit
 
-> 对应 `docs/area-stage-progression-coding-plan.md` 的 **Phase 0**。
+> 对应 `docs/coding-plans/area-stage-progression-coding-plan.md` 的 **Phase 0**。
 > 本阶段 **NO CODE CHANGES**，只做仓库审计并输出本报告。
 
 审计基准 commit：`a63316f`（另有未提交 WIP：`header_row.tscn/.gd` 删除 header 内的 stage 标签，仅 UI 展示迁移，见 §4.6）。
