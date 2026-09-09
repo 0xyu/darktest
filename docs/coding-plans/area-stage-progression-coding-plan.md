@@ -386,7 +386,14 @@ BOSS   → Combat + Boss 专属战斗数据（或独立 BossScene，若真的独
 
 ---
 
-# Phase 5 — Integrate Existing Combat / Town
+# Phase 5 — Integrate Existing Combat / Town（已完成）
+
+> 产物见 `docs/coding-plans/reports/area-stage-progression-phase-05-report.md`。
+>
+> 实现备注（落地范围）：
+> - **非破坏性桥接**：把 StageRouter host 放进运行场景 `grid_combat`（持有 `PlayerProgress`），提供 `enter_area_stage(area, n)`；进入 COMBAT/BOSS → 调 battle `StageManager.initialize_stage(n)`（默认 N↔level N），TOWN → HUD 切 TownView，EVENT → 占位（不启战）。默认启动/无限推进不变。
+> - **Town 接线完成**：`town_view_requested` / `TownView.close_requested / warehouse_requested / skills_requested` 全部接上（原先未接线 stub），`test_town_view` 由 2 失败转绿。
+> - DEV 面板新增 **AREA STAGES** 区（数据来自 `StageDatabase`，只列 Forest 01/06/08/10）作可运行演示。真正的「WorldMap → 逐关推进」留 Phase 6/7。
 
 ## 目标
 
@@ -623,7 +630,8 @@ Chat 02  Phase 1   Core Stage Data Model             ✅ 完成
 Chat 03  Phase 2   Stage Database + Forest            ✅ 完成
 Chat 04  Phase 3   Player Progress                    ✅ 完成
 Chat 05  Phase 4   StageRouter                        ✅ 完成
-Chat 06  Phase 5   Combat / Town Integration          ← 当前
+Chat 06  Phase 5   Combat / Town Integration          ✅ 完成
+Chat 07  Phase 6   WorldMap Integration               ← 当前
 Chat 07  Phase 6   WorldMap Integration
 Chat 08  Phase 7   Completion / Return Flow
 Chat 09  Phase 8   Save / Load

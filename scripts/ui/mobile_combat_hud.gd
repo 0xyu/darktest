@@ -12,6 +12,9 @@ signal next_stage_requested
 signal auto_toggle_requested
 signal farming_toggle_requested
 signal game_speed_requested(speed: int)
+## Forwarded from the DEV panel's AREA STAGES section: request entry to an
+## authored area stage. grid_combat resolves it via StageRouter.
+signal area_stage_enter_requested(area_id: StringName, stage_number: int)
 
 @onready var _stage_manager: Node = get_parent().get_node_or_null("StageManager")
 @onready var _turn_manager: Node = get_parent().get_node_or_null("TurnManager")
@@ -48,6 +51,11 @@ signal game_speed_requested(speed: int)
 @onready var _main_navigation: MainNavigation = %MainNavigation
 @onready var _enemy_summary_panel: EnemySummaryPanel = %EnemySummaryPanel
 @onready var _combat_actions: CombatActions = %CombatActions
+# The two top-level views swapped in the ViewContainer (same-scene view switch).
+# Kept as Control so a cold headless harness does not depend on the TownView
+# class being present in Godot's global class cache.
+@onready var _combat_view: Control = %CombatView
+@onready var _town_view: Control = %TownView
 
 
 var _critical_time_remaining: float = 0.0
@@ -83,6 +91,16 @@ func _ready() -> void:
 	_shop_panel.data_changed.connect(_on_shop_data_changed)
 	_assignment_panel.set_player(_player)
 	_assignment_panel.data_changed.connect(_on_assignment_data_changed)
+	# Phase 5: DEV town entry / AREA STAGES entry, and TownView facility wiring.
+	_development_panel.town_view_requested.connect(_on_town_view_requested)
+	_development_panel.area_stage_enter_requested.connect(_on_dev_area_stage_enter_requested)
+	if _town_view != null:
+		if _town_view.has_signal("close_requested"):
+			_town_view.connect("close_requested", show_combat)
+		if _town_view.has_signal("warehouse_requested"):
+			_town_view.connect("warehouse_requested", _on_town_warehouse_requested)
+		if _town_view.has_signal("skills_requested"):
+			_town_view.connect("skills_requested", _on_town_skills_requested)
 	if _sub_hero_row.has_signal("slot_selected"):
 		_sub_hero_row.slot_selected.connect(_on_sub_hero_slot_selected)
 	_inventory_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
@@ -131,6 +149,43 @@ func _on_bestiary_button_pressed() -> void:
 
 func _on_dev_button_pressed() -> void:
 	_development_panel.toggle_panel()
+
+
+func _on_town_view_requested() -> void:
+	show_town()
+
+
+## Forwarded from the DEV panel's AREA STAGES section to grid_combat.
+func _on_dev_area_stage_enter_requested(area_id: StringName, stage_number: int) -> void:
+	area_stage_enter_requested.emit(area_id, stage_number)
+
+
+func _on_town_warehouse_requested() -> void:
+	if _inventory_panel != null:
+		_inventory_panel.show_warehouse()
+
+
+func _on_town_skills_requested() -> void:
+	if _skill_panel != null:
+		_skill_panel.show_panel()
+
+
+## Switches the main ViewContainer view over to the town hub (TownView). Used by
+## the DEV town entry and by StageRouter TOWN entries; the battlefield keeps its
+## state behind the HUD.
+func show_town() -> void:
+	if _town_view != null:
+		_town_view.visible = true
+	if _combat_view != null:
+		_combat_view.visible = false
+
+
+## Restores the combat view (town close / back to battle).
+func show_combat() -> void:
+	if _town_view != null:
+		_town_view.visible = false
+	if _combat_view != null:
+		_combat_view.visible = true
 
 
 func _on_skills_button_pressed() -> void:

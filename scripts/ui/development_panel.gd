@@ -13,11 +13,16 @@ signal data_changed
 ## Emitted when the DEV panel's town entry is pressed; the HUD switches the
 ## main view from CombatView to the town hub (TownView).
 signal town_view_requested
+## Emitted when an AREA STAGES button is pressed; the HUD forwards it to
+## grid_combat, which resolves the authored stage through StageRouter.
+signal area_stage_enter_requested(area_id: StringName, stage_number: int)
 
 const UIFixtureScript = preload("res://tests/fixtures/ui_fixture.gd")
 const SubHeroCatalogResource = preload("res://scripts/sub_hero/sub_hero_catalog.gd")
 const SubHeroInstanceResource = preload("res://scripts/sub_hero/sub_hero_instance.gd")
 const SubHeroQualityResource = preload("res://scripts/sub_hero/sub_hero_quality.gd")
+const StageDatabaseScript = preload("res://scripts/data/stage_database.gd")
+const StageTypeScript = preload("res://scripts/data/stage_type.gd")
 
 const SLOT_COUNT: int = 7  # EquipmentSlot.WEAPON .. AMULET
 
@@ -42,6 +47,14 @@ const COLOR_RARITY := {
 	EquipmentRarity.EPIC: Color("b995ef"),
 	EquipmentRarity.LEGENDARY: Color("e8af4f"),
 	EquipmentRarity.MYTHIC: Color("f078b2"),
+}
+
+## Accent per authored StageType, used by the AREA STAGES demo buttons.
+const COLOR_STAGE_TYPE := {
+	StageTypeScript.COMBAT: COLOR_TEXT,
+	StageTypeScript.EVENT: Color("c9bdb4"),
+	StageTypeScript.TOWN: COLOR_GOLD,
+	StageTypeScript.BOSS: COLOR_RED,
 }
 
 var _player: PlayerController
@@ -237,6 +250,8 @@ func _build_ui() -> void:
 	content.add_child(_build_header())
 	content.add_child(_section_title("TOWN"))
 	content.add_child(_build_town_actions())
+	content.add_child(_section_title("AREA STAGES"))
+	content.add_child(_build_area_stage_actions())
 	content.add_child(_section_title("GENERATE ITEM"))
 	content.add_child(_build_rarity_grid())
 	content.add_child(_section_title("FIXTURES"))
@@ -285,6 +300,43 @@ func _build_town_actions() -> VBoxContainer:
 	box.add_theme_constant_override("separation", 8)
 	box.add_child(_make_button("OPEN TOWN VIEW", COLOR_GOLD, open_town))
 	return box
+
+
+## Builds a "enter this authored area stage" demo list straight from the area's
+## StageDatabase (stage_type driven, never stage-number hard-coded). Only the
+## showcase nodes are shown: stage 1 plus every stage that differs from the
+## area's shared default rule (Forest -> 01 COMBAT / 06 EVENT / 08 TOWN / 10 BOSS).
+func _build_area_stage_actions() -> GridContainer:
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	var database: Resource = StageDatabaseScript.load_area(&"forest")
+	if database == null:
+		var empty := Label.new()
+		empty.text = "No area authored"
+		empty.add_theme_color_override("font_color", COLOR_MUTED)
+		grid.add_child(empty)
+		return grid
+	var default_type: int = int(database.get("default_stage_type"))
+	for number in range(1, int(database.get("stage_count")) + 1):
+		var stage: Resource = database.call("get_stage", number)
+		if stage == null:
+			continue
+		var stage_type: int = int(stage.get("stage_type"))
+		if number != 1 and stage_type == default_type:
+			continue
+		var label: String = "FOREST %02d · %s" % [number, StageTypeScript.get_display_name(stage_type)]
+		var accent: Color = COLOR_STAGE_TYPE.get(stage_type, COLOR_TEXT)
+		grid.add_child(_make_button(label, accent, _enter_area_stage.bind(&"forest", number)))
+	return grid
+
+
+## QA entry point for an authored area stage: hides the DEV panel and lets the
+## HUD/grid_combat resolve the stage through StageRouter.
+func _enter_area_stage(area_id: StringName, stage_number: int) -> void:
+	hide_panel()
+	area_stage_enter_requested.emit(area_id, stage_number)
 
 
 func _build_rarity_grid() -> GridContainer:

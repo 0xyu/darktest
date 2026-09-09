@@ -3,6 +3,8 @@ extends Node2D
 
 const SpecialEncounterTypeResource = preload("res://scripts/systems/special_encounter_type.gd")
 const SubHeroAttackEffectResource = preload("res://scripts/combat/sub_hero_attack_effect.gd")
+const StageRouterScript = preload("res://scripts/systems/stage_router.gd")
+const PlayerProgressScript = preload("res://scripts/progress/player_progress.gd")
 ## The battlefield spans the full screen width up to this cap (the base 720px
 ## design width), so it stays a sane size on very wide windows or devices.
 const MAX_GRID_WIDTH: float = 720.0
@@ -25,6 +27,11 @@ var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
 var _grid_play_area: Rect2 = Rect2()
 var _defeat_retry_scheduled: bool = false
+## Phase 5 area/stage entry host: resolves an authored stage via StageRouter and
+## starts the matching gameplay (battle / town / event). Kept separate from the
+## endless battle loop, which this scene continues to drive unchanged.
+var _stage_router: StageRouter
+var _player_progress: PlayerProgress
 
 
 func _ready() -> void:
@@ -74,6 +81,11 @@ func _ready() -> void:
 	hud.auto_toggle_requested.connect(_on_hud_auto_toggle_requested)
 	hud.farming_toggle_requested.connect(_on_hud_farming_toggle_requested)
 	hud.game_speed_requested.connect(_on_hud_game_speed_requested)
+	# Phase 5: stage entry host — resolved routes start the matching gameplay.
+	_stage_router = StageRouterScript.new()
+	_player_progress = PlayerProgressScript.new()
+	_stage_router.enter_requested.connect(_apply_stage_entry)
+	hud.area_stage_enter_requested.connect(_on_hud_area_stage_enter_requested)
 	auto_combat.attach_systems(player, turn_manager, combat_system, stage_manager, grid)
 	auto_combat.auto_mode_changed.connect(_on_auto_mode_changed)
 	auto_combat.farming_changed.connect(_on_farming_changed)
@@ -168,6 +180,77 @@ func _can_advance_to_next_stage() -> bool:
 		and not auto_combat.is_auto_enabled()
 		and _player_is_on_stage_exit()
 	)
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 — Area / Stage typed entry host.
+# Resolves an authored stage through StageRouter (stage_type driven, never
+# stage-number hard-coded) and starts the matching gameplay: COMBAT/BOSS ->
+# battle via the existing StageManager, TOWN -> the town view, EVENT -> a
+# placeholder message. The default endless battle loop is left untouched.
+# ---------------------------------------------------------------------------
+
+## The map/area progress object this scene advances when a typed stage is
+## entered. Public so Phase 6/7 wiring and tests can read the current position.
+func get_stage_progress() -> PlayerProgress:
+	return _player_progress
+
+
+## Requests entry to an authored area stage, e.g. enter_area_stage(&"forest", 8).
+## Returns true when the stage is authored and its gameplay has been started.
+## Returns false (with a status message) for unknown / un-authored / out-of-range
+## stages; unlock gating remains a Phase 7 flow concern.
+func enter_area_stage(area_id: StringName, stage_number: int) -> bool:
+	if _stage_router == null:
+		return false
+	if _stage_router.request_enter(area_id, stage_number):
+		return true
+	var route: Dictionary = _stage_router.route(area_id, stage_number)
+	_last_move_text = str(route.get("reason", "Cannot enter that stage."))
+	queue_redraw()
+	return false
+
+
+## Forwarded from the HUD (DEV panel's AREA STAGES section).
+func _on_hud_area_stage_enter_requested(area_id: StringName, stage_number: int) -> void:
+	enter_area_stage(area_id, stage_number)
+
+
+## Dispatches one resolved stage route into the matching gameplay. Connected to
+## StageRouter.enter_requested so any request_enter call lands here.
+func _apply_stage_entry(route: Dictionary) -> void:
+	if _stage_router == null or _player_progress == null:
+		return
+	if not bool(route.get("ok", false)):
+		return
+	var area_id: StringName = StringName(route.get("area_id", &""))
+	var stage_number: int = int(route.get("stage_number", 0))
+	var stage_id: String = str(route.get("stage_id", ""))
+	_player_progress.current_area_id = area_id
+	_player_progress.current_stage_number = stage_number
+	var destination: int = int(route.get("destination", StageRouterScript.Destination.NONE))
+	match destination:
+		StageRouterScript.Destination.COMBAT:
+			_start_battle_for_area_stage(stage_id, stage_number)
+		StageRouterScript.Destination.TOWN:
+			_last_move_text = "AREA %s // TOWN VIEW — enter a facility" % stage_id
+			hud.show_town()
+		StageRouterScript.Destination.EVENT:
+			_last_move_text = "AREA %s // EVENT — placeholder (content in a later phase)" % stage_id
+		_:
+			_last_move_text = "AREA %s // no gameplay destination yet" % stage_id
+	queue_redraw()
+
+
+## Starts a battle for an authored COMBAT/BOSS stage. The battle level defaults to
+## the authored stage number (Forest 01..10 <-> battle level 1..10); an authored
+## override can later be read from StageData.combat_data here without touching
+## callers or the routing table.
+func _start_battle_for_area_stage(stage_id: String, stage_number: int) -> bool:
+	_last_move_text = "AREA %s // COMBAT begins" % stage_id
+	if stage_manager == null:
+		return false
+	return stage_manager.initialize_stage(maxi(stage_number, 1))
 
 
 func _refresh_arena_markers() -> void:
