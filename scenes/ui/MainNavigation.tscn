@@ -1,50 +1,19 @@
 [gd_scene format=3 uid="uid://c8c3uy5khbnen"]
 
 [ext_resource type="Script" uid="uid://c1mosyihgh33k" path="res://scripts/ui/main_navigation.gd" id="1_script"]
-[ext_resource type="Script" uid="uid://bcx7vh63wb7r5" path="res://scripts/ui/resource_orb.gd" id="2_orb"]
 [ext_resource type="Texture2D" uid="uid://bq4lhqm8s5lla" path="res://assets/ui/buttons/character.png" id="3_character"]
-[ext_resource type="Texture2D" uid="uid://skxrfae77u10" path="res://assets/ui/buttons/bag.png" id="4_inventory"]
-[ext_resource type="Texture2D" uid="uid://pypxepw7aauv" path="res://assets/ui/buttons/forge.png" id="5_forge"]
+[ext_resource type="Texture2D" uid="uid://8iccdfsn5m1b" path="res://assets/ui/buttons/bag2.png" id="4_ux0i3"]
 [ext_resource type="Texture2D" uid="uid://dqnmik365ychk" path="res://assets/ui/buttons/map.png" id="6_modes"]
-[ext_resource type="Texture2D" uid="uid://h5x3kw7p10fi" path="res://assets/ui/buttons/reward.png" id="7_rewards"]
-[ext_resource type="Texture2D" uid="uid://clixn6m3a3a1h" path="res://assets/ui/buttons/shop.png" id="8_shop"]
-[ext_resource type="Texture2D" uid="uid://bpvvle0jrr152" path="res://assets/ui/buttons/btn-bg-normal.png" id="9_character_bg"]
-[ext_resource type="Texture2D" uid="uid://du5qlebvvoord" path="res://assets/ui/hud/hp-mana.png" id="10_resource_frame"]
+[ext_resource type="Texture2D" uid="uid://bruscm0if6iox" path="res://assets/ui/buttons/tressurebox.png" id="6_q48gk"]
+[ext_resource type="Texture2D" uid="uid://cgkugw42dhj05" path="res://assets/ui/buttons/shop2.png" id="7_bi3pk"]
+[ext_resource type="Texture2D" uid="uid://bpyhqrw1oeu80" path="res://assets/ui/buttons/buttongroup.png" id="9_button_group"]
 
-[sub_resource type="StyleBoxFlat" id="PanelStyle"]
-bg_color = Color(0.03529412, 0.03137255, 0.050980393, 1)
-border_width_left = 1
-border_width_top = 2
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.357, 0.259, 0.176, 1)
-
-[sub_resource type="StyleBoxFlat" id="ButtonNormal"]
-bg_color = Color(0, 0, 0, 0)
-
-[sub_resource type="StyleBoxFlat" id="ButtonPressed"]
-bg_color = Color(0.8, 0.58, 0.2, 0.2)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.898, 0.725, 0.361, 1)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
-
-[sub_resource type="StyleBoxFlat" id="ButtonHover"]
-bg_color = Color(0.8, 0.58, 0.2, 0.12)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.357, 0.259, 0.176, 1)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
+[sub_resource type="StyleBoxTexture" id="PanelStyle"]
+content_margin_left = 1.0
+content_margin_top = 2.0
+content_margin_right = 1.0
+content_margin_bottom = 1.0
+texture = ExtResource("9_button_group")
 
 [node name="MainNavigation" type="Control" unique_id=652481922]
 layout_mode = 3
@@ -64,69 +33,59 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("PanelStyle")
 
-[node name="Margin" type="MarginContainer" parent="Panel" unique_id=1121811351]
-layout_mode = 2
+[node name="Margin" type="MarginContainer" parent="." unique_id=1121811351]
+layout_mode = 0
+offset_top = 30.0
+offset_right = 720.0
+offset_bottom = 178.0
 theme_override_constants/margin_left = 7
 theme_override_constants/margin_top = 4
 theme_override_constants/margin_right = 7
 theme_override_constants/margin_bottom = 4
 
-[node name="Row" type="HBoxContainer" parent="Panel/Margin" unique_id=1393656004]
+[node name="Row" type="HBoxContainer" parent="Margin" unique_id=1393656004]
 layout_mode = 2
-theme_override_constants/separation = 2
+theme_override_constants/separation = 16
 
-[node name="LeftNavigationItems" type="HBoxContainer" parent="Panel/Margin/Row" unique_id=1943500348]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 1
-
-[node name="CharacterNavigationItem" type="Control" parent="Panel/Margin/Row/LeftNavigationItems" unique_id=1421404360]
-custom_minimum_size = Vector2(0, 190)
+[node name="CharacterNavigationItem" type="TextureButton" parent="Margin/Row" unique_id=121393724]
+custom_maximum_size = Vector2(110, -1)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ButtonBackground" type="TextureRect" parent="Panel/Margin/Row/LeftNavigationItems/CharacterNavigationItem" unique_id=1151908823]
+[node name="Control" type="Control" parent="Margin/Row/CharacterNavigationItem" unique_id=157964582]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 2.0
-offset_top = 2.0
-offset_right = -2.0
-offset_bottom = -2.0
+offset_top = 17.0
+offset_bottom = -22.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
-texture = ExtResource("9_character_bg")
-expand_mode = 1
-stretch_mode = 5
 
-[node name="Icon" type="TextureRect" parent="Panel/Margin/Row/LeftNavigationItems/CharacterNavigationItem" unique_id=2051147891]
+[node name="Icon" type="TextureRect" parent="Margin/Row/CharacterNavigationItem/Control" unique_id=2051147891]
 layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 3.0
-offset_top = 3.0
-offset_right = -3.0
-offset_bottom = -31.0
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -40.0
+offset_right = 40.0
+offset_bottom = 80.0
 grow_horizontal = 2
-grow_vertical = 2
 mouse_filter = 2
 texture = ExtResource("3_character")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Label" type="Label" parent="Panel/Margin/Row/LeftNavigationItems/CharacterNavigationItem" unique_id=1328306540]
+[node name="Label" type="Label" parent="Margin/Row/CharacterNavigationItem/Control" unique_id=1328306540]
 layout_mode = 1
-anchors_preset = 12
+anchors_preset = 7
+anchor_left = 0.5
 anchor_top = 1.0
-anchor_right = 1.0
+anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = 1.0
-offset_top = -68.0
-offset_right = 1.0
-offset_bottom = -40.0
+offset_left = -29.0
+offset_top = -19.0
+offset_right = 29.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.91, 0.875, 0.816, 1)
@@ -135,241 +94,90 @@ text = "CHARACTER"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Button" type="Button" parent="Panel/Margin/Row/LeftNavigationItems/CharacterNavigationItem" unique_id=1330110863]
-visible = false
+[node name="InventoryBtn" type="TextureButton" parent="Margin/Row" unique_id=191967815]
+custom_maximum_size = Vector2(110, -1)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Control" type="Control" parent="Margin/Row/InventoryBtn" unique_id=1325682625]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_top = 17.0
+offset_bottom = -22.0
 grow_horizontal = 2
 grow_vertical = 2
-focus_mode = 0
-theme_override_styles/normal = SubResource("ButtonNormal")
-theme_override_styles/pressed = SubResource("ButtonPressed")
-theme_override_styles/hover = SubResource("ButtonHover")
-flat = true
 
-[node name="InventoryNavigationItem" type="TextureButton" parent="Panel/Margin/Row/LeftNavigationItems" unique_id=1736435168]
-custom_minimum_size = Vector2(0, 190)
-layout_mode = 2
-size_flags_horizontal = 3
-texture_normal = ExtResource("4_inventory")
-ignore_texture_size = true
+[node name="Icon" type="TextureRect" parent="Margin/Row/InventoryBtn/Control" unique_id=2125544056]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -40.0
+offset_right = 40.0
+offset_bottom = 80.0
+grow_horizontal = 2
+mouse_filter = 2
+texture = ExtResource("4_ux0i3")
+expand_mode = 1
 stretch_mode = 5
 
-[node name="InventoryLabel" type="Label" parent="Panel/Margin/Row/LeftNavigationItems/InventoryNavigationItem" unique_id=670807580]
+[node name="Label" type="Label" parent="Margin/Row/InventoryBtn/Control" unique_id=2030320044]
 layout_mode = 1
-anchors_preset = 12
+anchors_preset = 7
+anchor_left = 0.5
 anchor_top = 1.0
-anchor_right = 1.0
+anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = 3.0
-offset_top = -56.0
-offset_right = 3.0
-offset_bottom = -28.0
+offset_left = -29.0
+offset_top = -19.0
+offset_right = 29.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.91, 0.875, 0.816, 1)
 theme_override_font_sizes/font_size = 10
 text = "INVENTORY"
 horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="ForgeNavigationItem" type="Control" parent="Panel/Margin/Row/LeftNavigationItems" unique_id=184040365]
-custom_minimum_size = Vector2(0, 190)
+[node name="ModesNavigationItem" type="TextureButton" parent="Margin/Row" unique_id=1213777700]
 layout_mode = 2
 size_flags_horizontal = 3
-
-[node name="ButtonBackground2" type="TextureRect" parent="Panel/Margin/Row/LeftNavigationItems/ForgeNavigationItem" unique_id=1280534356]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 13.0
-offset_top = 6.0
-offset_right = 15.0
-offset_bottom = 2.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-texture = ExtResource("9_character_bg")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="Icon2" type="TextureRect" parent="Panel/Margin/Row/LeftNavigationItems/ForgeNavigationItem" unique_id=908377541]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 12.0
-offset_top = 4.0
-offset_right = 12.0
-offset_bottom = -3.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-texture = ExtResource("5_forge")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="Button2" type="Button" parent="Panel/Margin/Row/LeftNavigationItems/ForgeNavigationItem" unique_id=1017653491]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 14.0
-offset_top = 1.0
-offset_right = 14.0
-offset_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-focus_mode = 0
-theme_override_styles/normal = SubResource("ButtonNormal")
-theme_override_styles/pressed = SubResource("ButtonPressed")
-theme_override_styles/hover = SubResource("ButtonHover")
-flat = true
-
-[node name="ForgeLabel" type="Label" parent="Panel/Margin/Row/LeftNavigationItems/ForgeNavigationItem" unique_id=1137567033]
-layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 17.0
-offset_top = -57.0
-offset_right = 17.0
-offset_bottom = -29.0
-grow_horizontal = 2
-grow_vertical = 0
-theme_override_colors/font_color = Color(0.91, 0.875, 0.816, 1)
-theme_override_font_sizes/font_size = 10
-text = "FORGE"
-horizontal_alignment = 1
-
-[node name="PlayerResourceStatus" type="Control" parent="Panel/Margin/Row" unique_id=1695516874]
-custom_minimum_size = Vector2(0, 190)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_stretch_ratio = 1.25
-
-[node name="HPOrb" type="Control" parent="Panel/Margin/Row/PlayerResourceStatus" unique_id=1374184337]
-anchors_preset = 0
-offset_left = 15.0
-offset_top = -18.0
-offset_right = 134.0
-offset_bottom = 130.0
-mouse_filter = 2
-script = ExtResource("2_orb")
-
-[node name="ManaOrb" type="Control" parent="Panel/Margin/Row/PlayerResourceStatus" unique_id=2006998597]
-anchors_preset = 0
-offset_left = 151.0
-offset_top = -18.0
-offset_right = 270.0
-offset_bottom = 130.0
-mouse_filter = 2
-script = ExtResource("2_orb")
-
-[node name="ResourceFrame" type="TextureRect" parent="Panel/Margin/Row/PlayerResourceStatus" unique_id=776215825]
-layout_mode = 0
-offset_left = 9.0
-offset_top = -32.0
-offset_right = 270.0
-offset_bottom = 146.0
-mouse_filter = 2
-texture = ExtResource("10_resource_frame")
-expand_mode = 1
-
-[node name="HPValue" type="Label" parent="Panel/Margin/Row/PlayerResourceStatus" unique_id=2142146162]
-unique_name_in_owner = true
-layout_mode = 0
-offset_left = 17.0
-offset_top = 105.0
-offset_right = 115.0
-offset_bottom = 127.0
-theme_override_colors/font_color = Color(0.945, 0.839, 0.816, 1)
-theme_override_font_sizes/font_size = 10
-text = "0 / 0"
-horizontal_alignment = 1
-
-[node name="ManaValue" type="Label" parent="Panel/Margin/Row/PlayerResourceStatus" unique_id=1265902628]
-unique_name_in_owner = true
-layout_mode = 0
-offset_left = 168.0
-offset_top = 105.0
-offset_right = 266.0
-offset_bottom = 127.0
-theme_override_colors/font_color = Color(0.835, 0.902, 1, 1)
-theme_override_font_sizes/font_size = 10
-text = "0 / 0"
-horizontal_alignment = 1
-
-[node name="LevelValue" type="Label" parent="Panel/Margin/Row/PlayerResourceStatus" unique_id=1935960479]
-unique_name_in_owner = true
-layout_mode = 0
-offset_left = 117.0
-offset_top = 74.0
-offset_right = 166.0
-offset_bottom = 101.0
-theme_override_colors/font_color = Color(0.91, 0.875, 0.816, 1)
-theme_override_font_sizes/font_size = 16
-text = "1"
-horizontal_alignment = 1
-
-[node name="ExperienceBar" type="ColorRect" parent="Panel/Margin/Row/PlayerResourceStatus" unique_id=1222686241]
-unique_name_in_owner = true
-layout_mode = 0
-offset_left = 27.0
-offset_top = 134.0
-offset_right = 256.0
-offset_bottom = 142.0
-mouse_filter = 2
-color = Color(0.09, 0.086, 0.125, 1)
-
-[node name="ExperienceFill" type="ColorRect" parent="Panel/Margin/Row/PlayerResourceStatus/ExperienceBar" unique_id=1664277076]
-unique_name_in_owner = true
-layout_mode = 0
-offset_left = 1.0
-offset_top = 1.0
-offset_bottom = 7.0
-mouse_filter = 2
-color = Color(0.259, 0.839, 0.863, 1)
-
-[node name="ExperiencePercent" type="Label" parent="Panel/Margin/Row/PlayerResourceStatus" unique_id=97786497]
-unique_name_in_owner = true
-layout_mode = 0
-offset_left = 108.0
-offset_top = 143.0
-offset_right = 175.0
-offset_bottom = 160.0
-theme_override_colors/font_color = Color(0.259, 0.839, 0.863, 1)
-theme_override_font_sizes/font_size = 10
-text = "0.0%"
-horizontal_alignment = 1
-
-[node name="RightNavigationItems" type="HBoxContainer" parent="Panel/Margin/Row" unique_id=646055890]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 1
-
-[node name="ModesNavigationItem" type="TextureButton" parent="Panel/Margin/Row/RightNavigationItems" unique_id=1213777700]
-custom_minimum_size = Vector2(0, 190)
-layout_mode = 2
-size_flags_horizontal = 3
-texture_normal = ExtResource("6_modes")
 ignore_texture_size = true
 stretch_mode = 5
 
-[node name="ModesLabel" type="Label" parent="Panel/Margin/Row/RightNavigationItems/ModesNavigationItem" unique_id=561473416]
+[node name="Control" type="Control" parent="Margin/Row/ModesNavigationItem" unique_id=1347969148]
+anchors_preset = 0
+offset_left = 54.0
+offset_top = 19.0
+offset_right = 152.0
+offset_bottom = 115.0
+
+[node name="TextureRect" type="TextureRect" parent="Margin/Row/ModesNavigationItem/Control" unique_id=280555994]
 layout_mode = 1
-anchors_preset = 12
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -53.0
+offset_top = -15.0
+offset_right = 54.0
+offset_bottom = 92.0
+grow_horizontal = 2
+texture = ExtResource("6_modes")
+expand_mode = 1
+
+[node name="ModesLabel" type="Label" parent="Margin/Row/ModesNavigationItem/Control" unique_id=561473416]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
 anchor_top = 1.0
-anchor_right = 1.0
+anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -2.0
-offset_top = -54.499985
-offset_right = -2.0
-offset_bottom = -26.499985
+offset_left = -26.0
+offset_top = -8.0
+offset_right = 28.0
+offset_bottom = 9.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.91, 0.875, 0.816, 1)
@@ -377,55 +185,98 @@ theme_override_font_sizes/font_size = 10
 text = "COMBAT"
 horizontal_alignment = 1
 
-[node name="RewardsNavigationItem" type="TextureButton" parent="Panel/Margin/Row/RightNavigationItems" unique_id=1589675786]
-custom_minimum_size = Vector2(0, 190)
+[node name="RewardBtn" type="TextureButton" parent="Margin/Row" unique_id=1492115794]
+custom_maximum_size = Vector2(110, -1)
 layout_mode = 2
 size_flags_horizontal = 3
-texture_normal = ExtResource("7_rewards")
-ignore_texture_size = true
-stretch_mode = 5
 
-[node name="RewardsLabel" type="Label" parent="Panel/Margin/Row/RightNavigationItems/RewardsNavigationItem" unique_id=344105697]
+[node name="Control" type="Control" parent="Margin/Row/RewardBtn" unique_id=631121619]
 layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -52.499985
-offset_bottom = -24.499985
+offset_top = 17.0
+offset_bottom = -22.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Icon" type="TextureRect" parent="Margin/Row/RewardBtn/Control" unique_id=1706520745]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -40.0
+offset_top = 6.0
+offset_right = 40.0
+offset_bottom = 86.0
+grow_horizontal = 2
+mouse_filter = 2
+texture = ExtResource("6_q48gk")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Label" type="Label" parent="Margin/Row/RewardBtn/Control" unique_id=325077219]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -29.0
+offset_top = -19.0
+offset_right = 29.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.91, 0.875, 0.816, 1)
 theme_override_font_sizes/font_size = 10
-text = "REWARDS"
+text = "REWARD"
 horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="ShopNavigationItem" type="TextureButton" parent="Panel/Margin/Row/RightNavigationItems" unique_id=553527315]
-custom_minimum_size = Vector2(0, 190)
+[node name="CharacterNavigationItem2" type="TextureButton" parent="Margin/Row" unique_id=518067116]
+custom_maximum_size = Vector2(110, -1)
 layout_mode = 2
 size_flags_horizontal = 3
-texture_normal = ExtResource("8_shop")
-ignore_texture_size = true
-stretch_mode = 5
 
-[node name="ShopLabel" type="Label" parent="Panel/Margin/Row/RightNavigationItems/ShopNavigationItem" unique_id=411029260]
+[node name="Control" type="Control" parent="Margin/Row/CharacterNavigationItem2" unique_id=239139954]
 layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 2.0
-offset_top = -53.499985
-offset_right = 2.0
-offset_bottom = -25.499985
+offset_top = 17.0
+offset_bottom = -22.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Icon" type="TextureRect" parent="Margin/Row/CharacterNavigationItem2/Control" unique_id=171542476]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -40.0
+offset_top = 4.0
+offset_right = 40.0
+offset_bottom = 84.0
+grow_horizontal = 2
+mouse_filter = 2
+texture = ExtResource("7_bi3pk")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Label" type="Label" parent="Margin/Row/CharacterNavigationItem2/Control" unique_id=1818360550]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -29.0
+offset_top = -19.0
+offset_right = 29.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.91, 0.875, 0.816, 1)
 theme_override_font_sizes/font_size = 10
 text = "SHOP"
 horizontal_alignment = 1
-
-[connection signal="pressed" from="Panel/Margin/Row/LeftNavigationItems/CharacterNavigationItem/Button" to="." method="_on_character_pressed"]
-[connection signal="pressed" from="Panel/Margin/Row/LeftNavigationItems/InventoryNavigationItem" to="." method="_on_inventory_pressed"]
-[connection signal="pressed" from="Panel/Margin/Row/LeftNavigationItems/ForgeNavigationItem/Button2" to="." method="_on_character_pressed"]
-[connection signal="pressed" from="Panel/Margin/Row/RightNavigationItems/ShopNavigationItem" to="." method="_on_shop_pressed"]
+vertical_alignment = 1

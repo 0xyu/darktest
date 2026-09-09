@@ -222,7 +222,7 @@ func _refresh() -> void:
 	var current_hp: int = player_stats.current_hp if player_stats != null else 0
 	var max_hp: int = player_stats.max_hp if player_stats != null else 0
 	var experience_ratio: float = player_progression.get_experience_ratio() if player_progression != null else 0.0
-	_main_navigation.set_player_status(current_hp, max_hp, player_level, 0, 0, experience_ratio)
+	
 	if player_progression != null and _header_row != null:
 		_header_row.gold = player_progression.gold
 	if player_stats != null:

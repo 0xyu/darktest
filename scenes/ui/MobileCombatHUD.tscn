@@ -128,7 +128,7 @@ anchors_preset = 0
 
 [node name="MainLayout" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView" unique_id=1087228164]
 layout_mode = 0
-offset_right = 744.0
+offset_right = 724.0
 offset_bottom = 1080.0
 size_flags_vertical = 3
 metadata/_edit_lock_ = true
@@ -392,23 +392,10 @@ unique_name_in_owner = true
 z_index = 100
 layout_mode = 1
 
-[node name="Footer" type="Control" parent="Root/SafeArea/MainContent" unique_id=22225795]
-custom_minimum_size = Vector2(0, 220)
-layout_mode = 2
-size_flags_stretch_ratio = 0.15
-
-[node name="MainNavigation" parent="Root/SafeArea/MainContent/Footer" unique_id=1709475583 instance=ExtResource("22_navigation")]
+[node name="MainNavigation" parent="Root/SafeArea/MainContent" unique_id=1709475583 instance=ExtResource("22_navigation")]
 unique_name_in_owner = true
-layout_mode = 0
-anchors_preset = 0
-anchor_right = 0.0
-anchor_bottom = 0.0
-offset_left = -6.0
-offset_top = 91.0
-offset_right = 714.0
-offset_bottom = 91.0
-grow_horizontal = 1
-grow_vertical = 1
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
 
 [node name="DevelopmentPanel" parent="Root/SafeArea" unique_id=1999941089 instance=ExtResource("20_dev")]
 unique_name_in_owner = true
