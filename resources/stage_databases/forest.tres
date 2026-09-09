@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="StageDatabase" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/stage_database.gd" id="1_db"]
+[ext_resource type="Script" path="res://scripts/data/stage_data.gd" id="2_stage"]
+
+[sub_resource type="Resource" id="StageData_forest_006"]
+script = ExtResource("2_stage")
+stage_number = 6
+stage_type = 1
+display_name = "Forest Event"
+
+[sub_resource type="Resource" id="StageData_forest_008"]
+script = ExtResource("2_stage")
+stage_number = 8
+stage_type = 2
+display_name = "Forest Town"
+
+[sub_resource type="Resource" id="StageData_forest_010"]
+script = ExtResource("2_stage")
+stage_number = 10
+stage_type = 3
+display_name = "Forest Boss"
+
+[resource]
+script = ExtResource("1_db")
+area_id = &"forest"
+display_name = "Forest"
+stage_count = 10
+default_stage_type = 0
+special_stages = Array[ExtResource("2_stage")]([SubResource("StageData_forest_006"), SubResource("StageData_forest_008"), SubResource("StageData_forest_010")])
