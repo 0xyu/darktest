@@ -31,6 +31,9 @@ func _ready() -> void:
 	combat_system.attach_turn_manager(turn_manager)
 	combat_system.set_player_actor(player)
 	combat_system.connect_actor(player)
+	# Enemy turns wait for the hero's attack animation to finish so enemies
+	# never move/attack in the same beat as the player's own swing.
+	turn_manager.set_enemy_phase_waiter(combat_presentation)
 	combat_system.attack_resolved.connect(_on_attack_resolved)
 	combat_system.skill_resolved.connect(_on_skill_resolved)
 	combat_system.skill_failed.connect(_on_skill_failed)

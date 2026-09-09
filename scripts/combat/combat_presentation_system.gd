@@ -3,6 +3,12 @@ extends Node
 
 const GameLocaleResource = preload("res://scripts/systems/game_locale.gd")
 
+## Emitted once the last player attack sequence started by the hero's turn
+## action has fully finished playing. The turn system waits on this before
+## starting the enemy phase so enemies do not begin moving/attacking while the
+## player's own swing is still animating.
+signal player_attacks_idle
+
 ## Event-driven combat presentation layer. It only reacts to gameplay signals
 ## (damage is already resolved when they fire) and never writes gameplay,
 ## grid or turn state. All motion happens through CharacterToken offsets,
@@ -34,6 +40,9 @@ var _shake_tween: Tween
 var _shake_rng := RandomNumberGenerator.new()
 var _number_rng := RandomNumberGenerator.new()
 var _speed_multiplier: float = 1.0
+## Number of player attack sequences (basic attacks and per-target skill hits)
+## currently still animating. Reaches zero once the hero's action reads as done.
+var _active_player_attacks: int = 0
 
 
 func _ready() -> void:
@@ -97,10 +106,30 @@ func test_effect(case: StringName) -> void:
 # ---------------------------------------------------------------------------
 
 
+## True while the hero's attack animation from its current turn action is still
+## playing. The turn manager polls this before it lets enemies take their turn,
+## so a manual attack reads as one finished swing before the enemy reacts.
+func is_player_attack_active() -> bool:
+	return _active_player_attacks > 0
+
+
 func _on_attack_resolved(result: DamageResult) -> void:
 	if result == null:
 		return
-	_play_attack(result)
+	# Only the hero's own attack sequences gate the enemy phase; sub-hero and
+	# enemy strikes are independent and must never be counted here.
+	var is_player_attacker: bool = is_instance_valid(result.attacker) and result.attacker == _player
+	if is_player_attacker:
+		_active_player_attacks += 1
+	await _play_attack(result)
+	if not is_player_attacker:
+		return
+	# The sequence ends with the attacker's recovery step still running; let it
+	# settle so the hero is back in place before the enemy turn starts.
+	await _wait(CombatPresentationConfig.RECOVERY * _speed_multiplier)
+	_active_player_attacks = maxi(_active_player_attacks - 1, 0)
+	if _active_player_attacks == 0:
+		player_attacks_idle.emit()
 
 
 func _play_attack(result: DamageResult) -> void:
