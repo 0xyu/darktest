@@ -245,7 +245,6 @@ func _layout_portrait_grid() -> void:
 		combat_rect.position.y + (combat_rect.size.y - grid_pixel_size.y) * 0.5
 	)
 	_grid_play_area = Rect2(grid.origin - Vector2(8.0, 8.0), grid_pixel_size + Vector2(16.0, 16.0))
-	hud.layout_battle_support(grid.origin.y + grid_pixel_size.y, viewport_size)
 	grid.queue_redraw()
 	player.global_position = grid.grid_to_world(player.grid_position)
 	for enemy_node in _active_enemies:

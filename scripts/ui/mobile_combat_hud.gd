@@ -327,42 +327,6 @@ func clear_sub_hero_slots() -> void:
 		_sub_hero_row.call("clear_slots")
 
 
-## Keeps the support row immediately below the battlefield and the combat log
-## in the remaining gap before the bottom controls.
-func layout_battle_support(grid_bottom: float, viewport_size: Vector2) -> void:
-	if _sub_hero_row == null:
-		return
-	const SUB_HERO_HORIZONTAL_MARGIN: float = 24.0
-	const GRID_TO_SUB_HERO_GAP: float = 8.0
-	const SUPPORT_TO_LOG_GAP: float = 4.0
-	const COMBAT_LOG_HEIGHT: float = 120.0
-
-	_sub_hero_row.anchor_left = 0.0
-	_sub_hero_row.anchor_top = 0.0
-	_sub_hero_row.anchor_right = 1.0
-	_sub_hero_row.anchor_bottom = 0.0
-	_sub_hero_row.offset_left = SUB_HERO_HORIZONTAL_MARGIN
-	_sub_hero_row.offset_right = -SUB_HERO_HORIZONTAL_MARGIN
-	var row_top: float = grid_bottom + GRID_TO_SUB_HERO_GAP
-	var row_height: float = maxf(_sub_hero_row.get_combined_minimum_size().y, 1.0)
-	_sub_hero_row.offset_top = row_top
-	_sub_hero_row.offset_bottom = row_top + row_height
-
-	if _combat_log == null:
-		return
-	var bottom_panel_top: float = viewport_size.y - 300.0
-	var log_bottom: float = bottom_panel_top - SUPPORT_TO_LOG_GAP
-	var log_top: float = minf(row_top + row_height + SUPPORT_TO_LOG_GAP, log_bottom - COMBAT_LOG_HEIGHT)
-	_combat_log.anchor_left = 0.0
-	_combat_log.anchor_top = 0.0
-	_combat_log.anchor_right = 0.62
-	_combat_log.anchor_bottom = 0.0
-	_combat_log.offset_left = 16.0
-	_combat_log.offset_right = 0.0
-	_combat_log.offset_top = log_top
-	_combat_log.offset_bottom = log_bottom
-
-
 ## Returns the expanded battlefield area reserved by the combat layout.
 func get_combat_section_rect() -> Rect2:
 	if _combat_section == null:

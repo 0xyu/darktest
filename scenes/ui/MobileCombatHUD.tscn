@@ -8,6 +8,7 @@
 [ext_resource type="Texture2D" uid="uid://cubpxxjiwkgfx" path="res://assets/ui/hud/Hp_frame.png" id="7_hp_frame"]
 [ext_resource type="Texture2D" uid="uid://qen7qg7wgkcy" path="res://assets/ui/hud/Hp_red.png" id="8_hp_red"]
 [ext_resource type="Texture2D" uid="uid://oapcws70wxnd" path="res://assets/ui/hud/divider1.png" id="9_divider"]
+[ext_resource type="PackedScene" uid="uid://col7kjth2c4e1" path="res://scenes/ui/stage_control.tscn" id="9_eswka"]
 [ext_resource type="PackedScene" path="res://scenes/ui/EnemyBestiaryPanel.tscn" id="19_bestiary"]
 [ext_resource type="PackedScene" path="res://scenes/ui/DevelopmentPanel.tscn" id="20_dev"]
 [ext_resource type="PackedScene" uid="uid://cw65igmbhhnyo" path="res://scenes/ui/CombatLogPanel.tscn" id="21_log"]
@@ -316,21 +317,9 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "FASTEST"
 
-[node name="StateBanner" type="PanelContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=510967552]
-unique_name_in_owner = true
-visible = false
+[node name="StageControl" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=1428020522 instance=ExtResource("9_eswka")]
+custom_minimum_size = Vector2(0, 98)
 layout_mode = 2
-mouse_filter = 2
-theme_override_styles/panel = SubResource("StylePanel")
-
-[node name="StateLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/StateBanner" unique_id=942743284]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
-theme_override_font_sizes/font_size = 16
-text = "VICTORY"
-horizontal_alignment = 1
-vertical_alignment = 1
 
 [node name="HPBar" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView" unique_id=483732419]
 layout_mode = 0
@@ -404,6 +393,24 @@ layout_mode = 2
 [node name="SubHeroShopPanel" parent="Root" unique_id=1524388934 instance=ExtResource("24_shop")]
 unique_name_in_owner = true
 layout_mode = 1
+
+[node name="StateBanner" type="PanelContainer" parent="Root" unique_id=510967552]
+unique_name_in_owner = true
+visible = false
+layout_mode = 0
+offset_right = 69.0
+offset_bottom = 25.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StylePanel")
+
+[node name="StateLabel" type="Label" parent="Root/StateBanner" unique_id=942743284]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
+theme_override_font_sizes/font_size = 16
+text = "VICTORY"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="InventoryPanel" parent="Root" unique_id=1900479489 instance=ExtResource("3_inventory")]
 unique_name_in_owner = true

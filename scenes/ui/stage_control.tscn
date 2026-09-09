@@ -1,0 +1,183 @@
+[gd_scene format=3 uid="uid://col7kjth2c4e1"]
+
+[ext_resource type="Texture2D" uid="uid://bq3mtlhmqaeu4" path="res://assets/ui/panels/sageinfopanel.png" id="1_av8l8"]
+[ext_resource type="Texture2D" uid="uid://bsjdpgcw77en7" path="res://assets/ui/panels/stagecontrol.png" id="2_1e0qq"]
+[ext_resource type="Script" path="res://scripts/ui/stage_control.gd" id="3_stage_control"]
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_43gbb"]
+texture = ExtResource("1_av8l8")
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_ec8si"]
+texture = ExtResource("2_1e0qq")
+
+[node name="StageControl" type="Control" unique_id=1428020522]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("3_stage_control")
+metadata/_edit_lock_ = true
+
+[node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=214388048]
+layout_mode = 0
+offset_right = 720.0
+theme_override_constants/separation = 12
+metadata/_edit_lock_ = true
+
+[node name="StageInfo" type="Panel" parent="HBoxContainer" unique_id=289677493]
+custom_minimum_size = Vector2(214, 98)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxTexture_43gbb")
+
+[node name="TextureRect" type="TextureRect" parent="HBoxContainer/StageInfo" unique_id=2067188245]
+layout_mode = 0
+offset_left = 4.0
+offset_right = 4.0
+offset_bottom = 98.0
+
+[node name="Label" type="Label" parent="HBoxContainer/StageInfo/TextureRect" unique_id=1185290289]
+layout_mode = 1
+offset_left = 13.0
+offset_top = 16.0
+offset_right = 173.0
+offset_bottom = 82.0
+
+[node name="StageButtons" type="Panel" parent="HBoxContainer" unique_id=605148566]
+custom_minimum_size = Vector2(463, 97)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxTexture_ec8si")
+metadata/_edit_lock_ = true
+
+[node name="Control" type="Control" parent="HBoxContainer/StageButtons" unique_id=1339617200]
+anchors_preset = 0
+offset_left = 25.0
+offset_top = 25.0
+offset_right = 368.0
+offset_bottom = 78.0
+
+[node name="HBoxContainer" type="HBoxContainer" parent="HBoxContainer/StageButtons/Control" unique_id=929911614]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -1.0
+offset_bottom = -1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 19
+
+[node name="TextureButton" type="TextureButton" parent="HBoxContainer/StageButtons/Control/HBoxContainer" unique_id=878114133]
+custom_minimum_size = Vector2(41, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="HBoxContainer/StageButtons/Control/HBoxContainer/TextureButton" unique_id=1893581895]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -5.0
+offset_top = -11.5
+offset_right = 5.0
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "1"
+
+[node name="TextureButton2" type="TextureButton" parent="HBoxContainer/StageButtons/Control/HBoxContainer" unique_id=1137201286]
+custom_minimum_size = Vector2(41, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="HBoxContainer/StageButtons/Control/HBoxContainer/TextureButton2" unique_id=395170589]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -5.0
+offset_top = -11.5
+offset_right = 5.0
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "2"
+
+[node name="TextureButton3" type="TextureButton" parent="HBoxContainer/StageButtons/Control/HBoxContainer" unique_id=351086595]
+custom_minimum_size = Vector2(41, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="HBoxContainer/StageButtons/Control/HBoxContainer/TextureButton3" unique_id=149300352]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -5.0
+offset_top = -11.5
+offset_right = 5.0
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "3"
+
+[node name="TextureButton4" type="TextureButton" parent="HBoxContainer/StageButtons/Control/HBoxContainer" unique_id=788534577]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="HBoxContainer/StageButtons/Control/HBoxContainer/TextureButton4" unique_id=1585881726]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -5.0
+offset_top = -11.5
+offset_right = 5.0
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "4"
+
+[node name="TextureButton5" type="TextureButton" parent="HBoxContainer/StageButtons/Control/HBoxContainer" unique_id=1360332362]
+custom_minimum_size = Vector2(41, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="HBoxContainer/StageButtons/Control/HBoxContainer/TextureButton5" unique_id=253671226]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -5.0
+offset_top = -11.5
+offset_right = 5.0
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "5"
+
+[node name="TextureButton6" type="TextureButton" parent="HBoxContainer/StageButtons/Control/HBoxContainer" unique_id=145668359]
+custom_minimum_size = Vector2(41, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="HBoxContainer/StageButtons/Control/HBoxContainer/TextureButton6" unique_id=1357923120]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -5.0
+offset_top = -11.5
+offset_right = 5.0
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "6"
