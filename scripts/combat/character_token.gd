@@ -17,6 +17,7 @@ extends Node2D
 enum HitVariant { NORMAL, CRITICAL, HEAVY, MISS, DODGE, BLOCK, DEATH }
 
 signal motion_phase_finished
+signal move_finished
 signal death_finished
 
 const RED_FLASH_TINT: Color = Color(1.0, 0.32, 0.28)
@@ -28,6 +29,14 @@ var _rect: Rect2 = Rect2(-24.0, -27.0, 48.0, 48.0)
 var _shadow_scale: float = 1.0
 var _dying: bool = false
 var _motion_tween: Tween = null
+## Chained per-cell walk state. Gameplay may teleport the unit across several
+## grid cells within one decision (AUTO burst, enemy multi-cell chase); those
+## steps are queued and replayed one cell at a time so the token visibly walks
+## the grid instead of gliding over the whole path in a single leap.
+var _move_active: bool = false
+var _pending_steps: Array[Vector2] = []
+var _pending_durations: Array[float] = []
+var _step_to: Vector2 = Vector2.ZERO
 var _body: Node2D
 var _avatar: TokenDrawer
 var _flash: TokenDrawer
@@ -98,20 +107,35 @@ func setup(texture: Texture2D, rect: Rect2, nearest: bool) -> void:
 	queue_redraw()
 
 
-## Visual-only movement: the unit's real position already jumped to the new
-## cell, so the token starts at `offset` (old - new) and tweens back to ZERO
-## with a small hop and shadow response.
-func play_move(offset: Vector2, cells: int, fast: bool) -> void:
+## Visual-only movement: gameplay has already teleported the unit to the new
+## cell, so the token backs up by `offset` (old - new) and walks the one grid
+## cell back, with a small hop and shadow response. Consecutive calls issued
+## within one decision (AUTO burst, enemy multi-cell chase) are chained: each
+## step queues the freshly reached cell and is replayed one cell at a time, so
+## the token walks the grid instead of leaping across all cells at once.
+func play_move(offset: Vector2, _cells: int, fast: bool) -> void:
 	if _dying or offset == Vector2.ZERO:
 		return
+	var unit := get_parent() as Node2D
+	if unit == null or not is_instance_valid(unit):
+		return
+	if _move_active:
+		# Gameplay advanced again before the previous step settled: queue the
+		# freshly reached cell (one contiguous cell after the last target).
+		var reached: Vector2 = unit.global_position
+		var last: Vector2 = _step_to if _pending_steps.is_empty() else (_pending_steps.back() as Vector2)
+		if reached != last:
+			_pending_steps.append(reached)
+			_pending_durations.append(_move_step_duration(fast))
+		return
 	_start_motion()
-	position = offset
-	_body.position = Vector2.ZERO
-	var per_cell: float = CombatPresentationConfig.MOVE_DURATION_PER_CELL_FAST if fast else CombatPresentationConfig.MOVE_DURATION_PER_CELL
-	var duration: float = maxf(per_cell * float(maxi(cells, 1)) * speed_multiplier, 0.03)
-	_motion_tween = create_tween()
-	_motion_tween.tween_method(_apply_move_frame.bind(offset), 0.0, 1.0, duration)
-	_motion_tween.tween_callback(_finish_move)
+	_move_active = true
+	_pending_steps.clear()
+	_pending_durations.clear()
+	# The unit already sits at the destination; back the visual up by `offset`
+	# (old cell) so it walks one cell to the reached position.
+	var reached: Vector2 = unit.global_position
+	_begin_move_step(reached + offset, reached, _move_step_duration(fast))
 
 
 ## Hard reset of the transient offset (teleports, portrait-grid relayout).
@@ -229,6 +253,11 @@ func is_dying() -> bool:
 	return _dying
 
 
+## True while a (possibly multi-cell) walk is still animating or queued.
+func is_moving() -> bool:
+	return _move_active
+
+
 ## Full visual restore (revive after retry, dev-panel death test, cleanup).
 func reset_visuals() -> void:
 	_kill_motion(_is_motion_running())
@@ -284,8 +313,35 @@ func _play_flash(tint: Color) -> void:
 	flash_tween.tween_property(_flash, "modulate", Color(tint.r, tint.g, tint.b, 0.0), CombatPresentationConfig.FLASH * speed_multiplier)
 
 
-func _apply_move_frame(ratio: float, offset: Vector2) -> void:
-	position = offset.lerp(Vector2.ZERO, ratio)
+func _begin_move_step(from_world: Vector2, to_world: Vector2, duration: float) -> void:
+	_step_to = to_world
+	var unit := get_parent() as Node2D
+	if unit == null or not is_instance_valid(unit):
+		_move_active = false
+		return
+	position = from_world - unit.global_position
+	_body.position = Vector2.ZERO
+	_shadow_scale = 1.0
+	queue_redraw()
+	_motion_tween = create_tween()
+	_motion_tween.tween_method(_apply_move_step.bind(from_world, to_world), 0.0, 1.0, duration)
+	_motion_tween.tween_callback(_finish_move_step)
+
+
+func _move_step_duration(fast: bool) -> float:
+	var per_cell: float = CombatPresentationConfig.MOVE_DURATION_PER_CELL_FAST if fast else CombatPresentationConfig.MOVE_DURATION_PER_CELL
+	return maxf(per_cell * speed_multiplier, 0.03)
+
+
+func _apply_move_step(ratio: float, from_world: Vector2, to_world: Vector2) -> void:
+	# The parent may already sit several cells ahead (queued burst); render each
+	# frame at the interpolated world position by offsetting from the parent.
+	var unit := get_parent() as Node2D
+	var target: Vector2 = from_world.lerp(to_world, ratio)
+	if unit != null and is_instance_valid(unit):
+		position = target - unit.global_position
+	else:
+		position = target - to_world
 	var air: float = sin(clampf(ratio / 0.85, 0.0, 1.0) * PI)
 	_body.position = Vector2(0.0, -air * CombatPresentationConfig.MOVE_HOP)
 	if ratio < 0.75:
@@ -297,12 +353,20 @@ func _apply_move_frame(ratio: float, offset: Vector2) -> void:
 	queue_redraw()
 
 
-func _finish_move() -> void:
+func _finish_move_step() -> void:
+	if not _pending_steps.is_empty():
+		var next_to: Vector2 = _pending_steps.pop_front()
+		var next_duration: float = _pending_durations.pop_front()
+		_begin_move_step(_step_to, next_to, next_duration)
+		return
+	_move_active = false
+	_step_to = Vector2.ZERO
 	position = Vector2.ZERO
 	_body.position = Vector2.ZERO
 	_shadow_scale = 1.0
 	queue_redraw()
 	motion_phase_finished.emit()
+	move_finished.emit()
 
 
 func _apply_reaction_frame(ratio: float, knock: Vector2, amplitude: float) -> void:
@@ -339,6 +403,16 @@ func _is_motion_running() -> bool:
 ## Kills the active motion tween. `emit_finished` releases any coroutine that
 ## was awaiting motion_phase_finished for the interrupted phase.
 func _kill_motion(emit_finished: bool) -> void:
+	if _move_active:
+		# A walk (possibly with queued steps) is interrupted: drop the remaining
+		# steps so it never glides to stale targets. The offset is left as-is —
+		# the following phase (snap, reset, hit reaction, ...) repositions it,
+		# so the sprite is not yanked onto the destination mid-step.
+		_move_active = false
+		_pending_steps.clear()
+		_pending_durations.clear()
+		_step_to = Vector2.ZERO
+		move_finished.emit()
 	var old_tween: Tween = _motion_tween
 	_motion_tween = null
 	if old_tween != null and old_tween.is_valid():

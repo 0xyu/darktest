@@ -126,6 +126,14 @@ func _play_attack(result: DamageResult) -> void:
 	var attacker_token := _token_for(attacker)
 	var target_token := _token_for(target)
 
+	# If the attacker just moved this action, let its walk finish first so the
+	# sprite is seen stepping cell-by-cell; an immediate wind-up would cut the
+	# move short and snap/fling it across the whole multi-cell jump.
+	if attacker_token != null and attacker_token.is_moving():
+		await attacker_token.move_finished
+		if not is_instance_valid(attacker_token):
+			return
+
 	# 1) Anticipation, then dash (projectile casts hold position instead).
 	if attacker_token != null and not attacker_token.is_dying():
 		attacker_token.wind_up(dir, heavy, intensity)
@@ -203,6 +211,12 @@ func _play_death(actor: Node) -> void:
 	await _wait(CombatPresentationConfig.DEATH_DELAY * _speed_multiplier)
 	if not is_instance_valid(actor):
 		return
+	# The Player is never collapse-hidden: PlayerController.handle_defeat()
+	# presents its defeat as a greyed, still-standing hero, and the defeat
+	# retreat quickly revives it onto the previous stage. Running play_death()
+	# here would fade and hide the hero's sprite (even after that revive).
+	if actor is PlayerController:
+		return
 	var token := _token_for(actor)
 	if token == null or token.is_dying():
 		return
@@ -222,6 +236,11 @@ func _play_spell(caster: Node, target: Node, element: StringName, is_projectile:
 	var is_player_cast: bool = caster == _player
 	var intensity: float = CombatPresentationConfig.PLAYER_INTENSITY if is_player_cast else 1.0
 	var caster_token := _token_for(caster)
+	# Same guard as attacks: don't wind up until the caster's walk has settled.
+	if caster_token != null and caster_token.is_moving():
+		await caster_token.move_finished
+		if not is_instance_valid(caster_token):
+			return
 	if caster_token != null and not caster_token.is_dying():
 		caster_token.wind_up(dir, false, intensity)
 		await caster_token.motion_phase_finished

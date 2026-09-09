@@ -240,10 +240,16 @@ func _move_toward_target(target_cell: Vector2i) -> void:
 		return
 	grid_position = best_cell
 	facing_direction = _direction_to_cell(previous_cell, best_cell)
-	var previous_world: Vector2 = global_position
-	global_position = _grid.grid_to_world(grid_position)
 	if _token != null:
-		_token.play_move(previous_world - global_position, _grid_distance(previous_cell, grid_position), false)
+		# Gameplay already jumped to best_cell; present the chase as discrete
+		# one-cell steps along the found path so the sprite walks the grid
+		# instead of gliding over the whole multi-cell move in a single leap.
+		for path_index in range(1, path.size()):
+			var step_world: Vector2 = _grid.grid_to_world(path[path_index])
+			global_position = step_world
+			var step_offset: Vector2 = _grid.grid_to_world(path[path_index - 1]) - step_world
+			_token.play_move(step_offset, 1, false)
+	global_position = _grid.grid_to_world(grid_position)
 	queue_redraw()
 	moved.emit(previous_cell, grid_position)
 
