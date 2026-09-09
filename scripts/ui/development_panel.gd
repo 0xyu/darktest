@@ -243,6 +243,8 @@ func _build_ui() -> void:
 	content.add_child(_build_fixture_actions())
 	content.add_child(_section_title("SUB HERO FIXTURES"))
 	content.add_child(_build_subhero_actions())
+	content.add_child(_section_title("COMBAT FX TEST"))
+	content.add_child(_build_fx_actions())
 
 	_status_label = Label.new()
 	_status_label.text = "Ready"
@@ -315,6 +317,51 @@ func _build_subhero_actions() -> GridContainer:
 		var accent: Color = SubHeroQualityResource.get_color(data.quality)
 		grid.add_child(_make_button("ADD %s" % data.display_name, accent, dev_summon_sub_hero.bind(data.id)))
 	return grid
+
+
+## Combat presentation test buttons: play each feedback case against the live
+## combat scene via CombatPresentationSystem.test_effect() (visuals only — no
+## damage, turn or grid state is touched).
+func _build_fx_actions() -> GridContainer:
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	var cases: Array = [
+		["FX NORMAL", &"normal", COLOR_TEXT],
+		["FX CRITICAL", &"critical", COLOR_GOLD],
+		["FX HEAVY", &"heavy", COLOR_RED],
+		["FX MISS", &"miss", COLOR_MUTED],
+		["FX BLOCK", &"block", Color("9fb6c9")],
+		["FX FIRE", &"fire", Color("e07840")],
+		["FX LIGHTNING", &"lightning", Color("d8c8ff")],
+		["FX HEAL", &"heal", Color("82d49b")],
+		["FX DEATH", &"death", Color("b06ae0")],
+	]
+	for entry in cases:
+		grid.add_child(_make_button(entry[0], entry[2], _test_combat_fx.bind(entry[1])))
+	return grid
+
+
+func _test_combat_fx(case: StringName) -> void:
+	var presentation := _get_presentation_system()
+	if presentation == null:
+		_set_status("Combat presentation unavailable")
+		return
+	presentation.test_effect(case)
+	_set_status("FX  •  %s" % String(case).to_upper())
+
+
+func _get_presentation_system() -> CombatPresentationSystem:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	# Main scene boots as Main/GridTest; running GridTest.tscn directly has no
+	# Main wrapper.
+	var node := tree.root.get_node_or_null(^"Main/GridTest/CombatPresentation")
+	if node == null:
+		node = tree.root.get_node_or_null(^"GridTest/CombatPresentation")
+	return node as CombatPresentationSystem
 
 
 func _section_title(text: String) -> Label:

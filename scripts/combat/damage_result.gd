@@ -10,3 +10,9 @@ extends Resource
 @export var is_critical: bool = false
 @export var is_miss: bool = false
 @export var target_defeated: bool = false
+
+## Live node references for the presentation layer only (animation targets).
+## Gameplay logic keeps using the *_id fields. Not exported so they are never
+## serialized into saved resources.
+var attacker: Node = null
+var target: Node = null

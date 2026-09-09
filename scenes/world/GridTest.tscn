@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/grid_test.gd" id="1_test"]
 [ext_resource type="Script" path="res://scripts/systems/grid_map_2d.gd" id="2_grid"]
@@ -17,9 +17,13 @@
 [ext_resource type="Resource" path="res://resources/enemies/enemy_registry.tres" id="15_enemy_registry"]
 [ext_resource type="Script" path="res://scripts/sub_hero/sub_hero_combat_manager.gd" id="16_subhero_combat"]
 [ext_resource type="Texture2D" path="res://assets/environment/dungeon.jpg" id="17_dungeon"]
+[ext_resource type="Script" path="res://scripts/combat/combat_presentation_system.gd" id="18_presentation"]
 
 [node name="GridTest" type="Node2D"]
 script = ExtResource("1_test")
+
+[node name="CombatCamera" type="Camera2D" parent="."]
+position = Vector2(360, 640)
 
 [node name="DungeonBackground" type="Sprite2D" parent="."]
 texture = ExtResource("17_dungeon")
@@ -73,3 +77,6 @@ script = ExtResource("12_auto")
 
 [node name="SubHeroCombatManager" type="Node" parent="."]
 script = ExtResource("16_subhero_combat")
+
+[node name="CombatPresentation" type="Node" parent="."]
+script = ExtResource("18_presentation")

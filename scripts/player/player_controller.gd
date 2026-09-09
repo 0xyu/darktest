@@ -3,6 +3,11 @@ extends Node2D
 
 const SubHeroProgressionServiceResource = preload("res://scripts/sub_hero/sub_hero_progression_service.gd")
 
+## Hero art drawn on the grid cell; the rect keeps the source aspect (139x172)
+## with the feet resting near the cell bottom.
+const PLAYER_SPRITE: Texture2D = preload("res://assets/characters/player.png")
+const SPRITE_RECT: Rect2 = Rect2(-24.25, -34.0, 48.5, 60.0)
+
 signal moved(from_cell: Vector2i, to_cell: Vector2i, movement_points_remaining: int)
 signal selection_changed(is_selected: bool)
 signal action_completed
@@ -32,6 +37,7 @@ signal sub_hero_slots_changed
 
 var movement_points_remaining: int = 0
 var _grid: GridMap2D
+var _token: CharacterToken
 var _input_enabled: bool = true
 var _turn_manager: Node
 var _is_defeated: bool = false
@@ -50,11 +56,18 @@ func _ready() -> void:
 	if _grid == null:
 		push_error("PlayerController requires a GridMap2D assigned through grid_path.")
 		return
+	# Presentation token: hero art + shadow live here so gameplay can keep
+	# teleporting global_position while visuals animate via local offsets.
+	_token = CharacterToken.new()
+	_token.name = &"CharacterToken"
+	add_child(_token)
+	_token.setup(PLAYER_SPRITE, SPRITE_RECT, false)
 	if not _grid.is_walkable(grid_position):
 		grid_position = Vector2i.ZERO
 	if not _grid.is_occupied(grid_position):
 		_grid.set_occupied(grid_position, player_id)
 	global_position = _grid.grid_to_world(grid_position)
+	_token.snap()
 	reset_movement_points()
 	_input_enabled = true
 	_refresh_grid_feedback()
@@ -332,7 +345,10 @@ func try_move(direction: Vector2i) -> bool:
 	if not _free_movement:
 		movement_points_remaining -= 1
 		_cells_moved_since_attack += 1
+	var previous_world: Vector2 = global_position
 	global_position = _grid.grid_to_world(grid_position)
+	if _token != null:
+		_token.play_move(previous_world - global_position, 1, false)
 	_refresh_grid_feedback()
 	queue_redraw()
 	moved.emit(previous_cell, grid_position, movement_points_remaining)
@@ -361,6 +377,8 @@ func place_at(cell: Vector2i) -> bool:
 	if not _grid.is_occupied(grid_position):
 		_grid.set_occupied(grid_position, player_id)
 	global_position = _grid.grid_to_world(grid_position)
+	if _token != null:
+		_token.snap()
 	if is_instance_valid(_target):
 		_target = null
 	_refresh_grid_feedback()
@@ -460,6 +478,8 @@ func handle_defeat() -> void:
 	_free_movement = false
 	if _grid != null:
 		_grid.clear_occupied(grid_position, player_id)
+	if _token != null:
+		_token.modulate = Color(0.45, 0.42, 0.5, 0.85)
 	queue_redraw()
 	defeated.emit()
 
@@ -474,6 +494,9 @@ func revive_for_retry() -> void:
 			_grid.clear_occupied(grid_position, player_id)
 		_grid.set_occupied(grid_position, player_id)
 		global_position = _grid.grid_to_world(grid_position)
+	if _token != null:
+		_token.reset_visuals()
+		_token.snap()
 	reset_movement_points()
 	reset_equipment_effect_state()
 	_target = null
@@ -574,10 +597,9 @@ func _refresh_grid_feedback() -> void:
 
 
 func _draw() -> void:
-	var body_color := Color("5c5366") if _is_defeated else (Color("b7a2d1") if is_selected else Color("736a82"))
-	draw_circle(Vector2.ZERO, 22.0, Color("08070c", 0.85))
-	draw_circle(Vector2.ZERO, 18.0, body_color)
-	draw_circle(Vector2(0, -5), 7.0, Color("e3c889"))
-	draw_line(Vector2(-9, 7), Vector2(9, 7), Color("4b294e"), 4.0)
+	# Hero art and ground shadow live on the CharacterToken; only the selection
+	# ring stays here, flattened onto the floor plane around the token.
 	if is_selected:
-		draw_arc(Vector2.ZERO, 29.0, 0.0, TAU, 32, Color("d8af5c"), 2.0)
+		draw_set_transform(Vector2(0.0, 24.0), 0.0, Vector2(1.0, 0.45))
+		draw_arc(Vector2.ZERO, 26.0, 0.0, TAU, 40, Color("d8af5c"), 2.5)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

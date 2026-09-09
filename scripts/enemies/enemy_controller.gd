@@ -44,6 +44,7 @@ var boss_display_name: String = ""
 var boss_behavior: int = -1
 var _grid: GridMap2D
 var _target: Node
+var _token: CharacterToken
 var _is_defeated: bool = false
 var _boss_definition: Resource
 var _summons_used: int = 0
@@ -61,11 +62,20 @@ func _ready() -> void:
 		return
 	_initialize_runtime()
 	_configure_boss()
+	# Presentation token: sprite + shadow live here so gameplay can keep
+	# teleporting global_position while visuals animate via local offsets.
+	# EnemyData stores only the catalog ID; the catalog resolves its texture.
+	var battle_sprite: Texture2D = CharacterSpriteCatalog.get_texture(enemy_data.character_sprite_id) if enemy_data != null else null
+	_token = CharacterToken.new()
+	_token.name = &"CharacterToken"
+	add_child(_token)
+	_token.setup(battle_sprite, Rect2(-24.0, -27.0, 48.0, 48.0), true)
 	if not _grid.is_walkable(grid_position):
 		grid_position = Vector2i.ZERO
 	if not _grid.is_occupied(grid_position):
 		_grid.set_occupied(grid_position, enemy_id)
 	global_position = _grid.grid_to_world(grid_position)
+	_token.snap()
 	queue_redraw()
 
 
@@ -102,7 +112,8 @@ func handle_defeat() -> void:
 	if _grid != null:
 		_grid.clear_occupied(grid_position, enemy_id)
 	process_mode = Node.PROCESS_MODE_DISABLED
-	visible = false
+	# Hiding is owned by the presentation layer now (token death animation);
+	# the token runs with PROCESS_MODE_ALWAYS so it survives the disable.
 	defeated.emit()
 
 
@@ -229,7 +240,10 @@ func _move_toward_target(target_cell: Vector2i) -> void:
 		return
 	grid_position = best_cell
 	facing_direction = _direction_to_cell(previous_cell, best_cell)
+	var previous_world: Vector2 = global_position
 	global_position = _grid.grid_to_world(grid_position)
+	if _token != null:
+		_token.play_move(previous_world - global_position, _grid_distance(previous_cell, grid_position), false)
 	queue_redraw()
 	moved.emit(previous_cell, grid_position)
 
@@ -292,21 +306,11 @@ func _sync_legacy_hp_if_needed() -> void:
 
 
 func _draw() -> void:
-	draw_circle(Vector2(0, 5), 22.0, Color("09070d", 0.9))
-	var battle_sprite: Texture2D = CharacterSpriteCatalog.get_texture(enemy_data.character_sprite_id) if enemy_data != null else null
-	if battle_sprite != null:
-		# EnemyData stores only the catalog ID; the catalog resolves its AtlasTexture.
-		# Scale the cell to fit the 64 px combat grid while keeping pixel edges crisp.
-		var atlas_texture := battle_sprite as AtlasTexture
-		if atlas_texture != null and atlas_texture.atlas != null:
-			draw_texture_rect_region(atlas_texture.atlas, Rect2(-24.0, -27.0, 48.0, 48.0), atlas_texture.region)
-		else:
-			draw_texture_rect(battle_sprite, Rect2(-24.0, -27.0, 48.0, 48.0), false)
-	else:
-		var body_color: Color = Color("8d304d") if is_mini_boss else Color("9d5267")
-		draw_circle(Vector2.ZERO, 18.0, body_color)
-		draw_circle(Vector2(0, -5), 7.0, Color("e4c5a1"))
-		draw_line(Vector2(-9, 7), Vector2(9, 7), Color("4a1d2e"), 4.0)
+	# Sprite and ground shadow live on the CharacterToken; only the boss ring
+	# and the HP bar stay here. Defeated enemies draw nothing (the token's
+	# death animation owns the fade-out).
+	if _is_defeated:
+		return
 	if is_mini_boss:
 		draw_arc(Vector2.ZERO, 27.0, 0.0, TAU, 32, Color("d8af5c"), 2.0)
 	var health_ratio: float = clampf(float(enemy_runtime.current_hp) / maxi(enemy_runtime.current_stats.max_hp, 1), 0.0, 1.0)

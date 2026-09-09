@@ -16,6 +16,7 @@ const SubHeroAttackEffectResource = preload("res://scripts/combat/sub_hero_attac
 @onready var loot_system = $LootSystem
 @onready var auto_combat: AutoCombatController = $AutoCombatController
 @onready var sub_hero_combat_manager: SubHeroCombatManager = $SubHeroCombatManager
+@onready var combat_presentation: CombatPresentationSystem = $CombatPresentation
 
 var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
@@ -237,6 +238,8 @@ func _layout_portrait_grid() -> void:
 		var enemy := enemy_node as EnemyController
 		if enemy != null and is_instance_valid(enemy):
 			enemy.global_position = grid.grid_to_world(enemy.grid_position)
+	# Units were teleported; clear residual presentation-token offsets.
+	combat_presentation.notify_layout_changed()
 
 
 func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:

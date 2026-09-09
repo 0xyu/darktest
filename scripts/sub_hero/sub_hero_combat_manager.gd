@@ -2,7 +2,6 @@ class_name SubHeroCombatManager
 extends Node
 
 const SubHeroQualityResource = preload("res://scripts/sub_hero/sub_hero_quality.gd")
-const DamageNumberResource = preload("res://scripts/combat/damage_number.gd")
 
 ## A time-based combat layer that deliberately does not participate in the
 ## turn manager or query grid distance/pathfinding.
@@ -163,11 +162,13 @@ func _resolve_attack(state: ActiveSubHeroState, target: Node) -> void:
 	result.raw_damage = damage
 	result.final_damage = damage
 	result.target_defeated = _get_current_hp(target) <= 0
+	# Presentation-layer node reference (floating numbers are spawned by the
+	# presentation system in response to attack_feedback_requested).
+	result.target = target
 	if target.has_method("clamp_current_hp"):
 		target.clamp_current_hp()
 	if target.has_method("queue_redraw"):
 		target.queue_redraw()
-	_spawn_damage_number(target, result)
 	attack_feedback_requested.emit(result, target)
 	cooldown_started.emit(state.instance.hero_id, maxf(state.data.attack_interval, 0.1))
 	if result.target_defeated and target.has_method("handle_defeat"):
@@ -178,15 +179,6 @@ func _resolve_attack(state: ActiveSubHeroState, target: Node) -> void:
 			"sub_hero_data": state.data,
 		})
 	attack_resolved.emit(result)
-
-
-func _spawn_damage_number(target: Node, result: DamageResult) -> void:
-	if target == null or not is_instance_valid(target) or not target is Node2D:
-		return
-	var damage_number := DamageNumberResource.new()
-	add_child(damage_number)
-	damage_number.global_position = (target as Node2D).global_position + Vector2(0.0, -30.0)
-	damage_number.setup(result.final_damage, result.is_critical)
 
 
 func _select_target(target_rule: int) -> Node:

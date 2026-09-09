@@ -6,8 +6,6 @@ signal actor_died(actor: Node)
 signal skill_resolved(skill_id: StringName, hit_count: int)
 signal skill_failed(skill_id: StringName, reason: String)
 
-@export var feedback_parent_path: NodePath
-
 var _random_number_generator := RandomNumberGenerator.new()
 var _turn_manager: TurnManager
 var _player_actor: Node
@@ -69,6 +67,9 @@ func _resolve_attack(
 	result.attacker_id = _get_actor_id(attacker)
 	result.target_id = _get_actor_id(target)
 	result.skill_id = skill_id
+	# Presentation-layer node references (animations); never used for gameplay.
+	result.attacker = attacker
+	result.target = target
 	if not _is_actor_authorized(attacker) or not _is_valid_attack(attacker, target, attack_range_override):
 		result.is_miss = true
 		attack_resolved.emit(result)
@@ -110,7 +111,6 @@ func _resolve_attack(
 		target.handle_defeat()
 	if is_instance_valid(target) and target.has_method("queue_redraw"):
 		target.queue_redraw()
-	_spawn_damage_number(target, result)
 	attack_resolved.emit(result)
 	if result.target_defeated:
 		actor_died.emit(target)
@@ -277,17 +277,3 @@ func _get_actor_id(actor: Node) -> StringName:
 
 func _grid_distance(from_cell: Vector2i, to_cell: Vector2i) -> int:
 	return absi(from_cell.x - to_cell.x) + absi(from_cell.y - to_cell.y)
-
-
-func _spawn_damage_number(target: Node, result: DamageResult) -> void:
-	if target == null or not is_instance_valid(target) or not target is Node2D:
-		return
-	var feedback_parent: Node = self
-	if not feedback_parent_path.is_empty():
-		var configured_parent := get_node_or_null(feedback_parent_path)
-		if configured_parent != null:
-			feedback_parent = configured_parent
-	var damage_number := DamageNumber.new()
-	feedback_parent.add_child(damage_number)
-	damage_number.global_position = target.global_position + Vector2(0, -30)
-	damage_number.setup(result.final_damage, result.is_critical)
