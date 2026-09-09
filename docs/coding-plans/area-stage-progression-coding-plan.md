@@ -428,7 +428,16 @@ battle StageManager（刷怪/门点/胜利/farming/auto 全部照旧）
 
 ---
 
-# Phase 6 — WorldMap / AreaMap Integration
+# Phase 6 — WorldMap / AreaMap Integration（已完成）
+
+> 产物见 `docs/coding-plans/reports/area-stage-progression-phase-06-report.md`。
+>
+> 实现备注（落地范围）：
+> - 新增两个**纯呈现**类：`WorldMapView`（整屏地图 View：列出 `resources/stage_databases/` 下全部 author 的 Area）与 `AreaView`（单 Area 的 S 形 path；StageNode 由 `StageDatabase.stage_count` + 每个 `get_stage(n).stage_type` **动态生成**——节点图标/名称读 stage_type，零 `if stage == 6`，零"Stage 01..10"硬编码）。
+> - 状态支持 `LOCKED / AVAILABLE / COMPLETED / CURRENT`，全部读自 `PlayerProgress`（presentation only）。
+> - HUD ViewContainer 第三视图 + CombatView 底部 **MAP** 按钮；`grid_combat` 成为 map host：`open_world_map()` 用实时 `PlayerProgress` refresh 后切视图；节点点击（仅非 LOCKED 可点，host 侧再叠加解锁门槛）走既有 `enter_area_stage`；`_apply_stage_entry` 进入后收敛回 Combat/Town 视图（顺带关闭地图）。默认运行循环不变；DEV「AREA STAGES」QA 直达入口保留（可绕过解锁演示）。
+> - **10K 呈现**：单 Area > `NODES_PER_WINDOW`(24) 节点时按窗口分页，每次只物化一页 Control（合成 1,000 关走同一条 `AreaView` 路径验证），不改数据架构。
+> - **未实现**：完成/解锁/返回流程（Phase 7）、存档（Phase 8）、Event/Boss 专属内容、多 Area 间切换的呈现打磨（数据层已就绪，见 Phase 9）。
 
 ## 目标
 
@@ -631,9 +640,8 @@ Chat 03  Phase 2   Stage Database + Forest            ✅ 完成
 Chat 04  Phase 3   Player Progress                    ✅ 完成
 Chat 05  Phase 4   StageRouter                        ✅ 完成
 Chat 06  Phase 5   Combat / Town Integration          ✅ 完成
-Chat 07  Phase 6   WorldMap Integration               ← 当前
-Chat 07  Phase 6   WorldMap Integration
-Chat 08  Phase 7   Completion / Return Flow
+Chat 07  Phase 6   WorldMap Integration                ✅ 完成
+Chat 08  Phase 7   Completion / Return Flow            ← 当前
 Chat 09  Phase 8   Save / Load
 Chat 10  Phase 9   More Area（Swamp）
 Chat 11  Phase 10  Final Refactor

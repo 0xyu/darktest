@@ -15,6 +15,10 @@ signal game_speed_requested(speed: int)
 ## Forwarded from the DEV panel's AREA STAGES section: request entry to an
 ## authored area stage. grid_combat resolves it via StageRouter.
 signal area_stage_enter_requested(area_id: StringName, stage_number: int)
+## The combat MAP button requests the world map open/close toggle.
+signal world_map_toggle_requested
+## Forwarded from the WorldMapView stage nodes: enter an unlocked area stage.
+signal world_map_stage_enter_requested(area_id: StringName, stage_number: int)
 
 @onready var _stage_manager: Node = get_parent().get_node_or_null("StageManager")
 @onready var _turn_manager: Node = get_parent().get_node_or_null("TurnManager")
@@ -56,6 +60,9 @@ signal area_stage_enter_requested(area_id: StringName, stage_number: int)
 # class being present in Godot's global class cache.
 @onready var _combat_view: Control = %CombatView
 @onready var _town_view: Control = %TownView
+## Phase 6: the world map view (WorldMapView) is the third ViewContainer view.
+@onready var _world_map_view: Control = %WorldMapView
+@onready var _map_button: Button = %MapButton
 
 
 var _critical_time_remaining: float = 0.0
@@ -94,6 +101,13 @@ func _ready() -> void:
 	# Phase 5: DEV town entry / AREA STAGES entry, and TownView facility wiring.
 	_development_panel.town_view_requested.connect(_on_town_view_requested)
 	_development_panel.area_stage_enter_requested.connect(_on_dev_area_stage_enter_requested)
+	# Phase 6: world map toggle / stage entry / close.
+	_map_button.pressed.connect(func() -> void: world_map_toggle_requested.emit())
+	if _world_map_view != null:
+		if _world_map_view.has_signal("close_requested"):
+			_world_map_view.connect("close_requested", _on_world_map_close_requested)
+		if _world_map_view.has_signal("stage_enter_requested"):
+			_world_map_view.connect("stage_enter_requested", _on_world_map_stage_enter_requested)
 	if _town_view != null:
 		if _town_view.has_signal("close_requested"):
 			_town_view.connect("close_requested", show_combat)
@@ -176,16 +190,45 @@ func _on_town_skills_requested() -> void:
 func show_town() -> void:
 	if _town_view != null:
 		_town_view.visible = true
+	if _world_map_view != null:
+		_world_map_view.visible = false
 	if _combat_view != null:
 		_combat_view.visible = false
 
 
-## Restores the combat view (town close / back to battle).
+## Restores the combat view (town close / map close / back to battle).
 func show_combat() -> void:
 	if _town_view != null:
 		_town_view.visible = false
+	if _world_map_view != null:
+		_world_map_view.visible = false
 	if _combat_view != null:
 		_combat_view.visible = true
+
+
+## Switches the main ViewContainer view over to the world map (WorldMapView).
+func show_world_map() -> void:
+	if _combat_view != null:
+		_combat_view.visible = false
+	if _town_view != null:
+		_town_view.visible = false
+	if _world_map_view != null:
+		_world_map_view.visible = true
+
+
+## The WorldMapView node, so the grid_combat host can refresh it before showing.
+func get_world_map_view() -> Control:
+	return _world_map_view
+
+
+func _on_world_map_close_requested() -> void:
+	if _world_map_view != null and bool(_world_map_view.visible):
+		show_combat()
+
+
+## Forwarded from a WorldMapView stage node to the grid_combat host.
+func _on_world_map_stage_enter_requested(area_id: StringName, stage_number: int) -> void:
+	world_map_stage_enter_requested.emit(area_id, stage_number)
 
 
 func _on_skills_button_pressed() -> void:

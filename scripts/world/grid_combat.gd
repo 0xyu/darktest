@@ -86,6 +86,10 @@ func _ready() -> void:
 	_player_progress = PlayerProgressScript.new()
 	_stage_router.enter_requested.connect(_apply_stage_entry)
 	hud.area_stage_enter_requested.connect(_on_hud_area_stage_enter_requested)
+	# Phase 6: world map host — the map view is refreshed from PlayerProgress and
+	# its stage clicks route through the same enter_area_stage entry.
+	hud.world_map_toggle_requested.connect(_on_hud_world_map_toggle_requested)
+	hud.world_map_stage_enter_requested.connect(_on_world_map_stage_enter_requested)
 	auto_combat.attach_systems(player, turn_manager, combat_system, stage_manager, grid)
 	auto_combat.auto_mode_changed.connect(_on_auto_mode_changed)
 	auto_combat.farming_changed.connect(_on_farming_changed)
@@ -216,8 +220,52 @@ func _on_hud_area_stage_enter_requested(area_id: StringName, stage_number: int) 
 	enter_area_stage(area_id, stage_number)
 
 
+# ---------------------------------------------------------------------------
+# Phase 6 — WorldMap host. The map is a data-driven presenter inside the HUD's
+# ViewContainer; this scene is its host: it feeds PlayerProgress into the view,
+# toggles the map view, and routes stage clicks through enter_area_stage with a
+# presentational unlock guard (locked nodes are also disabled in the view).
+# ---------------------------------------------------------------------------
+
+## Refreshes the WorldMapView against the live progress and shows it.
+func open_world_map() -> bool:
+	if _player_progress == null:
+		return false
+	var map_view := hud.get_world_map_view()
+	if map_view == null:
+		return false
+	map_view.set_progress(_player_progress)
+	map_view.refresh()
+	hud.show_world_map()
+	return true
+
+
+## MAP button toggle: an open map closes back to the combat view; otherwise the
+## map is (re)built from the current progress and shown.
+func _on_hud_world_map_toggle_requested() -> void:
+	var map_view := hud.get_world_map_view()
+	if map_view != null and bool(map_view.visible):
+		hud.show_combat()
+	else:
+		open_world_map()
+
+
+## Stage clicks from the world map. Unlike the DEV panel (which intentionally
+## bypasses lock gating for QA), the map only lets the player enter stages the
+## linear progression has actually unlocked — the lock rule stays entirely in
+## PlayerProgress (Phase 7 owns the completion flow that advances it).
+func _on_world_map_stage_enter_requested(area_id: StringName, stage_number: int) -> void:
+	if _player_progress != null and not _player_progress.is_stage_unlocked(area_id, stage_number):
+		_last_move_text = "AREA %s // STAGE %d LOCKED — CLEAR THE PREVIOUS STAGE FIRST" % [area_id, stage_number]
+		queue_redraw()
+		return
+	enter_area_stage(area_id, stage_number)
+
+
 ## Dispatches one resolved stage route into the matching gameplay. Connected to
-## StageRouter.enter_requested so any request_enter call lands here.
+## StageRouter.enter_requested so any request_enter call lands here. Ends by
+## converging the HUD onto the gameplay view (combat / town), which also hides
+## the world map when the entry came from a stage click on the map.
 func _apply_stage_entry(route: Dictionary) -> void:
 	if _stage_router == null or _player_progress == null:
 		return
@@ -232,13 +280,16 @@ func _apply_stage_entry(route: Dictionary) -> void:
 	match destination:
 		StageRouterScript.Destination.COMBAT:
 			_start_battle_for_area_stage(stage_id, stage_number)
+			hud.show_combat()
 		StageRouterScript.Destination.TOWN:
 			_last_move_text = "AREA %s // TOWN VIEW — enter a facility" % stage_id
 			hud.show_town()
 		StageRouterScript.Destination.EVENT:
 			_last_move_text = "AREA %s // EVENT — placeholder (content in a later phase)" % stage_id
+			hud.show_combat()
 		_:
 			_last_move_text = "AREA %s // no gameplay destination yet" % stage_id
+			hud.show_combat()
 	queue_redraw()
 
 

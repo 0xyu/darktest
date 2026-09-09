@@ -19,6 +19,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/SubHeroAssignmentPanel.tscn" id="25_assignment"]
 [ext_resource type="PackedScene" uid="uid://phebfkgyuq0m" path="res://scenes/ui/combat_actions.tscn" id="26_actions"]
 [ext_resource type="PackedScene" path="res://scenes/ui/TownView.tscn" id="27_town"]
+[ext_resource type="PackedScene" path="res://scenes/ui/WorldMapView.tscn" id="28_worldmap"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.0706, 0.0627, 0.102, 0.97)
@@ -119,6 +120,11 @@ size_flags_vertical = 3
 metadata/_edit_lock_ = true
 
 [node name="TownView" parent="Root/SafeArea/MainContent/ViewContainer" unique_id=1128319344 instance=ExtResource("27_town")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+
+[node name="WorldMapView" parent="Root/SafeArea/MainContent/ViewContainer" instance=ExtResource("28_worldmap")]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
@@ -270,6 +276,17 @@ theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "DEV"
+
+[node name="MapButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 38)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+text = "MAP"
 
 [node name="SpeedRow" type="HBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=1358145806]
 custom_minimum_size = Vector2(0, 38)
