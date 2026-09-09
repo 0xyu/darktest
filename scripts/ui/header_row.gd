@@ -1,13 +1,6 @@
 class_name HeaderRow
 extends Control
 
-## Data displayed by the combat header. The HUD owns the game state and writes
-## these properties; the header owns the presentation of its three labels.
-@export var stage_number: int = 1:
-	set(value):
-		stage_number = maxi(value, 1)
-		_refresh_stage_label()
-
 @export var gold: int = 0:
 	set(value):
 		gold = maxi(value, 0)
@@ -18,7 +11,6 @@ extends Control
 		turn_phase = value
 		_refresh_turn_label()
 
-@onready var _stage_label: Label = %StageLabel
 @onready var _gold_label: Label = %GoldLabel
 @onready var _turn_label: Label = %TurnLabel
 
@@ -28,15 +20,8 @@ func _ready() -> void:
 
 
 func _refresh() -> void:
-	_refresh_stage_label()
 	_refresh_gold_label()
 	_refresh_turn_label()
-
-
-func _refresh_stage_label() -> void:
-	if _stage_label != null:
-		_stage_label.text = "STAGE %02d" % stage_number
-
 
 func _refresh_gold_label() -> void:
 	if _gold_label != null:

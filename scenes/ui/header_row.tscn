@@ -126,18 +126,6 @@ text = "0"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="StageLabel" type="Label" parent="." unique_id=885030749]
-unique_name_in_owner = true
-layout_mode = 0
-offset_left = 108.0
-offset_top = 55.0
-offset_right = 198.0
-offset_bottom = 83.0
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
-theme_override_font_sizes/font_size = 20
-text = "STAGE 01"
-
 [node name="TurnLabel" type="Label" parent="." unique_id=697888687]
 unique_name_in_owner = true
 layout_mode = 0
