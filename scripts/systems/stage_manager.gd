@@ -19,9 +19,9 @@ signal stage_generation_failed(stage_number: int, reason: String)
 ## Random per-spawn stat variance around the scaled base values.
 ## 0.15 means stats may vary by up to +/-15 percent.
 @export_range(0.0, 1.0, 0.01) var enemy_stat_variance: float = 0.15
-## 0-based x column of the arena gate lane: the Stage Starting Point (bottom
-## row) and the Next Stage Point / exit (top row) both sit in this column.
-@export_range(0, 63, 1) var stage_gate_column: int = 3
+## 0-based y row of the arena gate lane: the Stage Starting Point sits on the
+## left edge of this row and the Next Stage Point / exit on the right edge.
+@export_range(0, 63, 1) var stage_gate_row: int = 3
 
 var stage_state: StageState = StageState.new()
 var current_definition: StageDefinition
@@ -142,20 +142,20 @@ func get_spawned_enemies() -> Array[EnemyController]:
 	return _spawned_enemies.duplicate()
 
 
-## The bottom arrival cell of the arena (Stage Starting Point). The hero is
+## The left arrival cell of the arena (Stage Starting Point). The hero is
 ## teleported here when a new stage is generated.
 func get_stage_start_cell() -> Vector2i:
 	if _grid == null:
 		return Vector2i.ZERO
-	return Vector2i(clampi(stage_gate_column, 0, _grid.grid_size.x - 1), _grid.grid_size.y - 1)
+	return Vector2i(0, clampi(stage_gate_row, 0, _grid.grid_size.y - 1))
 
 
-## The top exit cell of the arena (Next Stage Point). The player must stand
+## The right exit cell of the arena (Next Stage Point). The player must stand
 ## here before the next stage can start.
 func get_stage_exit_cell() -> Vector2i:
 	if _grid == null:
 		return Vector2i.ZERO
-	return Vector2i(clampi(stage_gate_column, 0, _grid.grid_size.x - 1), 0)
+	return Vector2i(_grid.grid_size.x - 1, clampi(stage_gate_row, 0, _grid.grid_size.y - 1))
 
 
 func is_player_on_stage_exit() -> bool:

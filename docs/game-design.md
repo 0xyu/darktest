@@ -338,8 +338,8 @@ attacking it automatically (idle farming), and manual play continues on the
 same stage. No NEXT STAGE prompt appears while FARMING is on.
 
 When FARMING is OFF a cleared stage advances to the next one through the
-**Next Stage Point** (exit). The hero must physically stand on the top exit
-cell before the stage can advance:
+**Next Stage Point** (exit). The hero must physically stand on the exit cell
+before the stage can advance:
 
 ```text
 FARMING OFF + MANUAL  →  after a clear the hero free-roams; the NEXT STAGE
@@ -390,17 +390,18 @@ the same `StageDefinition` shape.
 
 ### Stage Arena Points
 
-Every combat arena uses the same grid layout with two fixed gate cells in a
-configured lane column (default `x = 3`, the 4th column from the left):
+The combat arena is an 11-column × 7-row grid (columns `x = 0..10`, rows
+`y = 0..6`). Two fixed gate cells sit on a configured lane row (default `y = 3`,
+the 4th row of 7), one on each edge:
 
-- **Stage Starting Point** — bottom row (`y = grid_height - 1`). The hero is
-  teleported here whenever a **new** stage number is generated (first boot,
-  advancing, or a defeat retreat to the previous stage). FARMING re-spawn of
-  the *same* stage number does not move the hero.
-- **Next Stage Point** (exit) — top row (`y = 0`). The hero must stand on this
-  cell to advance (see §4.2).
+- **Stage Starting Point** — left edge (`x = 0`). The hero is teleported here
+  whenever a **new** stage number is generated (first boot, advancing, or a
+  defeat retreat to the previous stage). FARMING re-spawn of the *same* stage
+  number does not move the hero.
+- **Next Stage Point** (exit) — right edge (`x = grid_width - 1`). The hero
+  must stand on this cell to advance (see §4.2).
 
-Both cells are derived from `StageManager.stage_gate_column` and the grid size.
+Both cells are derived from `StageManager.stage_gate_row` and the grid size.
 Enemies never spawn on the Starting Point (it is occupied by the hero), and any
 enemy sitting on the exit cell is gone once the stage is fully cleared, so the
 exit is always reachable after victory.

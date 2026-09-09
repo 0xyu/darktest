@@ -3,6 +3,9 @@ extends Node2D
 
 const SpecialEncounterTypeResource = preload("res://scripts/systems/special_encounter_type.gd")
 const SubHeroAttackEffectResource = preload("res://scripts/combat/sub_hero_attack_effect.gd")
+## The battlefield spans the full screen width up to this cap (the base 720px
+## design width), so it stays a sane size on very wide windows or devices.
+const MAX_GRID_WIDTH: float = 720.0
 
 @onready var grid: GridMap2D = $Grid
 @onready var dungeon_background: Sprite2D = $DungeonBackground
@@ -84,6 +87,9 @@ func _ready() -> void:
 	stage_manager.initialize_stage(1)
 	_refresh_arena_markers()
 	queue_redraw()
+	# The HUD's CombatSection is sized only after the first container sort, so
+	# run the layout again once that rect becomes measurable.
+	_relayout_when_combat_ready()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -214,27 +220,32 @@ func _on_viewport_size_changed() -> void:
 
 
 func _layout_portrait_grid() -> void:
+	var viewport_size: Vector2 = get_viewport_rect().size
 	var combat_rect: Rect2 = hud.get_combat_section_rect()
 	if combat_rect.size.x <= 0.0 or combat_rect.size.y <= 0.0:
 		return
 	var background_size: Vector2 = dungeon_background.texture.get_size()
-	dungeon_background.position = get_viewport_rect().size * 0.5
+	dungeon_background.position = viewport_size * 0.5
 	dungeon_background.scale = Vector2.ONE * maxf(
-		get_viewport_rect().size.x / background_size.x,
-		get_viewport_rect().size.y / background_size.y
+		viewport_size.x / background_size.x,
+		viewport_size.y / background_size.y
 	)
+	# The battlefield spans the full screen width up to MAX_GRID_WIDTH and hugs
+	# the combat area's left edge. Cell size is driven by that width, but never
+	# grows past what fits vertically so the grid cannot overlap the HUD below.
+	var target_width: float = minf(viewport_size.x, MAX_GRID_WIDTH)
 	var cell_size: int = maxi(floori(minf(
-		combat_rect.size.x / float(grid.grid_size.x),
+		target_width / float(grid.grid_size.x),
 		combat_rect.size.y / float(grid.grid_size.y)
 	)), 1)
 	var grid_pixel_size := Vector2(grid.grid_size * cell_size)
 	grid.cell_size = cell_size
 	grid.origin = Vector2(
-		combat_rect.position.x + (combat_rect.size.x - grid_pixel_size.x) * 0.5,
+		combat_rect.position.x,
 		combat_rect.position.y + (combat_rect.size.y - grid_pixel_size.y) * 0.5
 	)
 	_grid_play_area = Rect2(grid.origin - Vector2(8.0, 8.0), grid_pixel_size + Vector2(16.0, 16.0))
-	hud.layout_battle_support(grid.origin.y + grid_pixel_size.y, get_viewport_rect().size)
+	hud.layout_battle_support(grid.origin.y + grid_pixel_size.y, viewport_size)
 	grid.queue_redraw()
 	player.global_position = grid.grid_to_world(player.grid_position)
 	for enemy_node in _active_enemies:
@@ -243,6 +254,23 @@ func _layout_portrait_grid() -> void:
 			enemy.global_position = grid.grid_to_world(enemy.grid_position)
 	# Units were teleported; clear residual presentation-token offsets.
 	combat_presentation.notify_layout_changed()
+
+
+## CombatSection is a Control that only receives its real size after the first
+## container sort, which runs after _ready. Retry the layout for a few frames
+## until the battlefield rect is measurable, so the grid does not stay stuck on
+## its editor defaults (the viewport never resizes on a fixed-size phone).
+func _relayout_when_combat_ready() -> void:
+	var attempts: int = 0
+	while attempts < 10:
+		await get_tree().process_frame
+		if hud == null or not is_instance_valid(self):
+			return
+		if hud.get_combat_section_rect().size.y > 0.0:
+			_layout_portrait_grid()
+			return
+		attempts += 1
+	_layout_portrait_grid()
 
 
 func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
@@ -293,9 +321,9 @@ func _on_stage_completed(stage_state: StageState) -> void:
 	if auto_combat.is_farming_enabled():
 		_last_move_text = "STAGE %d CLEARED — FARMING STAYS ON STAGE" % stage_state.stage_number
 	else:
-		# Free roam lets the player walk to the top exit cell to advance.
+		# Free roam lets the player walk to the right exit cell to advance.
 		player.set_free_movement(true)
-		_last_move_text = "STAGE %d CLEARED — REACH THE TOP EXIT TO ADVANCE" % stage_state.stage_number
+		_last_move_text = "STAGE %d CLEARED — REACH THE RIGHT EXIT TO ADVANCE" % stage_state.stage_number
 	hud.log_event("log.stage_clear", {"stage": stage_state.stage_number})
 	turn_manager.set_victory()
 	queue_redraw()

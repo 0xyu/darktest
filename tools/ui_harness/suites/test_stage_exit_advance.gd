@@ -1,7 +1,7 @@
 extends "res://tools/ui_harness/ui_harness_suite.gd"
 
 ## Headless integration suite for the stage-exit gate: the hero must stand on
-## the top Next Stage Point (3,0) before advancing, with a free-roam victory,
+## the right Next Stage Point (10,3) before advancing, with a free-roam victory,
 ## an AUTO walk-to-exit, and FARMING position preservation.
 ##
 ## Mounts the real game scene (res://scenes/world/Main.tscn) and defeats the
@@ -93,9 +93,9 @@ func test_boot_places_player_at_start() -> void:
 	if _grid_test == null:
 		return
 	var stage := _stage()
-	expect_eq(stage.call("get_stage_start_cell"), Vector2i(3, 10), "start cell is bottom x=3")
-	expect_eq(stage.call("get_stage_exit_cell"), Vector2i(3, 0), "exit cell is top x=3")
-	expect_eq(_player().call("get_grid_position"), Vector2i(3, 10), "hero spawns at stage start")
+	expect_eq(stage.call("get_stage_start_cell"), Vector2i(0, 3), "start cell is left edge row 3")
+	expect_eq(stage.call("get_stage_exit_cell"), Vector2i(10, 3), "exit cell is right edge row 3")
+	expect_eq(_player().call("get_grid_position"), Vector2i(0, 3), "hero spawns at stage start")
 	expect_eq(_phase(), TurnStateScript.PLAYER_TURN, "stage 1 begins on the player turn")
 	expect(not bool(_player().call("is_free_moving")), "free roam off during combat")
 
@@ -113,18 +113,18 @@ func test_manual_clear_gates_advance_on_exit() -> void:
 	expect(bool(button.visible), "next-stage button revealed on victory")
 	expect(bool(button.disabled), "next-stage disabled off the exit")
 
-	# Walk onto the exit (3,0) and confirm the button enables.
-	await _place_player(Vector2i(3, 1))
-	_player().call("try_move", Vector2i.UP)
+	# Walk onto the exit (10,3) and confirm the button enables.
+	await _place_player(Vector2i(9, 3))
+	_player().call("try_move", Vector2i.RIGHT)
 	await flush_frames(2)
-	expect_eq(_player().call("get_grid_position"), Vector2i(3, 0), "hero stepped onto the exit")
+	expect_eq(_player().call("get_grid_position"), Vector2i(10, 3), "hero stepped onto the exit")
 	expect(not bool(button.disabled), "next-stage enabled while standing on the exit")
 
 	# Press NEXT STAGE -> stage 2 starts, hero teleported back to the start.
 	_hud().emit_signal("next_stage_requested")
 	await flush_frames(6)
 	expect_eq(_stage_number(), 2, "advanced to stage 2")
-	expect_eq(_player().call("get_grid_position"), Vector2i(3, 10), "stage 2 hero teleported to the start")
+	expect_eq(_player().call("get_grid_position"), Vector2i(0, 3), "stage 2 hero teleported to the start")
 	expect_eq(_phase(), TurnStateScript.PLAYER_TURN, "stage 2 begins on the player turn")
 
 
@@ -132,8 +132,8 @@ func test_auto_walks_to_exit_when_enabled() -> void:
 	await _mount_game()
 	await _defeat_all_enemies()
 	expect_eq(_phase(), TurnStateScript.VICTORY, "clear reaches VICTORY")
-	# Place the hero one cell below the exit so the walk is short and certain.
-	await _place_player(Vector2i(3, 1))
+	# Place the hero one cell left of the exit so the walk is short and certain.
+	await _place_player(Vector2i(9, 3))
 	_auto().call("set_game_speed", 2)  # FASTEST
 	_auto().call("set_auto_enabled", true)
 	# FASTEST action delay = 0.05s; headless frame delta ~1/60 => allow many frames.
