@@ -478,7 +478,17 @@ WorldMap 不判断 `if stage == 6 → event icon`；一律走 `stage_data.stage_
 
 ---
 
-# Phase 7 — Stage Completion / Return Flow
+# Phase 7 — Stage Completion / Return Flow（已完成）
+
+> 产物见 `docs/coding-plans/reports/area-stage-progression-phase-07-report.md`。
+>
+> 实现备注（落地范围）：
+> - **闭环达成**：`WorldMap → Stage → Gameplay → Complete(PlayerProgress) → 解锁下一关 → 回 WorldMap`。完成判定只依赖 `(area_id, stage_number)`（经 StageRouter/StageDatabase 解析），零 stage 数字硬编码。
+> - **完成语义（v1）**：COMBAT/BOSS 类型关在其 author 战斗**清场**时记 `complete_stage`（`_on_stage_completed` 内 typed-session 钩子）；TOWN / EVENT（占位）**进入即算完成**（访问本身即该玩法的"返回"，否则 EVENT 会卡死线性解锁链）——真实 EVENT 内容落地后此语义可改回玩法返回。战斗型清场后状态文案动态读**下一 author 关的类型**（如 `STAGE 06 (EVENT) UNLOCKED`），末关显示 `AREA COMPLETE (10/10)`。
+> - **typed session**：`grid_combat._typed_entry` 记录当前 author 关（area/stage/destination/from_map），仅经 `enter_area_stage` 进入时非空；默认 endless 循环从不写进度。战斗引擎漂移（AUTO/FARMING 推进或 defeat 回退到其他 battle stage）即视为 typed session 结束，后续清场恢复 endless 规则（不写进度）。
+> - **返回地图闭环**：手动模式在 typed 战斗清场后走出口 + NEXT STAGE 不再 `start_next_stage` 无尽推进，而是 `open_world_map()`（hub）；地图来源的 TOWN 进入在关闭城镇后回地图（新增 HUD `town_close_requested` 信号由 host 裁决）；地图来源的 EVENT 占位访问完成即停留在地图（节点转 COMPLETED、下一关 AVAILABLE）。非地图来源（DEV/直接调用）的城镇关闭仍回 CombatView（Phase 5 行为不变）。endless boot 清场照旧 `start_next_stage`。
+> - **AUTO/FARMING 语义**：typed 关内 AUTO/FARMING 仍走战斗引擎（刷级/挂机）；typed 关清场只记一次完成（幂等），随后按漂移规则退出 typed session。已文档化为设计取舍。
+> - **回归**：新增 `test_stage_progression` 套件（8 测试）；Phase 1–6 全部套件/冒烟零改动转绿；全量 ui_harness 仅剩既有 `test_combat_log_wiring::test_kill_logs_event_end_to_end` 一项失败；项目 parse 干净。
 
 ## 目标
 
@@ -641,8 +651,8 @@ Chat 04  Phase 3   Player Progress                    ✅ 完成
 Chat 05  Phase 4   StageRouter                        ✅ 完成
 Chat 06  Phase 5   Combat / Town Integration          ✅ 完成
 Chat 07  Phase 6   WorldMap Integration                ✅ 完成
-Chat 08  Phase 7   Completion / Return Flow            ← 当前
-Chat 09  Phase 8   Save / Load
+Chat 08  Phase 7   Completion / Return Flow            ✅ 完成
+Chat 09  Phase 8   Save / Load                          ← 当前
 Chat 10  Phase 9   More Area（Swamp）
 Chat 11  Phase 10  Final Refactor
 ```

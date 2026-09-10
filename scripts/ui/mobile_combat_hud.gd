@@ -19,6 +19,10 @@ signal area_stage_enter_requested(area_id: StringName, stage_number: int)
 signal world_map_toggle_requested
 ## Forwarded from the WorldMapView stage nodes: enter an unlocked area stage.
 signal world_map_stage_enter_requested(area_id: StringName, stage_number: int)
+## The TownView close button was pressed. grid_combat decides where to go (a
+## typed town visit that came from the world map returns to the refreshed map;
+## any other close restores the combat view).
+signal town_close_requested
 
 @onready var _stage_manager: Node = get_parent().get_node_or_null("StageManager")
 @onready var _turn_manager: Node = get_parent().get_node_or_null("TurnManager")
@@ -110,7 +114,7 @@ func _ready() -> void:
 			_world_map_view.connect("stage_enter_requested", _on_world_map_stage_enter_requested)
 	if _town_view != null:
 		if _town_view.has_signal("close_requested"):
-			_town_view.connect("close_requested", show_combat)
+			_town_view.connect("close_requested", func() -> void: town_close_requested.emit())
 		if _town_view.has_signal("warehouse_requested"):
 			_town_view.connect("warehouse_requested", _on_town_warehouse_requested)
 		if _town_view.has_signal("skills_requested"):
