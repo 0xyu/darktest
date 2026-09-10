@@ -58,7 +58,6 @@ const COLOR_BORDER := Color("4d465e")
 ## Accent per authored StageType (icon / node identity comes from stage_type).
 const TYPE_COLORS := {
 	StageTypeScript.COMBAT: Color("a8b4c8"),
-	StageTypeScript.EVENT: Color("d9a866"),
 	StageTypeScript.TOWN: Color("e8c465"),
 	StageTypeScript.BOSS: Color("d46a78"),
 }
@@ -66,7 +65,6 @@ const TYPE_COLORS := {
 ## Compact one-letter icon shown inside each node's type medallion.
 const TYPE_CODES := {
 	StageTypeScript.COMBAT: "C",
-	StageTypeScript.EVENT: "E",
 	StageTypeScript.TOWN: "T",
 	StageTypeScript.BOSS: "B",
 }

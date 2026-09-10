@@ -52,7 +52,6 @@ const COLOR_RARITY := {
 ## Accent per authored StageType, used by the AREA STAGES demo buttons.
 const COLOR_STAGE_TYPE := {
 	StageTypeScript.COMBAT: COLOR_TEXT,
-	StageTypeScript.EVENT: Color("c9bdb4"),
 	StageTypeScript.TOWN: COLOR_GOLD,
 	StageTypeScript.BOSS: COLOR_RED,
 }
@@ -305,7 +304,7 @@ func _build_town_actions() -> VBoxContainer:
 ## Builds a "enter this authored area stage" demo list straight from the area's
 ## StageDatabase (stage_type driven, never stage-number hard-coded). Only the
 ## showcase nodes are shown: stage 1 plus every stage that differs from the
-## area's shared default rule (Forest -> 01 COMBAT / 06 EVENT / 08 TOWN / 10 BOSS).
+## area's shared default rule (Forest -> COMBAT with 08 TOWN / 10 BOSS overrides).
 func _build_area_stage_actions() -> GridContainer:
 	var grid := GridContainer.new()
 	grid.columns = 2

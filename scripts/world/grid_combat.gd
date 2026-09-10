@@ -3,10 +3,9 @@ extends Node2D
 
 const SpecialEncounterTypeResource = preload("res://scripts/systems/special_encounter_type.gd")
 const SubHeroAttackEffectResource = preload("res://scripts/combat/sub_hero_attack_effect.gd")
-const StageRouterScript = preload("res://scripts/systems/stage_router.gd")
-const PlayerProgressScript = preload("res://scripts/progress/player_progress.gd")
-const StageTypeScript = preload("res://scripts/data/stage_type.gd")
-const StageDatabaseScript = preload("res://scripts/data/stage_database.gd")
+const StageFlowScript = preload("res://scripts/systems/stage_flow.gd")
+const StageContentControllerScript = preload("res://scripts/world/stage_content_controller.gd")
+const AuthoredContentStateScript = preload("res://scripts/progress/authored_content_state.gd")
 ## The battlefield spans the full screen width up to this cap (the base 720px
 ## design width), so it stays a sane size on very wide windows or devices.
 const MAX_GRID_WIDTH: float = 720.0
@@ -29,20 +28,18 @@ var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
 var _grid_play_area: Rect2 = Rect2()
 var _defeat_retry_scheduled: bool = false
-## Phase 5 area/stage entry host: resolves an authored stage via StageRouter and
-## starts the matching gameplay (battle / town / event). Kept separate from the
-## endless battle loop, which this scene continues to drive unchanged.
-var _stage_router: StageRouter
-var _player_progress: PlayerProgress
-## Phase 7 typed-session record for the authored stage currently being played:
-## { area_id, stage_number, stage_type, destination, from_map }. Non-empty only
-## while the player is inside an authored area/stage session entered through
-## enter_area_stage(); the endless default battle loop never sets it. Completion
-## / unlock flow (Phase 7) reads it — see _record_typed_battle_completion().
-var _typed_entry: Dictionary = {}
-## One-shot origin of the next authored entry (world map vs DEV / direct call),
-## consumed by _apply_stage_entry() once the routed stage actually starts.
-var _entry_from_world_map: bool = false
+## Authored-stage flow policy: entry bookkeeping, completion, the unlock gate and
+## the town return decision. This scene is only its HOST — it starts battles,
+## switches views and forwards engine / HUD signals — so no flow rule lives in
+## this file. It is ALSO the single advance seam: AUTO and the manual NEXT STAGE
+## button both end up in _advance_after_clear(), so automation can never change a
+## stage's result. See stage_flow.gd.
+var _flow: StageFlow
+## Authored stage content layer (chests, healing pools, ...). Created in code, not
+## in the scene, so a project with no authored content adds no scene nodes and no
+## behaviour: for a stage whose authored content is empty this controller does
+## nothing at all.
+var _stage_content: StageContentController
 
 
 func _ready() -> void:
@@ -92,24 +89,33 @@ func _ready() -> void:
 	hud.auto_toggle_requested.connect(_on_hud_auto_toggle_requested)
 	hud.farming_toggle_requested.connect(_on_hud_farming_toggle_requested)
 	hud.game_speed_requested.connect(_on_hud_game_speed_requested)
-	# Phase 5: stage entry host — resolved routes start the matching gameplay.
-	_stage_router = StageRouterScript.new()
-	_player_progress = PlayerProgressScript.new()
-	_stage_router.enter_requested.connect(_apply_stage_entry)
+	# Authored-stage flow: the scene hosts it, the flow owns the rules.
+	_flow = StageFlowScript.new()
+	_flow.gameplay_requested.connect(_apply_stage_entry)
+	# Authored content layer. It reads the flow's current area and the stage's
+	# authored entries; consumed state is kept separately from map progress.
+	_stage_content = StageContentControllerScript.new()
+	_stage_content.name = "StageContentController"
+	add_child(_stage_content)
+	_stage_content.configure(grid, player, stage_manager, _flow, gold_system, AuthoredContentStateScript.new())
+	_stage_content.content_resolved.connect(_on_stage_content_resolved)
 	hud.area_stage_enter_requested.connect(_on_hud_area_stage_enter_requested)
-	# Phase 6: world map host — the map view is refreshed from PlayerProgress and
-	# its stage clicks route through the same enter_area_stage entry.
+	# World map host — the map view is refreshed from PlayerProgress and its
+	# stage clicks route through the same enter_area_stage entry.
 	hud.world_map_toggle_requested.connect(_on_hud_world_map_toggle_requested)
 	hud.world_map_stage_enter_requested.connect(_on_world_map_stage_enter_requested)
-	# Phase 7: town close is routed through the host so a typed town visit that
-	# came from the world map returns to the refreshed map (hub flow) while every
-	# other close keeps restoring the combat view.
+	# Town close is routed through the host so a town visit opened from the world
+	# map returns to the refreshed map while every other close keeps restoring
+	# the combat view.
 	hud.town_close_requested.connect(_on_town_close_requested)
 	auto_combat.attach_systems(player, turn_manager, combat_system, stage_manager, grid)
 	auto_combat.auto_mode_changed.connect(_on_auto_mode_changed)
 	auto_combat.farming_changed.connect(_on_farming_changed)
 	auto_combat.auto_action_taken.connect(_on_auto_action_taken)
 	auto_combat.game_speed_changed.connect(_on_game_speed_changed)
+	# AUTO asks the host to advance instead of moving the stage itself, so an AUTO
+	# advance and the manual NEXT STAGE button take the same path.
+	auto_combat.stage_advance_requested.connect(_on_auto_stage_advance_requested)
 	hud.set_farming_mode(auto_combat.is_farming_enabled())
 	hud.set_game_speed(auto_combat.get_game_speed())
 	_sync_sub_hero_combatants()
@@ -174,21 +180,32 @@ func _on_hud_next_stage_requested() -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Advances to the next stage once the player is standing on the Next Stage
-## Point (exit) after clearing the stage. Manual (non-AUTO, non-FARMING) only.
+## THE single advance seam. Both the manual NEXT STAGE button / primary action and
+## AUTO (via AutoCombatController.stage_advance_requested) end up here, so the two
+## paths cannot drift apart. That drift was the bug this replaces: AUTO used to
+## call StageManager.start_next_stage() directly, bypassing the host entirely, so
+## an AUTO clear and a manual clear behaved differently.
+##
+## Advancing is always "the battle moves one stage on". The game is primarily
+## endless, so a cleared stage continues to the next battle and the world map is
+## an always-available status view / shortcut rather than a hub the player is
+## forced back to after every clear.
+##
+## Automation is NOT consulted, so an AUTO clear and a manual clear produce the
+## same result. FARMING is the single deliberate exception: it means "stay on this
+## stage", so it keeps the player from advancing at all — that is a chosen mode,
+## not automation changing an outcome.
 func _advance_after_clear() -> bool:
 	if not _can_advance_to_next_stage():
 		return false
-	# Phase 7: inside an authored typed battle the arena exit leads back to the
-	# world-map hub — the authored path's "next stage" is chosen on the map, not
-	# started here as an endless battle N+1. The endless default loop (no typed
-	# entry, including battle clears after leaving the map) keeps advancing.
-	if (
-		not _typed_entry.is_empty()
-		and int(_typed_entry.get("destination", -1)) == StageRouterScript.Destination.COMBAT
-	):
-		return _return_to_world_map_from_typed_clear()
 	return stage_manager.start_next_stage()
+
+
+## AUTO reached the exit of a cleared stage and asked to move on. Routed into the
+## same seam as the manual press; the outcome is reported back so AUTO can stop
+## when the next stage could not start.
+func _on_auto_stage_advance_requested() -> void:
+	auto_combat.notify_advance_result(_advance_after_clear())
 
 
 func _player_is_on_stage_exit() -> bool:
@@ -205,39 +222,37 @@ func _can_advance_to_next_stage() -> bool:
 		and stage_manager.stage_state != null
 		and stage_manager.stage_state.is_complete
 		and not auto_combat.is_farming_enabled()
-		and not auto_combat.is_auto_enabled()
 		and _player_is_on_stage_exit()
 	)
 
 
 # ---------------------------------------------------------------------------
-# Phase 5 — Area / Stage typed entry host.
-# Resolves an authored stage through StageRouter (stage_type driven, never
-# stage-number hard-coded) and starts the matching gameplay: COMBAT/BOSS ->
-# battle via the existing StageManager, TOWN -> the town view, EVENT -> a
-# placeholder message. The default endless battle loop is left untouched.
+# Authored-stage HOST + WorldMap HOST.
+# The scene resolves an authored stage through StageFlow (stage_type driven,
+# never stage-number hard-coded) and starts the matching gameplay: COMBAT/BOSS ->
+# battle via the existing StageManager, TOWN -> the town view. It also hosts the
+# world map: it feeds PlayerProgress into the view, toggles it, and routes stage
+# clicks through the same entry with the flow's unlock gate. The rules themselves
+# live in StageFlow; this section only performs them.
 # ---------------------------------------------------------------------------
 
-## The map/area progress object this scene advances when a typed stage is
-## entered. Public so Phase 6/7 wiring and tests can read the current position.
+## The map / area progress object this scene displays and the flow advances.
+## Public so tests and later wiring can read the current position.
 func get_stage_progress() -> PlayerProgress:
-	return _player_progress
+	return _flow.get_progress() if _flow != null else null
 
 
 ## Requests entry to an authored area stage, e.g. enter_area_stage(&"forest", 8).
 ## Returns true when the stage is authored and its gameplay has been started.
 ## Returns false (with a status message) for unknown / un-authored / out-of-range
-## stages. `from_world_map` marks an entry clicked on the world map so the Phase 7
-## completion/return flow can send the player back to the refreshed map instead
-## of the combat view.
+## stages. `from_world_map` marks an entry clicked on the world map, so a town
+## visit opened from the map closes back to the refreshed map.
 func enter_area_stage(area_id: StringName, stage_number: int, from_world_map: bool = false) -> bool:
-	if _stage_router == null:
+	if _flow == null:
 		return false
-	_entry_from_world_map = from_world_map
-	if _stage_router.request_enter(area_id, stage_number):
+	if _flow.request_enter(area_id, stage_number, from_world_map):
 		return true
-	var route: Dictionary = _stage_router.route(area_id, stage_number)
-	_last_move_text = str(route.get("reason", "Cannot enter that stage."))
+	_last_move_text = _flow.get_entry_failure_reason(area_id, stage_number)
 	queue_redraw()
 	return false
 
@@ -247,21 +262,15 @@ func _on_hud_area_stage_enter_requested(area_id: StringName, stage_number: int) 
 	enter_area_stage(area_id, stage_number)
 
 
-# ---------------------------------------------------------------------------
-# Phase 6 — WorldMap host. The map is a data-driven presenter inside the HUD's
-# ViewContainer; this scene is its host: it feeds PlayerProgress into the view,
-# toggles the map view, and routes stage clicks through enter_area_stage with a
-# presentational unlock guard (locked nodes are also disabled in the view).
-# ---------------------------------------------------------------------------
-
 ## Refreshes the WorldMapView against the live progress and shows it.
 func open_world_map() -> bool:
-	if _player_progress == null:
+	var progress: PlayerProgress = get_stage_progress()
+	if progress == null:
 		return false
 	var map_view := hud.get_world_map_view()
 	if map_view == null:
 		return false
-	map_view.set_progress(_player_progress)
+	map_view.set_progress(progress)
 	map_view.refresh()
 	hud.show_world_map()
 	return true
@@ -279,10 +288,10 @@ func _on_hud_world_map_toggle_requested() -> void:
 
 ## Stage clicks from the world map. Unlike the DEV panel (which intentionally
 ## bypasses lock gating for QA), the map only lets the player enter stages the
-## linear progression has actually unlocked — the lock rule stays entirely in
-## PlayerProgress (Phase 7 owns the completion flow that advances it).
+## linear progression has actually unlocked — the lock rule lives in
+## PlayerProgress and is reached through the flow so map and flow share one rule.
 func _on_world_map_stage_enter_requested(area_id: StringName, stage_number: int) -> void:
-	if _player_progress != null and not _player_progress.is_stage_unlocked(area_id, stage_number):
+	if _flow != null and not _flow.is_stage_unlocked(area_id, stage_number):
 		_last_move_text = "AREA %s // STAGE %d LOCKED — CLEAR THE PREVIOUS STAGE FIRST" % [area_id, stage_number]
 		queue_redraw()
 		return
@@ -290,88 +299,21 @@ func _on_world_map_stage_enter_requested(area_id: StringName, stage_number: int)
 
 
 # ---------------------------------------------------------------------------
-# Phase 7 — Completion / return flow. The authored loop is
-#   WorldMap → Stage → Gameplay → Complete (PlayerProgress) → unlock next → map
-# Completion decisions only depend on (area_id, stage_number) resolved through
-# the router / StageDatabase: battle types complete when their authored battle
-# clears; TOWN / EVENT visits count as cleared when entered (their gameplay has
-# no persistent return yet). The endless default loop never writes progress.
+# Completion / town-return HOST.
+# The policy lives in StageFlow; this section only performs it. The authored loop
+#   WorldMap → Stage → Gameplay → Complete (PlayerProgress) → unlock next →
+#   next battle (or the map, whenever the player opens it)
+# Completion depends only on (area_id, stage_number) resolved through the router /
+# StageDatabase, and never on AUTO / FARMING, so automation cannot change a
+# result. The endless default loop (no authored stage ever entered) writes no
+# progress at all.
 # ---------------------------------------------------------------------------
 
-## Phase 7 completion hook for battle gameplay: when the current authored typed
-## battle (COMBAT/BOSS) clears on its own stage number, record the completion and
-## return the authored "what's next" text (e.g. "STAGE 06 (EVENT) UNLOCKED").
-## Returns "" when this clear belongs to the endless loop, or to a battle the
-## engine already drifted past the typed stage (AUTO / FARMING advance or defeat
-## retreat) — in the drifted case the typed session is over and later battle
-## clears no longer write progress (boot-like endless rules take over).
-func _record_typed_battle_completion(cleared_stage_number: int) -> String:
-	if _typed_entry.is_empty() or _player_progress == null:
-		return ""
-	if int(_typed_entry.get("destination", -1)) != StageRouterScript.Destination.COMBAT:
-		# A battle cleared while a non-battle typed stage was active belongs to
-		# the endless engine underneath; the typed visit session is over.
-		_typed_entry = {}
-		return ""
-	var typed_stage: int = int(_typed_entry.get("stage_number", 0))
-	if cleared_stage_number != typed_stage:
-		_typed_entry = {}
-		return ""
-	var area_id: StringName = StringName(_typed_entry.get("area_id", &""))
-	_player_progress.complete_stage(area_id, typed_stage)
-	return _authored_next_text(area_id, typed_stage)
-
-
-## Completing an authored stage whose gameplay is a visit (TOWN / EVENT
-## placeholder): entering it IS the clear, so the linear unlock chain can move
-## past it. Idempotent; static authored data is never written.
-func _record_typed_visit_completion(area_id: StringName, stage_number: int) -> void:
-	if _player_progress == null:
-		return
-	_player_progress.complete_stage(area_id, stage_number)
-
-
-## What the authored path offers after `stage_number` clears: either the next
-## authored stage — its type read through the router from StageDatabase, never a
-## hard-coded number — or the area-complete summary when it was the final stage.
-func _authored_next_text(area_id: StringName, stage_number: int) -> String:
-	var next_route := _stage_router.route(area_id, stage_number + 1)
-	if bool(next_route.get("ok", false)):
-		var next_stage: int = int(next_route.get("stage_number", 0))
-		var next_type: int = int(next_route.get("stage_type", StageTypeScript.COMBAT))
-		return "STAGE %02d (%s) UNLOCKED" % [
-			next_stage,
-			StageTypeScript.get_display_name(next_type).to_upper(),
-		]
-	var database := StageDatabaseScript.load_area(area_id)
-	var total: int = int(database.stage_count) if database != null else stage_number
-	return "AREA %s COMPLETE (%d/%d)" % [String(area_id).to_upper(), total, total]
-
-
-## The arena exit pressed after clearing an authored typed battle ends the typed
-## session: the stage is already completed, so open the refreshed world map and
-## let the player pick the next authored stage there (the Phase 7 hub loop).
-func _return_to_world_map_from_typed_clear() -> bool:
-	var area_id: StringName = StringName(_typed_entry.get("area_id", &""))
-	var stage_number: int = int(_typed_entry.get("stage_number", 0))
-	if _player_progress != null:
-		_player_progress.complete_stage(area_id, stage_number)
-	_typed_entry = {}
-	_last_move_text = "BACK TO WORLD MAP — pick the next stage on the map"
-	queue_redraw()
-	return open_world_map()
-
-
-## Town close routed through the host: a typed town visit that came from the
-## world map returns to the refreshed map (completion already recorded on
-## entry); every other close keeps restoring the combat view.
+## Town close routed through the host: a town visit opened from the world map
+## returns to the refreshed map (its completion was recorded on entry); every
+## other close keeps restoring the combat view.
 func _on_town_close_requested() -> void:
-	var return_to_map: bool = (
-		not _typed_entry.is_empty()
-		and int(_typed_entry.get("destination", -1)) == StageRouterScript.Destination.TOWN
-		and bool(_typed_entry.get("from_map", false))
-	)
-	_typed_entry = {}
+	var return_to_map: bool = _flow != null and _flow.on_town_closed()
 	if return_to_map:
 		_last_move_text = "BACK TO WORLD MAP — pick the next stage on the map"
 		queue_redraw()
@@ -380,64 +322,33 @@ func _on_town_close_requested() -> void:
 		hud.show_combat()
 
 
-## Dispatches one resolved stage route into the matching gameplay. Connected to
-## StageRouter.enter_requested so any request_enter call lands here. Ends by
-## converging the HUD onto the gameplay view (combat / town / refreshed map),
-## which also hides the world map when the entry came from a stage click on the map.
+## Dispatches one resolved authored stage into the matching gameplay. Connected to
+## StageFlow.gameplay_requested, so any entry request lands here. The flow has
+## already done the entry bookkeeping (current area / stage, visit completion);
+## this method only opens the gameplay and converges the HUD onto its view, which
+## also hides the world map when the entry came from a stage click on the map.
 func _apply_stage_entry(route: Dictionary) -> void:
-	if _stage_router == null or _player_progress == null:
-		return
 	if not bool(route.get("ok", false)):
 		return
 	var area_id: StringName = StringName(route.get("area_id", &""))
 	var stage_number: int = int(route.get("stage_number", 0))
 	var stage_id: String = str(route.get("stage_id", ""))
-	var stage_type: int = int(route.get("stage_type", StageTypeScript.COMBAT))
-	var destination: int = int(route.get("destination", StageRouterScript.Destination.NONE))
-	var from_world_map: bool = _entry_from_world_map
-	_entry_from_world_map = false
-	_player_progress.current_area_id = area_id
-	_player_progress.current_stage_number = stage_number
-	if destination >= 0:
-		_typed_entry = {
-			"area_id": area_id,
-			"stage_number": stage_number,
-			"stage_type": stage_type,
-			"destination": destination,
-			"from_map": from_world_map,
-		}
+	var destination: int = int(route.get("destination", StageRouter.Destination.NONE))
 	match destination:
-		StageRouterScript.Destination.COMBAT:
+		StageRouter.Destination.COMBAT:
 			_start_battle_for_area_stage(stage_id, stage_number)
 			hud.show_combat()
-		StageRouterScript.Destination.TOWN:
-			# Phase 7: entering a town stage IS the visit — it counts as cleared
-			# so the linear unlock chain can move on to the next authored stage.
-			_record_typed_visit_completion(area_id, stage_number)
+		StageRouter.Destination.TOWN:
+			# Entering a town stage IS the visit: the flow already recorded the
+			# clear (so the linear chain can move past it) and resolved the
+			# authored "what's next" text.
 			_last_move_text = "AREA %s // TOWN STAGE %02d VISITED — %s" % [
 				String(area_id).to_upper(),
 				stage_number,
-				_authored_next_text(area_id, stage_number),
+				str(route.get("next_text", "")),
 			]
 			hud.show_town()
-		StageRouterScript.Destination.EVENT:
-			# Phase 7: EVENT gameplay is still a placeholder, so a visit resolves
-			# immediately: the stage counts as cleared (the unlock chain needs it
-			# to reach the stages behind it) and real content lands in a later
-			# phase. A map-origin entry stays on the refreshed map.
-			_record_typed_visit_completion(area_id, stage_number)
-			_last_move_text = "AREA %s // EVENT STAGE %02d (PLACEHOLDER) — CLEARED AS A VISIT · %s" % [
-				String(area_id).to_upper(),
-				stage_number,
-				_authored_next_text(area_id, stage_number),
-			]
-			_typed_entry = {}
-			if from_world_map:
-				open_world_map()
-			else:
-				hud.show_combat()
 		_:
-			_typed_entry = {}
 			_last_move_text = "AREA %s // no gameplay destination yet" % stage_id
 			hud.show_combat()
 	queue_redraw()
@@ -571,7 +482,20 @@ func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
 	if stage_state.is_special_encounter:
 		encounter_label = SpecialEncounterTypeResource.get_display_name(stage_state.special_encounter_type).to_upper()
 	_last_move_text = "%s // %s started" % [stage_manager.current_definition.display_name, encounter_label]
+	# Authored content appears whenever the stage starts, however the player got
+	# here (map click, previous-stage exit, or the endless loop). Stages that
+	# author nothing are left untouched — they are plain normal stages.
+	if _stage_content != null:
+		_stage_content.spawn_for_stage(stage_state.stage_number)
 	hud.log_event("log.stage_start", {"stage": stage_state.stage_number})
+	queue_redraw()
+
+
+## Reports what authored content did, e.g. "CACHE — 120 GOLD + Vicious Blade".
+func _on_stage_content_resolved(description: String) -> void:
+	if description.is_empty():
+		return
+	_last_move_text = description
 	queue_redraw()
 
 
@@ -601,11 +525,12 @@ func _register_enemy(enemy: EnemyController) -> void:
 
 func _on_stage_completed(stage_state: StageState) -> void:
 	sub_hero_combat_manager.stop_combat()
-	# Phase 7: an authored typed battle that clears on its own stage records the
-	# completion (idempotent) and reports the authored next stage; endless clears
-	# return "" and keep the classic messages below.
-	var typed_next: String = _record_typed_battle_completion(stage_state.stage_number)
-	if typed_next.is_empty():
+	# An authored battle that clears records the completion in the flow (policy)
+	# and reports the authored "what's next"; a clear with no authored stage to
+	# advance returns "" and keeps the classic endless text below. AUTO / FARMING
+	# are not consulted here, so the recorded result never depends on automation.
+	var authored_next: String = _flow.on_battle_cleared(stage_state.stage_number) if _flow != null else ""
+	if authored_next.is_empty():
 		if auto_combat.is_farming_enabled():
 			_last_move_text = "STAGE %d CLEARED — FARMING STAYS ON STAGE" % stage_state.stage_number
 		else:
@@ -613,22 +538,21 @@ func _on_stage_completed(stage_state: StageState) -> void:
 			player.set_free_movement(true)
 			_last_move_text = "STAGE %d CLEARED — REACH THE RIGHT EXIT TO ADVANCE" % stage_state.stage_number
 	else:
-		var area_label: String = String(_typed_entry.get("area_id", "")).to_upper()
+		var area_label: String = String(_flow.get_current_area_id()).to_upper()
 		if auto_combat.is_farming_enabled():
 			_last_move_text = "AREA %s // STAGE %02d CLEARED — %s · FARMING STAYS ON STAGE" % [
 				area_label,
 				stage_state.stage_number,
-				typed_next,
+				authored_next,
 			]
 		else:
 			# Free roam lets the player walk to the right exit cell; the exit /
-			# NEXT STAGE press then returns to the world map (hub loop), not an
-			# endless battle N+1.
+			# NEXT STAGE press then moves the endless loop one stage on.
 			player.set_free_movement(true)
-			_last_move_text = "AREA %s // STAGE %02d CLEARED — %s · REACH THE EXIT / PRESS NEXT TO RETURN TO THE MAP" % [
+			_last_move_text = "AREA %s // STAGE %02d CLEARED — %s · REACH THE EXIT / PRESS NEXT TO CONTINUE" % [
 				area_label,
 				stage_state.stage_number,
-				typed_next,
+				authored_next,
 			]
 	hud.log_event("log.stage_clear", {"stage": stage_state.stage_number})
 	turn_manager.set_victory()

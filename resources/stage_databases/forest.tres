@@ -1,24 +1,42 @@
-[gd_resource type="Resource" script_class="StageDatabase" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="StageDatabase" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/stage_database.gd" id="1_db"]
 [ext_resource type="Script" path="res://scripts/data/stage_data.gd" id="2_stage"]
+[ext_resource type="Script" path="res://scripts/data/stage_content.gd" id="3_content"]
+
+[sub_resource type="Resource" id="StageContent_forest_006_cache"]
+script = ExtResource("3_content")
+id = &"cache"
+kind = 0
+display_name = "Hidden Cache"
+one_shot = true
+gold = 150
+
+[sub_resource type="Resource" id="StageContent_forest_006_spring"]
+script = ExtResource("3_content")
+id = &"spring"
+kind = 1
+display_name = "Forest Spring"
+one_shot = false
+heal_max_hp_ratio = 0.25
 
 [sub_resource type="Resource" id="StageData_forest_006"]
 script = ExtResource("2_stage")
 stage_number = 6
-stage_type = 1
-display_name = "Forest Event"
+stage_type = 0
+display_name = "Forest Hollow"
+content = Array[ExtResource("3_content")]([SubResource("StageContent_forest_006_cache"), SubResource("StageContent_forest_006_spring")])
 
 [sub_resource type="Resource" id="StageData_forest_008"]
 script = ExtResource("2_stage")
 stage_number = 8
-stage_type = 2
+stage_type = 1
 display_name = "Forest Town"
 
 [sub_resource type="Resource" id="StageData_forest_010"]
 script = ExtResource("2_stage")
 stage_number = 10
-stage_type = 3
+stage_type = 2
 display_name = "Forest Boss"
 
 [resource]

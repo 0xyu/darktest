@@ -8,7 +8,7 @@ extends Resource
 ## A StageDatabase is the compact authored description of EVERY stage in one
 ## Area WITHOUT one `.tres` per stage. It stores the shared base rule
 ## (stage_count + default_stage_type) plus a sparse set of authored overrides
-## for nodes that differ from the default (EVENT / TOWN / BOSS / ...). Stages
+## for nodes that differ from the default (TOWN / BOSS / ...). Stages
 ## are materialized lazily on lookup, so a single resource can describe 10
 ## stages or 10,000 stages through the same code path.
 ##
@@ -34,7 +34,8 @@ const MIN_ID_PAD := 3
 ## Gameplay type shared by every stage unless it is explicitly overridden.
 @export var default_stage_type: int = StageTypeScript.COMBAT
 ## Sparse authored exceptions. Only stages that differ from default_stage_type
-## (or carry authored content such as combat/event data) appear here; they are
+## (or carry authored content such as combat data or a content layer) appear
+## here; they are
 ## identified by their stage_number.
 @export var special_stages: Array[StageData] = []
 

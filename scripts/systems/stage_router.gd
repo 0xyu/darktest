@@ -13,7 +13,7 @@ extends RefCounted
 ##     player" for every authored stage, lazily via StageDatabase.lookup.
 ##   * request_enter() is the entry-point request a host connects to (Phase 5
 ##     wiring, or the future map/completion flow) to actually start that gameplay.
-##   * This file does NOT start combat, show TownView, or run Event content —
+##   * This file does NOT start combat or show TownView —
 ##     that content wiring is Phase 5. It does NOT read or write PlayerProgress —
 ##     unlock gating belongs to the flow caller (Phase 7).
 ##
@@ -35,14 +35,12 @@ const StageTypeScript := preload("res://scripts/data/stage_type.gd")
 ## the new destination is added HERE only — data classes stay untouched.
 enum Destination {
 	COMBAT,
-	EVENT,
 	TOWN,
 	NONE = -1,
 }
 
 const DESTINATION_NAMES := {
 	Destination.COMBAT: "Combat",
-	Destination.EVENT: "Event",
 	Destination.TOWN: "Town",
 }
 
@@ -62,14 +60,16 @@ static func get_destination_name(destination: int) -> String:
 
 
 ## Central stage_type -> route table. Today only BOSS diverges from its authored
-## type (it routes into Combat). Future authored types (ELITE / SHRINE / SECRET)
-## or future route kinds are decided here and nowhere else.
+## type (it routes into Combat). Future authored types or future route kinds are
+## decided here and nowhere else.
+##
+## Note that authored *content* (a forced boss enemy, a chest, a healing pool)
+## does NOT appear here: content is layered on top of the gameplay this table
+## picks, so adding content never changes a route.
 func _destination_for_stage_type(stage_type: int) -> int:
 	match stage_type:
 		StageTypeScript.COMBAT, StageTypeScript.BOSS:
 			return Destination.COMBAT
-		StageTypeScript.EVENT:
-			return Destination.EVENT
 		StageTypeScript.TOWN:
 			return Destination.TOWN
 		_:

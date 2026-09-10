@@ -26,11 +26,11 @@ func _make_stage(id: StringName, number: int, type_id: int) -> Resource:
 func _run() -> void:
 	# --- StageType catalogue ---
 	_expect(StageTypeScript.COMBAT == 0, "StageType.COMBAT should be 0")
-	_expect(StageTypeScript.BOSS == 3, "StageType.BOSS should be 3 (COMBAT, EVENT, TOWN, BOSS)")
-	for type_id in [StageTypeScript.COMBAT, StageTypeScript.EVENT, StageTypeScript.TOWN, StageTypeScript.BOSS]:
+	_expect(StageTypeScript.BOSS == 2, "StageType.BOSS should be 2 (COMBAT, TOWN, BOSS)")
+	for type_id in [StageTypeScript.COMBAT, StageTypeScript.TOWN, StageTypeScript.BOSS]:
 		_expect(StageTypeScript.is_valid(type_id), "StageType %d should be valid" % type_id)
 	_expect(not StageTypeScript.is_valid(999), "unlisted type 999 should be invalid")
-	_expect(not StageTypeScript.get_display_name(StageTypeScript.EVENT).is_empty(), "EVENT should have a display name")
+	_expect(not StageTypeScript.get_display_name(StageTypeScript.TOWN).is_empty(), "TOWN should have a display name")
 
 	# --- StageData validation ---
 	var valid_stage := _make_stage(&"forest_01", 1, StageTypeScript.COMBAT)
@@ -51,7 +51,7 @@ func _run() -> void:
 	area.set("display_name", "Forest")
 	area.get("stages").append(valid_stage)
 	area.get("stages").append(_make_stage(&"forest_02", 2, StageTypeScript.COMBAT))
-	area.get("stages").append(_make_stage(&"forest_06", 6, StageTypeScript.EVENT))
+	area.get("stages").append(_make_stage(&"forest_06", 6, StageTypeScript.COMBAT))
 	area.get("stages").append(_make_stage(&"forest_08", 8, StageTypeScript.TOWN))
 	area.get("stages").append(_make_stage(&"forest_10", 10, StageTypeScript.BOSS))
 	_expect(bool(area.call("is_valid")), "well-formed area should be valid")

@@ -6,7 +6,7 @@ extends "res://tools/ui_harness/ui_harness_suite.gd"
 ##   WorldMap → Stage → Gameplay → Complete (PlayerProgress) → unlock next → map
 ##
 ## Battle stages (COMBAT/BOSS) complete when their authored battle clears; TOWN
-## and EVENT (placeholder) stages complete on entry (the visit IS the clear, so
+## and TOWN stages complete on entry (the visit IS the clear, so
 ## the linear unlock chain can advance). Completing the final stage of an area
 ## finishes it. The endless default boot battle NEVER writes progress and keeps
 ## advancing battles exactly as before.
@@ -125,7 +125,7 @@ func _click_map_node(stage_number: int) -> void:
 
 # --- Tests ---------------------------------------------------------------
 
-func test_typed_battle_clear_records_completion_and_returns_to_map() -> void:
+func test_authored_battle_clear_records_completion_and_continues_endless() -> void:
 	await _mount_game()
 	var progress: Resource = _progress()
 	await _enter_typed_stage(&"forest", 1)
@@ -133,21 +133,24 @@ func test_typed_battle_clear_records_completion_and_returns_to_map() -> void:
 
 	expect(bool(progress.call("is_stage_completed", &"forest", 1)), "clearing authored forest 01 records the completion")
 	expect(bool(progress.call("is_stage_unlocked", &"forest", 2)), "clearing stage 1 unlocks stage 2")
-	expect_contains(_status_text(), "AREA FOREST", "typed clear status names the area")
-	expect_contains(_status_text(), "STAGE 02 (COMBAT) UNLOCKED", "typed clear status reports the next authored stage from data")
+	expect_contains(_status_text(), "AREA FOREST", "authored clear status names the area")
+	expect_contains(_status_text(), "STAGE 02 (COMBAT) UNLOCKED", "authored clear status reports the next authored stage from data")
 
-	# Manual free-roam victory: reaching the exit and pressing NEXT STAGE must
-	# return to the refreshed world map, not start an endless battle 2.
+	# The game is primarily endless: the exit / NEXT STAGE moves the battle one
+	# stage on. The world map is an always-available shortcut, not a hub the
+	# player is forced back to after every clear.
 	await _place_player(Vector2i(10, 3))
 	_hud().emit_signal("next_stage_requested")
 	await flush_frames(4)
 	var map: Node = _world_map()
 	var combat: Node = _combat_view()
-	expect(map != null and bool(map.get("visible")), "exit after a typed clear returns to the world map")
-	expect(combat != null and not bool(combat.get("visible")), "combat view hidden behind the world map")
-	expect_eq(_stage_number(), 1, "no endless battle 2 was started by the exit")
-	expect(bool(progress.call("is_stage_completed", &"forest", 1)), "completion survives the return to the map")
+	expect(map != null and not bool(map.get("visible")), "clearing an authored stage does not force the world map open")
+	expect(combat != null and bool(combat.get("visible")), "the combat view stays up after the authored clear")
+	expect_eq(_stage_number(), 2, "the exit continues the endless loop into battle 2")
+	expect(bool(progress.call("is_stage_completed", &"forest", 1)), "the completion survives the advance")
 
+	# The finished area is inspectable on demand through the map shortcut.
+	await _open_map()
 	var forest := _forest_view()
 	var node2: Button = forest.call("get_stage_node", 2) as Button
 	expect(node2 != null and not bool(node2.disabled), "stage 2 is AVAILABLE on the refreshed map")
@@ -155,19 +158,60 @@ func test_typed_battle_clear_records_completion_and_returns_to_map() -> void:
 	expect(int(node1.get_meta("stage_state")) == AreaViewScript.NodeState.COMPLETED, "cleared stage 1 shows COMPLETED")
 
 
+func test_auto_and_manual_advance_share_one_seam() -> void:
+	# The bug this replaced: AUTO called StageManager.start_next_stage() directly
+	# and bypassed the host, so the SAME clear advanced into an endless battle
+	# when AUTO was on, but returned to the world map when the player pressed
+	# NEXT STAGE. AUTO and manual now share one seam, so the outcome — the
+	# recorded completion, the reported next stage, and whether the map opens —
+	# is identical either way.
+	await _mount_game()
+	var progress: Resource = _progress()
+	var auto: Node = _auto()
+	# Drive the auto walker without depending on real-time deltas in headless.
+	auto.set("action_delay_seconds", 0.0)
+	auto.call("set_game_speed", 2)  # GameSpeed.FASTEST -> action_delay_seconds
+
+	# --- Manual advance: clear authored forest 02, then press NEXT STAGE ------
+	await _enter_typed_stage(&"forest", 2)
+	await _defeat_all_enemies()
+	expect(bool(progress.call("is_stage_completed", &"forest", 2)), "manual clear records forest 02")
+	await _place_player(Vector2i(10, 3))
+	_hud().emit_signal("next_stage_requested")
+	await flush_frames(4)
+	expect_eq(_stage_number(), 3, "manual advance moves on to battle 3")
+	var manual_map_visible: bool = bool(_world_map().get("visible"))
+
+	# --- AUTO advance: same clear, advanced by the auto walker ---------------
+	await _enter_typed_stage(&"forest", 4)
+	await _place_player(Vector2i(10, 3))
+	await _defeat_all_enemies()
+	expect(bool(progress.call("is_stage_completed", &"forest", 4)), "AUTO clear records the authored completion exactly like manual")
+	expect_contains(_status_text(), "STAGE 05 (COMBAT) UNLOCKED", "AUTO clear reports the same authored next stage")
+	expect(not bool(progress.call("is_stage_completed", &"forest", 5)), "the AUTO clear does not complete the stage it has not played")
+
+	# AUTO is only asked to advance once it is running, so it walks to the exit
+	# and raises the same request the NEXT STAGE button raises.
+	auto.call("set_auto_enabled", true)
+	await flush_frames(12)
+	expect_eq(_stage_number(), 5, "AUTO advance reaches the same next battle as the manual press")
+	expect(bool(_world_map().get("visible")) == manual_map_visible, "AUTO and manual agree on whether the map opens")
+	expect(bool(progress.call("is_stage_completed", &"forest", 4)), "the AUTO clear's completion survives the advance")
+
+
 func test_mid_path_clear_unlocks_next_authored_type_from_data() -> void:
 	await _mount_game()
 	var progress: Resource = _progress()
-	# 06 is authored EVENT; the unlock text must come from StageDatabase, not a
-	# hard-coded rule ("完成 05 → 06 unlocked（类型=EVENT，由 stage_type 决定）").
-	for number in range(1, 5):
+	# 08 is authored TOWN; the unlock text must come from StageDatabase, not a
+	# hard-coded rule ("完成 07 → 08 unlocked（类型=TOWN，由 stage_type 决定）").
+	for number in range(1, 7):
 		progress.call("complete_stage", &"forest", number)
-	await _enter_typed_stage(&"forest", 5)
+	await _enter_typed_stage(&"forest", 7)
 	await _defeat_all_enemies()
 
-	expect(bool(progress.call("is_stage_completed", &"forest", 5)), "clearing forest 05 records the completion")
-	expect(bool(progress.call("is_stage_unlocked", &"forest", 6)), "clearing stage 5 unlocks stage 6")
-	expect_contains(_status_text(), "STAGE 06 (EVENT) UNLOCKED", "the authored EVENT type is reported for the next stage")
+	expect(bool(progress.call("is_stage_completed", &"forest", 7)), "clearing forest 07 records the completion")
+	expect(bool(progress.call("is_stage_unlocked", &"forest", 8)), "clearing stage 7 unlocks stage 8")
+	expect_contains(_status_text(), "STAGE 08 (TOWN) UNLOCKED", "the authored TOWN type is reported for the next stage")
 
 
 func test_map_entry_to_town_counts_as_completed_and_closes_back_to_map() -> void:
@@ -197,7 +241,7 @@ func test_map_entry_to_town_counts_as_completed_and_closes_back_to_map() -> void
 	expect(int(node8.get_meta("stage_state")) == AreaViewScript.NodeState.COMPLETED, "visited town stage shows COMPLETED")
 
 
-func test_event_visit_from_map_completes_and_stays_on_map() -> void:
+func test_map_entry_to_combat_stage_starts_battle_and_hides_map() -> void:
 	await _mount_game()
 	var progress: Resource = _progress()
 	for number in range(1, 6):
@@ -207,16 +251,9 @@ func test_event_visit_from_map_completes_and_stays_on_map() -> void:
 	await _click_map_node(6)
 	var map: Node = _world_map()
 	var combat: Node = _combat_view()
-	expect(map != null and bool(map.get("visible")), "an EVENT (placeholder) visit keeps the world map open")
-	expect(combat != null and not bool(combat.get("visible")), "combat view stays hidden for the event visit")
-	expect(bool(progress.call("is_stage_completed", &"forest", 6)), "the event visit counts as completed")
-	expect(bool(progress.call("is_stage_unlocked", &"forest", 7)), "the event visit unlocks stage 7")
-
-	var forest := _forest_view()
-	var node7: Button = forest.call("get_stage_node", 7) as Button
-	expect(node7 != null and not bool(node7.disabled), "stage 7 is AVAILABLE on the refreshed map")
-	var node6: Button = forest.call("get_stage_node", 6) as Button
-	expect(int(node6.get_meta("stage_state")) == AreaViewScript.NodeState.COMPLETED, "visited event stage shows COMPLETED")
+	expect(map != null and not bool(map.get("visible")), "entering a stage from the map hides the map")
+	expect(combat != null and bool(combat.get("visible")), "a map-entered combat stage shows the combat view")
+	expect(_stage_number() == 6, "map entry starts the battle for the clicked stage")
 
 
 func test_direct_typed_town_visit_closes_back_to_combat() -> void:
@@ -284,11 +321,21 @@ func test_boss_clear_finishes_the_area() -> void:
 	expect(bool(progress.call("is_stage_completed", &"forest", 10)), "clearing the authored BOSS stage records the completion")
 	expect_contains(_status_text(), "AREA FOREST COMPLETE (10/10)", "final stage clear reports the area is complete")
 
+	# The authored path is finished, so the endless loop simply carries on past
+	# it; the map is opened on demand to inspect the finished area.
 	await _place_player(Vector2i(10, 3))
 	_hud().emit_signal("next_stage_requested")
 	await flush_frames(4)
+	expect_eq(_stage_number(), 11, "the endless loop continues past the finished area")
 	var map: Node = _world_map()
-	expect(map != null and bool(map.get("visible")), "clearing the final stage returns to the world map")
+	expect(map != null and not bool(map.get("visible")), "finishing the area does not force the world map open")
+
+	# Battles past the authored path are plain endless stages: they write nothing.
+	await _defeat_all_enemies()
+	await flush_frames(2)
+	expect_eq(progress.get("completed_stages").size(), 10, "battles past the authored path write no progress")
+
+	await _open_map()
 	var forest := _forest_view()
 	var node10: Button = forest.call("get_stage_node", 10) as Button
 	expect(int(node10.get_meta("stage_state")) == AreaViewScript.NodeState.COMPLETED, "the boss stage shows COMPLETED")

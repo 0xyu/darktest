@@ -3,7 +3,7 @@ extends "res://tools/ui_harness/ui_harness_suite.gd"
 ## Phase 5 headless suite: the running combat scene (grid_combat) acting as the
 ## StageRouter host. Entering authored Forest stages through enter_area_stage()
 ## must start the right existing gameplay: COMBAT/BOSS -> a real battle at the
-## matching level, TOWN -> TownView replaces CombatView, EVENT -> placeholder
+## matching level, TOWN -> TownView replaces CombatView.
 ## (no battle started). Unknown / un-authored stages are cleanly rejected.
 
 const MAIN_SCENE := preload("res://scenes/world/Main.tscn")
@@ -106,18 +106,19 @@ func test_enter_town_stage_shows_town_and_returns() -> void:
 	expect(bool(combat.get("visible")), "town close restores the combat view")
 
 
-func test_enter_event_stage_is_placeholder() -> void:
+func test_enter_stage_06_starts_a_combat_battle() -> void:
 	await _mount_game()
 	var combat: Node = _combat_view()
 	expect(combat != null, "combat view present")
-	var battle_before: int = _stage_number()
 
-	expect(bool(_grid_test.call("enter_area_stage", &"forest", 6)), "enter forest 06 (EVENT) should succeed")
+	# Stage 06 keeps the default COMBAT gameplay: authored content is layered on
+	# top of a normal stage, it does not replace the gameplay, so entering it
+	# starts a battle at battle stage 6 like any other combat stage.
+	expect(bool(_grid_test.call("enter_area_stage", &"forest", 6)), "enter forest 06 should succeed")
 	await flush_frames(2)
 	expect(_current_stage_number() == 6, "progress current stage should be 6 after forest 06")
-	# EVENT has no gameplay yet: it must not start a battle for stage 6.
-	expect(_stage_number() == battle_before, "EVENT stage should not start a battle (battle stage unchanged)")
-	expect(bool(combat.get("visible")), "combat view stays visible for the event placeholder")
+	expect(_stage_number() == 6, "forest 06 should start a battle at battle stage 6")
+	expect(bool(combat.get("visible")), "combat view is shown for a combat stage")
 
 
 func test_invalid_stages_are_rejected() -> void:

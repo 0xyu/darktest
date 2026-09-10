@@ -5,7 +5,7 @@ extends SceneTree
 ##
 ## Verifies the router turns (area_id, stage_number) into the right gameplay
 ## destination by reading StageData.stage_type — never by hard-coding stage
-## numbers — and walks the authored Forest path: 01 -> Combat / 06 -> Event /
+## numbers — and walks the authored Forest path: 01 -> Combat / 06 -> Combat /
 ## 08 -> Town / 10 -> Boss (Boss routes into Combat; its authored type stays
 ## BOSS). Unknown / un-authored stages resolve to clean failed routes.
 
@@ -40,15 +40,17 @@ func _run() -> void:
 
 func _test_forest_walkthrough() -> void:
 	var router := StageRouterScript.new()
-	# Forest authored layout (StageDatabase): 01-05,07,09 COMBAT / 06 EVENT /
-	# 08 TOWN / 10 BOSS. Routing is driven by stage_type, not by number.
+	# Forest authored layout (StageDatabase): COMBAT everywhere except 08 TOWN /
+	# 10 BOSS. Routing is driven by stage_type, not by number. Stage 06 is an
+	# authored override that keeps the default COMBAT gameplay and carries
+	# content instead, so it routes exactly like its neighbours.
 	var expected_destination := {
 		1: StageRouterScript.Destination.COMBAT,
 		2: StageRouterScript.Destination.COMBAT,
 		3: StageRouterScript.Destination.COMBAT,
 		4: StageRouterScript.Destination.COMBAT,
 		5: StageRouterScript.Destination.COMBAT,
-		6: StageRouterScript.Destination.EVENT,
+		6: StageRouterScript.Destination.COMBAT,
 		7: StageRouterScript.Destination.COMBAT,
 		8: StageRouterScript.Destination.TOWN,
 		9: StageRouterScript.Destination.COMBAT,
@@ -82,19 +84,18 @@ func _test_boss_routes_into_combat_but_keeps_type() -> void:
 
 func _test_destination_names() -> void:
 	_expect(StageRouterScript.get_destination_name(StageRouterScript.Destination.COMBAT) == "Combat", "COMBAT destination name")
-	_expect(StageRouterScript.get_destination_name(StageRouterScript.Destination.EVENT) == "Event", "EVENT destination name")
 	_expect(StageRouterScript.get_destination_name(StageRouterScript.Destination.TOWN) == "Town", "TOWN destination name")
 	_expect(StageRouterScript.get_destination_name(StageRouterScript.Destination.NONE) == "Unknown", "NONE destination name is Unknown")
-	_expect(StageRouterScript.is_valid_destination(StageRouterScript.Destination.EVENT), "EVENT is a valid destination")
+	_expect(StageRouterScript.is_valid_destination(StageRouterScript.Destination.TOWN), "TOWN is a valid destination")
 	_expect(not StageRouterScript.is_valid_destination(999), "999 is not a valid destination")
 
 
 func _test_destination_for_stage() -> void:
 	var router := StageRouterScript.new()
-	var event_stage := StageDatabaseScript.lookup(&"forest", 6)
-	_expect(event_stage != null, "forest stage 6 should be authored")
-	if event_stage != null:
-		_expect(router.destination_for_stage(event_stage) == StageRouterScript.Destination.EVENT, "destination_for_stage(forest 6) should be EVENT")
+	var authored_combat_stage := StageDatabaseScript.lookup(&"forest", 6)
+	_expect(authored_combat_stage != null, "forest stage 6 should be authored")
+	if authored_combat_stage != null:
+		_expect(router.destination_for_stage(authored_combat_stage) == StageRouterScript.Destination.COMBAT, "destination_for_stage(forest 6) should be COMBAT")
 	var boss_stage := StageDatabaseScript.lookup(&"forest", 10)
 	_expect(boss_stage != null, "forest stage 10 should be authored")
 	if boss_stage != null:
@@ -126,7 +127,8 @@ func _test_request_enter_emits_only_for_routable_stages() -> void:
 	_expect(received.size() == 2, "request_enter should emit exactly for the two routable stages")
 	if received.size() >= 1:
 		_expect(received[0].get("stage_id") == "forest_006", "first emitted route should be forest_006")
-		_expect(received[0].get("destination") == StageRouterScript.Destination.EVENT, "first emitted route should target EVENT")
+		var destination: int = received[0].get("destination", StageRouterScript.Destination.NONE)
+		_expect(destination == StageRouterScript.Destination.COMBAT, "first emitted route should target COMBAT")
 	if received.size() >= 2:
 		_expect(received[1].get("stage_id") == "forest_008", "second emitted route should be forest_008")
 		_expect(received[1].get("destination") == StageRouterScript.Destination.TOWN, "second emitted route should target TOWN")

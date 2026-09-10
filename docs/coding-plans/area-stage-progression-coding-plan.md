@@ -1,7 +1,9 @@
 # Godot Area → Stage → StageType 关卡系统（Stage Database 架构）
 
-> 文档版本：**Rev 2**（Phase 2 起改为 Stage Database 架构，目标是支撑 **10,000+ stages**）。
-> 历史：Rev 1 曾设想 `one stage = one .tres`（`forest_01.tres` … `forest_10.tres`），已在 Rev 2 **废弃**。原因见下方「# 关键架构变更」。
+> 文档版本：**Rev 2.1**（Phase 7.5：authored stage 改「普通关 + 内容层」模型、EVENT 退役、next-stage 单一 seam、StageFlow 抽取）。
+> 历史：
+> - Rev 1 曾设想 `one stage = one .tres`（`forest_01.tres` … `forest_10.tres`），已在 Rev 2 **废弃**。原因见下方「# 关键架构变更」。
+> - **Rev 2.1**（本版）：见「# Rev 2.1 变更（Phase 7.5）」。落地报告：`docs/coding-plans/reports/area-stage-progression-phase-07-5-report.md`。
 
 ## 总目标
 
@@ -40,10 +42,72 @@ Forest
 * Area / Stage 使用 Data / Resource 定义，但 **Stage 不与 `.tres` 文件一一对应**
 * 一个 Area 用**一个紧凑的 StageDatabase** 描述其全部关卡（阶段数量 + 默认规则 + 稀疏特殊节点）
 * StageData 只在查询时**按需物化**，因此 10 关、1,000 关、10,000 关走的是同一条加载/查询架构
-* 未来新增 `StageType`（ELITE / TREASURE / SHRINE / SECRET …）只扩展枚举，不新增文件体系
+* 未来新增 `StageType` 只扩展枚举，不新增文件体系
+  * **Rev 2.1 注意**：`StageType` 只回答"进入哪种玩法视图"（COMBAT / TOWN / BOSS）。**加内容**（宝箱 / boss 敌人 / 交互 object / 剧情 …）走**内容层**（`StageContent`），**不是**新增 `StageType`——加内容永远不改路由。
 * Stage 类型由 `StageData.stage_type` 决定，不使用 `if stage == 6` 这类硬编码
 * PlayerProgress 独立保存玩家进度（completed / unlocked / current 从不写进静态数据）
 * 不破坏现有 Combat / Town / HUD / battle `StageManager` 系统
+
+---
+
+# Rev 2.1 变更（Phase 7.5）
+
+Phase 7 交付后复核发现语义与结构两方面问题，Rev 2.1 一并修订。
+
+## 1. 语义：authored stage = 普通关 + 内容层
+
+**游戏主打 endless。** 未被 author 的 stage 一律按普通 endless 关处理；被 author 的 stage **仍然是一关普通战斗**，只是额外叠加「内容层」。
+
+```text
+普通 stage（未被 author）        = endless 的一关，无任何额外内容
+authored stage（被 author 的关） = 同一关普通战斗 + 内容层条目
+```
+
+* 内容层**不是** `StageType`：加内容永远不改变这一关进入哪种玩法。
+* 两种生命周期：**一次性**（`one_shot = true`：宝箱取走后消失，该关**变回普通关**）与**可重复**（`one_shot = false`：boss 敌人击败后仍出现）。
+* 触发方式：**走到格子上自动触发**；内容 object 不占用网格 occupancy，手动移动与 AUTO 移动走**同一个** `PlayerController.moved` 信号，因此自动化无法改变内容结果。
+* **`StageType.EVENT` 退役**：`StageType` 只留 `COMBAT / TOWN / BOSS`。"这一关不是真战斗"这类事改由内容层表达，不再切割玩法词汇。
+* **指定 boss 敌人沿用既有管线**：`resources/levels/level_<n>.tres` 的 `LevelConfig.boss`（authored stage 号与 battle level 1:1）。不另建一套。
+
+## 2. auto next stage == manual next stage（单一 seam）
+
+Phase 7 曾存在**两条互不知情的 next-stage 路径**：手动走 host 的 `_advance_after_clear()`（含 typed 拦截 → 回 WorldMap），而 AUTO 直接调 `StageManager.start_next_stage()` 绕过 host。Phase 7 的"漂移规则"（引擎推进出 typed stage 即结束 session）是绕开第二路径的补丁，Rev 2.1 **作废该补丁并统一路径**：
+
+```text
+手动 NEXT STAGE / primary_action ─┐
+                                  ├─→ 单一 advance seam ─→ StageManager.start_next_stage()
+AUTO stage_advance_requested ─────┘
+```
+
+* **stage 的 result（完成记录 / 文案 / 内容结算）完全不依赖 AUTO / FARMING**。
+* FARMING 只保留"清场原地重刷"——这是**模式**语义，不是 result 差异。
+* **清场后统一继续 endless（battle N+1）**；WorldMap 降为随时可开的**状态视图 / 捷径**，不再是每次清场的强制 hub。`_typed_entry`（typed session）整体删除。
+
+## 3. 结构：StageFlow 抽取
+
+Phase 5–7 的流程**策略**曾以 private method 形式堆在 `grid_combat`，使其越过 Combat Host 边界。Rev 2.1 抽出 **`StageFlow`**（`scripts/systems/stage_flow.gd`，`RefCounted`），独占：进入记账、visit 型关卡完成、战斗清场完成判定、下一关文案、线性解锁门槛、城镇关闭去向。
+
+`grid_combat` 只保留 **host 机制**：切视图、启战斗、转发信号、唯一 advance seam。
+
+> 职责归属自此应为：
+
+```text
+StageRouter      Stage → 玩法分发（类型→destination 表）
+StageFlow        authored 流程策略（进入/完成/解锁/下一关文案/城镇去向）
+grid_combat      scene host（视图切换、启战斗、信号转发、advance seam）
+StageContent     静态：单关的 authored 内容条目
+AuthoredContentState  玩家侧：哪些一次性内容已消费（独立于 PlayerProgress）
+PlayerProgress   玩家侧：completed / unlocked / current
+```
+
+## 4. 玩家侧状态是两个独立对象
+
+```text
+PlayerProgress         "哪些 stage 已通关"   completed_stages = { "forest_006": true }
+AuthoredContentState   "哪些内容已被用掉"   consumed        = { "forest_006:cache": true }
+```
+
+二者不可混同，且都只存 identifier（Phase 8 可直接序列化）。
 
 ---
 
@@ -161,8 +225,8 @@ StageData (静态)         completed_stages
 
 | 类 | 文件 | 说明 |
 |---|---|---|
-| `StageType` | `scripts/data/stage_type.gd` | `COMBAT=0, EVENT, TOWN, BOSS` + `is_valid()/get_display_name()`；未来扩展追加枚举即可 |
-| `StageData` | `scripts/data/stage_data.gd` | `id / stage_number / display_name / stage_type` + 玩法数据入口（`combat_data…requirement_data`，可空） |
+| `StageType` | `scripts/data/stage_type.gd` | **Rev 2.1：`COMBAT=0, TOWN, BOSS`**（原 `EVENT` 已退役 —— 它描述的是"这一关不是真战斗"，现由**内容层**表达）+ `is_valid()/get_display_name()`；未来扩展追加枚举即可 |
+| `StageData` | `scripts/data/stage_data.gd` | `id / stage_number / display_name / stage_type` + 玩法数据入口（`combat_data…requirement_data`，可空）+ **Rev 2.1：`content: Array[StageContent]`（authored 内容层，绝大多数关卡为空）** |
 | `AreaData` | `scripts/data/area_data.gd` | `id / display_name / stages: Array[StageData] / background`（**小/策展集合**形态，见 Phase 2 说明） |
 | 最小测试 | `tests/area_stage_data_smoke_test.gd` | 校验 + 枚举顺序 |
 
@@ -478,7 +542,15 @@ WorldMap 不判断 `if stage == 6 → event icon`；一律走 `stage_data.stage_
 
 ---
 
-# Phase 7 — Stage Completion / Return Flow（已完成）
+# Phase 7 — Stage Completion / Return Flow（已完成，**部分语义已被 Phase 7.5 取代**）
+
+> ⚠️ **Rev 2.1 取代说明**：本 Phase 的以下决策已在 **Phase 7.5** 作废，读本段时以 Rev 2.1 为准：
+> - 「typed session + 引擎漂移即结束 session」（§实现备注第 3、6 点与报告 §3.2/§5.3/§5.4）→ **删除**。漂移规则是绕开"AUTO 直接调 `start_next_stage()`"这条第二路径的补丁；Phase 7.5 改为**统一 seam**。
+> - 「手动 typed 清场后回 WorldMap」（§实现备注第 4 点）→ **删除**。清场后统一**继续 endless**，WorldMap 降为随时可开的状态视图。
+> - 「EVENT 占位 / 进入即算完成」→ EVENT 已退役。
+> - 「完成语义依赖 AUTO/FARMING」→ **result 与自动化完全解耦**。
+>
+> 仍然有效的部分：完成判定只依赖 `(area_id, stage_number)`（经 StageRouter/StageDatabase 解析）、零 stage 数字硬编码、下一关文案数据驱动、TOWN 进入即完成、endless boot 从不写进度。
 
 > 产物见 `docs/coding-plans/reports/area-stage-progression-phase-07-report.md`。
 >
@@ -515,6 +587,34 @@ Forest 05
 
 ---
 
+# Phase 7.5 — Authored Stage 模型修订 + StageFlow 抽取（已完成）
+
+> 产物见 `docs/coding-plans/reports/area-stage-progression-phase-07-5-report.md`。完整变更说明见本文件「# Rev 2.1 变更（Phase 7.5）」。
+
+## 目标
+
+1. **auto next stage == manual next stage**：两条路径收敛为唯一 seam，二者行为与结果完全一致。
+2. **stage 的 result 不依赖 AUTO / FARMING**（FARMING 仅保留"原地重刷"模式语义）。
+3. **authored stage 重定义为「普通战斗关 + 内容层」**；未被 author 的 stage 一律按 endless 普通关处理；清场后统一继续 endless。
+4. **`StageType.EVENT` 退役**，并入内容层表达。
+5. **把流程策略从 `grid_combat` 抽成独立 `StageFlow`**，`grid_combat` 退回 Combat Host。
+6. 内容层首批实现：**宝箱（一次性）**、**治疗池/交互 object（可重复）**；**boss 指定沿用既有 `LevelConfig` 管线**；剧情 story 本轮不做。
+
+## 落地范围
+
+* `StageFlow`（`scripts/systems/stage_flow.gd`）：进入记账、visit 完成、战斗清场完成判定、下一关文案、解锁门槛、城镇关闭去向。`grid_combat` 内**不再有任何流程规则**。
+* **唯一 advance seam**：`AutoCombatController` 新增 `stage_advance_requested` / `notify_advance_result()`；`_start_next_stage_from_exit()` 不再直接推进 stage。手动与 AUTO 共用 `grid_combat._advance_after_clear()`。
+* `_typed_entry` / `_entry_from_world_map` 与 4 个规则方法（`_record_typed_battle_completion` / `_record_typed_visit_completion` / `_authored_next_text` / `_return_to_world_map_from_typed_clear`）**删除**。
+* 内容层：`StageContent`（数据）/ `AuthoredContentState`（独立玩家侧状态）/ `StageContentObject`（呈现）/ `StageContentController`（运行时）。走上格子触发，内容格不占 occupancy。
+* Forest 06 现为 **COMBAT + Hidden Cache（一次性）+ Forest Spring（可重复）** 的示例。
+* 测试：新增 `test_stage_content`（5）+ `stage_content_smoke_test`；`test_stage_progression` 增至 9（新增 auto/manual 单一 seam 守卫，该测试在修正前必然失败）；因模型变更改写的既有断言逐项记录在报告 §5.4。
+
+## 门禁
+
+* 全量 ui_harness **76 tests / 75 passed**（唯一失败为既有 `test_combat_log_wiring::test_kill_logs_event_end_to_end`）；5 个 smoke + 全项目 parse 干净。
+
+---
+
 # Phase 8 — Save / Load
 
 ## 目标
@@ -525,9 +625,17 @@ Forest 05
 {
   "current_area": "forest",
   "current_stage": 6,
-  "completed_stages": ["forest_001", "forest_002", "forest_003", "forest_004", "forest_005"]
+  "completed_stages": ["forest_001", "forest_002", "forest_003", "forest_004", "forest_005"],
+  "consumed_content": ["forest_006:cache"]
 }
 ```
+
+> **Rev 2.1：玩家侧状态是两个独立对象**，存档要同时覆盖：
+> * `PlayerProgress` — `current_area_id` / `current_stage_number` / `completed_stages`
+> * `AuthoredContentState` — `consumed`（key 形如 `"forest_006:cache"`）
+>
+> 两者**都已是**纯 identifier 形态，且 `StageFlow._init(progress)` 与
+> `StageContentController.configure(..., state)` **都已支持注入**，因此 Phase 8 不需要改数据模型，只需决定唯一挂载点（建议由一个 session/存档对象同时持有二者，避免挂载点分裂）与存档时机（`StageFlow.on_battle_cleared()` 命中后、`resolve_at()` 消费一次性内容后）。
 
 Load 重建：
 
@@ -558,7 +666,11 @@ Swamp
 
 做法：**只新增一个 `resources/stage_databases/swamp.tres`**（`area_id="swamp"`，`stage_count=N`，`default_stage_type=COMBAT`，`special_stages` 覆盖 EVENT/TOWN/BOSS 节点）。
 
-若想加入 ELITE / SHRINE 等类型：先扩展 `StageType` 枚举，再在 swamp.tres 的 special_stages 引用新类型。**核心 `StageRouter / PlayerProgress / WorldMap / StageDatabase` 不应改动。**
+若想加入 ELITE / SHRINE 等内容：**先确认它是"另一种玩法"还是"叠加在战斗关上的内容"**。
+* 是**内容**（绝大多数情况，如精英敌人、宝箱怪、祭坛交互）→ 用**内容层**：在 swamp 的 `special_stages` 条目上挂 `StageContent` 条目即可，**核心改动为零**。
+* 是**另一种玩法视图**（真的不打架、要独立场景）→ 才扩展 `StageType` 枚举 + `StageRouter` 的 destination 表。
+
+**核心 `StageRouter / StageFlow / PlayerProgress / WorldMap / StageDatabase` 不应改动。**
 
 如果为了 Swamp 必须大改核心，说明仍有 hard-code，需要在本 Phase 修掉。
 
@@ -582,9 +694,21 @@ forest_01.tres / forest_02.tres / ...            # 一 stage 一文件设计
 AreaData        静态：小/策展 Area 描述（含 background）
 StageDatabase   静态：大型 Area 的紧凑关卡库（count + 默认规则 + 覆盖）
 StageData       静态：单关定义（也是 DB 查询返回的"运行时定义"）
-StageRouter     Stage → 玩法分发（Phase 4）
+StageContent    静态：单关的 authored 内容层条目（宝箱 / 交互 object …，可空）
+StageRouter     Stage → 玩法分发（类型→destination 表）
+StageFlow       authored 流程策略（进入 / 完成 / 解锁门槛 / 下一关文案 / 城镇去向）
 PlayerProgress  玩家进度（completed / unlocked / current）
+AuthoredContentState  玩家侧：哪些一次性内容已消费（独立于 PlayerProgress）
 Save            只存 identifier
+```
+
+并确认**没有**：
+
+```text
+grid_combat 内出现流程规则（完成判定 / 解锁 / 下一关文案 / 返回去向）   # Rev 2.1：应全部在 StageFlow
+手动与 AUTO 各自推进 stage                        # Rev 2.1：只能有一条 advance seam
+stage result 依赖 is_auto_enabled() / is_farming_enabled()
+内容层条目改变某一关的 stage_type / route         # 内容只叠加，不改玩法
 ```
 
 ---
@@ -613,12 +737,16 @@ Save            只存 identifier
                 ▼
           StageRouter
                 │
-      ┌─────────┼─────────┐
-      │         │         │
-   Combat     Event      Town
-      │         │         │
-      └─────────┼─────────┘
-             (BOSS 走 Combat)
+      ┌─────────┴─────────┐
+      │                   │
+   Combat                Town
+      │                   │
+      └─────────┬─────────┘
+          (BOSS 走 Combat)
+
+  战斗关之上可叠加「内容层」（StageContent）：
+    宝箱 / 治疗池 / 特殊交互 object / …（一次性或可重复）
+  内容不改变路由，也不改变这一关进入哪种玩法
 ```
 
 同时：
@@ -651,7 +779,8 @@ Chat 04  Phase 3   Player Progress                    ✅ 完成
 Chat 05  Phase 4   StageRouter                        ✅ 完成
 Chat 06  Phase 5   Combat / Town Integration          ✅ 完成
 Chat 07  Phase 6   WorldMap Integration                ✅ 完成
-Chat 08  Phase 7   Completion / Return Flow            ✅ 完成
+Chat 08  Phase 7   Completion / Return Flow            ✅ 完成（部分语义被 7.5 取代）
+Chat 08b Phase 7.5 Authored Stage 模型 + StageFlow 抽取 ✅ 完成
 Chat 09  Phase 8   Save / Load                          ← 当前
 Chat 10  Phase 9   More Area（Swamp）
 Chat 11  Phase 10  Final Refactor
@@ -664,7 +793,7 @@ Chat 11  Phase 10  Final Refactor
 每次把：
 
 ```text
-1. 本 Coding Plan（Rev 2）
+1. 本 Coding Plan（**Rev 2.1**）
 2. 当前 Phase
 3. 上一个 Phase 的 output/report
 ```
@@ -704,7 +833,7 @@ Forest（StageDatabase）
 03 → Combat
 04 → Combat
 05 → Combat
-06 → Event
+06 → Combat + 内容层（Hidden Cache 一次性 / Forest Spring 可重复）   # Rev 2.1
 07 → Combat
 08 → Town
 09 → Combat
@@ -715,10 +844,11 @@ Forest（StageDatabase）
 
 ```text
 完成 01 → 02 unlocked
-完成 05 → 06 unlocked（类型=EVENT，由 stage_type 决定而非 if 判断）
-完成 06 → 07 unlocked
-进入 08 → Town
-完成 09 → 10 unlocked（类型=BOSS）
+完成 05 → 06 unlocked（06 是 authored 关：仍是 Combat，额外带内容层）
+完成 06 → 07 unlocked（清场后继续 endless，不再被强制弹回 WorldMap）
+进入 08 → Town（进入即完成，关闭回地图）
+完成 09 → 10 unlocked（类型=BOSS，由 stage_type 决定而非 if 判断）
+AUTO 开启与否 → 上述每一步的 result 完全相同                        # Rev 2.1
 ```
 
 新增 Area（Swamp / 更多）时，**不需要修改核心**：

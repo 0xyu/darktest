@@ -8,6 +8,12 @@ signal auto_mode_changed(enabled: bool)
 signal auto_action_taken(description: String)
 signal farming_changed(enabled: bool)
 signal game_speed_changed(speed: int)
+## Raised when AUTO has walked the hero onto the arena exit after a clear and the
+## stage should advance. AUTO does NOT advance the stage itself: the host owns
+## that decision (grid_combat's advance seam), so an AUTO advance and the manual
+## NEXT STAGE button take exactly the same path and produce the same result. The
+## host answers through notify_advance_result().
+signal stage_advance_requested
 
 enum GameSpeed {
 	X1,
@@ -338,16 +344,26 @@ func _step_exit_roam() -> void:
 		_cancel_exit_roam()
 
 
+## AUTO reached the exit of a cleared stage. It only REQUESTS the advance; the
+## host decides and performs it (so AUTO and the manual NEXT STAGE button share
+## one seam), then reports back through notify_advance_result().
 func _start_next_stage_from_exit() -> void:
 	if not _auto_enabled or farming_enabled:
 		return
 	if _turn_manager == null or _turn_manager.get_phase() != TurnState.VICTORY:
 		return
-	var stage_started: bool = _stage_manager.start_next_stage()
-	if not stage_started:
-		if _auto_enabled:
-			stop_auto()
-		auto_action_taken.emit("Could not start the next stage")
+	stage_advance_requested.emit()
+
+
+## Host answer to stage_advance_requested. `advanced == false` means the stage
+## could not move on (e.g. the next stage failed to generate), so AUTO stops
+## instead of idling on a cleared stage.
+func notify_advance_result(advanced: bool) -> void:
+	if advanced:
+		return
+	if _auto_enabled:
+		stop_auto()
+	auto_action_taken.emit("Could not start the next stage")
 
 
 func _on_combat_defeat() -> void:

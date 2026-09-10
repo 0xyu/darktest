@@ -66,7 +66,7 @@ func _test_lookup_apis() -> void:
 		3: StageTypeScript.COMBAT,
 		4: StageTypeScript.COMBAT,
 		5: StageTypeScript.COMBAT,
-		6: StageTypeScript.EVENT,
+		6: StageTypeScript.COMBAT,
 		7: StageTypeScript.COMBAT,
 		8: StageTypeScript.TOWN,
 		9: StageTypeScript.COMBAT,
@@ -81,17 +81,17 @@ func _test_lookup_apis() -> void:
 
 	# Id-based lookup: canonical ids use zero-padded stage numbers.
 	_expect_type_of(db.call("get_stage_by_id", "forest_001"), StageTypeScript.COMBAT, "get_stage_by_id('forest_001') should be COMBAT")
-	_expect_type_of(db.call("get_stage_by_id", "forest_006"), StageTypeScript.EVENT, "get_stage_by_id('forest_006') should be EVENT")
+	_expect_type_of(db.call("get_stage_by_id", "forest_006"), StageTypeScript.COMBAT, "get_stage_by_id('forest_006') should be COMBAT")
 	_expect_type_of(db.call("get_stage_by_id", "forest_008"), StageTypeScript.TOWN, "get_stage_by_id('forest_008') should be TOWN")
 	_expect_type_of(db.call("get_stage_by_id", "forest_010"), StageTypeScript.BOSS, "get_stage_by_id('forest_010') should be BOSS")
 
 	# Zero-padding is tolerated by id lookups.
-	_expect_type_of(db.call("get_stage_by_id", "forest_6"), StageTypeScript.EVENT, "get_stage_by_id('forest_6') should still be EVENT")
+	_expect_type_of(db.call("get_stage_by_id", "forest_6"), StageTypeScript.COMBAT, "get_stage_by_id('forest_6') should still be COMBAT")
 	_expect_type_of(db.call("get_stage_by_id", "forest_1"), StageTypeScript.COMBAT, "get_stage_by_id('forest_1') should still be COMBAT")
 
 	# Static cross-area convenience lookups.
-	_expect_type_of(StageDatabaseScript.lookup("forest", 6), StageTypeScript.EVENT, "StageDatabase.lookup('forest', 6) should be EVENT")
-	_expect_type_of(StageDatabaseScript.lookup_stage("forest_006"), StageTypeScript.EVENT, "StageDatabase.lookup_stage('forest_006') should be EVENT")
+	_expect_type_of(StageDatabaseScript.lookup("forest", 6), StageTypeScript.COMBAT, "StageDatabase.lookup('forest', 6) should be COMBAT")
+	_expect_type_of(StageDatabaseScript.lookup_stage("forest_006"), StageTypeScript.COMBAT, "StageDatabase.lookup_stage('forest_006') should be COMBAT")
 	_expect_type_of(StageDatabaseScript.lookup_stage("forest_008"), StageTypeScript.TOWN, "StageDatabase.lookup_stage('forest_008') should be TOWN")
 	_expect_type_of(StageDatabaseScript.lookup_stage("forest_010"), StageTypeScript.BOSS, "StageDatabase.lookup_stage('forest_010') should be BOSS")
 
@@ -159,7 +159,7 @@ func _test_validation() -> void:
 	dup_db.set("stage_count", 10)
 	var a: Resource = StageDataScript.new()
 	a.set("stage_number", 6)
-	a.set("stage_type", StageTypeScript.EVENT)
+	a.set("stage_type", StageTypeScript.COMBAT)
 	var b: Resource = StageDataScript.new()
 	b.set("stage_number", 6)
 	b.set("stage_type", StageTypeScript.TOWN)

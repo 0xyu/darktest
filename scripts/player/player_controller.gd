@@ -270,6 +270,21 @@ func heal_from_equipment_effect(max_hp_ratio: float, effect_id: StringName, desc
 	return actual_heal
 
 
+## Restores `amount` HP, clamped to max HP, and returns how much was actually
+## restored (0 when already full, defeated, or nothing to restore).
+##
+## Purpose-named seam for stage content that heals the hero (e.g. a healing pool).
+## Consumables keep going through use_item() / use_healing_item(), and equipment
+## procs through heal_from_equipment_effect() — those differ in what they consume
+## and what they emit, so they stay separate.
+func heal(amount: int) -> int:
+	if player_stats == null or player_stats.current_hp <= 0 or amount <= 0:
+		return 0
+	var previous_hp: int = player_stats.current_hp
+	player_stats.current_hp = mini(player_stats.current_hp + amount, player_stats.max_hp)
+	return player_stats.current_hp - previous_hp
+
+
 func reset_equipment_effect_state() -> void:
 	_attack_count = 0
 	_cells_moved_since_attack = 0
