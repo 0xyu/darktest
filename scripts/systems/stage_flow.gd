@@ -66,6 +66,13 @@ extends RefCounted
 ## Static data is never written
 ## ---------------------------
 ## StageDatabase / StageData are read-only here; only PlayerProgress is mutated.
+##
+## Persisting is announced, not performed (Phase 8)
+## ------------------------------------------------
+## This class does not know a save exists. It announces every real change of the
+## player's progress through progress_changed, and the save subscribes, so the
+## autosave triggers and the single position writer can never disagree about what
+## changed.
 
 const StageRouterScript := preload("res://scripts/systems/stage_router.gd")
 const StageDatabaseScript := preload("res://scripts/data/stage_database.gd")
@@ -79,6 +86,17 @@ const PlayerProgressScript := preload("res://scripts/progress/player_progress.gd
 ##   next_text — authored "what's next", already resolved for a completed visit
 ##   visit_completed — a visit-type stage was recorded as cleared on entry
 signal gameplay_requested(route: Dictionary)
+
+## Raised whenever this flow actually CHANGES the player's progress (the position,
+## the unlock ceiling, or a recorded completion). It is the autosave trigger:
+## the save (Phase 8) subscribes here, so every path that moves the player or
+## records a clear persists without a save call in any of those paths.
+##
+## Real changes only: a re-clear of an already-recorded stage, or a FARMING
+## re-spawn of the stage the player is already on, changes nothing and therefore
+## announces nothing — a grinding session must not rewrite the save file every few
+## seconds.
+signal progress_changed()
 
 ## Player map / stage progression. Injected so a later save system can restore it
 ## instead of the flow building its own (Phase 8 decides the mount point).
@@ -119,11 +137,19 @@ func get_current_stage_number() -> int:
 ##
 ## Records the position and raises the monotonic highest-stage-reached. A defeat
 ## fallback therefore moves the position back while the unlock ceiling stays put.
+##
+## Announces progress_changed when either number actually moved, which is the
+## autosave trigger for "the player is somewhere else now".
 func on_stage_started(stage_number: int) -> void:
 	if _progress == null:
 		return
+	var previous_position: int = _progress.current_stage_number
+	var previous_ceiling: int = _progress.highest_stage_reached
 	_progress.current_stage_number = maxi(stage_number, 1)
 	_progress.mark_reached(stage_number)
+	if _progress.current_stage_number != previous_position \
+		or _progress.highest_stage_reached != previous_ceiling:
+		progress_changed.emit()
 
 
 ## Requests entry to an authored stage by its GLOBAL stage number. Returns true
@@ -172,8 +198,13 @@ func is_stage_unlocked(stage_number: int) -> bool:
 func on_battle_cleared(cleared_stage_number: int) -> String:
 	if _progress == null:
 		return ""
+	var already_recorded: bool = _progress.is_stage_completed(cleared_stage_number)
 	if not _progress.complete_stage(cleared_stage_number):
 		return ""
+	if not already_recorded:
+		# Only a NEW completion announces: repeating a clear of the same stage
+		# (FARMING) records nothing new, so there is nothing to persist.
+		progress_changed.emit()
 	return next_stage_text(cleared_stage_number)
 
 
@@ -227,9 +258,12 @@ func _apply_entry(route: Dictionary, destination: int) -> void:
 	var from_map: bool = bool(route.get("from_map", false))
 	_town_open_from_map = destination == StageRouterScript.Destination.TOWN and from_map
 	if destination == StageRouterScript.Destination.TOWN:
-		on_stage_started(stage_number)
+		# The visit IS the clear, and the completion is recorded BEFORE the
+		# position write so a single progress_changed notification covers both
+		# (and therefore a single save).
 		if _progress != null:
 			_progress.complete_stage(stage_number)
+		on_stage_started(stage_number)
 		route["visit_completed"] = true
 		route["next_text"] = next_stage_text(stage_number)
 	gameplay_requested.emit(route)

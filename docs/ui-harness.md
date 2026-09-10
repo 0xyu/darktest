@@ -94,6 +94,7 @@ func test_something() -> void:
 6. `EnemyBestiaryPanel` 在 headless 下 `CharacterSpriteCatalog.get_image()` 返回 null → 标本数退化为 0（不崩），只能验证开/关/结构，不能验证标本内容。
 7. 合成鼠标事件用 `root.push_input(ev)`（`Input.parse_input_event` 会走 headless DisplayServer stub，可能丢事件）。
 8. GDScript 无 try/catch：测试内脚本错误无法捕获 → 内置了「0 断言记失败」兜底；如需更硬可在 CI 外层加进程超时。
+9. **游戏有存档，harness 每个测试前会重置它**：`grid_combat` 开机读 `StageProgressSave`（玩家侧关卡进度：位置 / 解锁上限 / 通关集合 / 一次性内容消费集合）并从存档关号继续战斗。所以基类 `run_all()` 在每个测试前调用 `_reset_game_save()`：把游戏的存档路径重定向到 harness 自己的 scratch 文件（`res://.godot/ui_harness/stage_progress.json`，在 gitignore 的 `.godot/` 内）并删除它。效果有两个 —— 每个测试都从"全新玩家"开始（否则上一个测试打过的关会被下一个测试读档恢复，测试就依赖执行顺序），且**测试永远不会读写 `user://` 里的真存档**。要在单个测试里验证"关掉再开"，就在该测试内卸载再挂载场景（见 `suites/test_stage_save.gd`）。
 
 ## 与 MCP / 现有测试的关系
 

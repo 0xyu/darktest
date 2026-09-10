@@ -22,6 +22,10 @@ extends Resource
 ## e.g. a boss enemy that keeps returning) is never consumed and never appears in
 ## this set.
 
+## Raised after a piece of one-shot content is recorded as consumed, so a save can
+## persist the change (Phase 8) without every caller having to remember to save.
+signal content_consumed(key: String)
+
 ## Consumed content keys -> true.
 @export var consumed: Dictionary = {}
 
@@ -48,6 +52,7 @@ func consume(stage_id: String, content_id: StringName) -> bool:
 	if consumed.has(key):
 		return true
 	consumed[key] = true
+	content_consumed.emit(key)
 	return true
 
 

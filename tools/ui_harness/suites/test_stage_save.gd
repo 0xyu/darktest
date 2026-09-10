@@ -1,0 +1,316 @@
+extends "res://tools/ui_harness/ui_harness_suite.gd"
+
+## Phase 8 headless suite: the player-side progress save, end to end, in the REAL
+## game scene.
+##
+## What is under test
+## -----------------
+## The scene mounts, loads the player's saved stage progress, boots on the saved
+## stage, and writes every progress change back to disk on its own (autosave) — no
+## gameplay path has to remember to save. A new game is simply the case where no
+## save file exists yet.
+##
+## The rules the plan sets for a load are all asserted here:
+##   * the position is ONE number and is resumed as it was, including a position
+##     past every authored area (the endless tail), which is never pulled back
+##     into a range
+##   * the unlock ceiling is restored too, otherwise the map's unlocked stages are
+##     lost on load
+##   * completed stages and consumed one-shot content are restored together, so the
+##     player can never come back to a state they never had
+##   * a damaged or future-format save never blocks booting: a new game starts
+##     instead of a half-restored one
+##
+## The save path is redirected to the harness scratch file by the base suite (see
+## ui_harness_suite.gd), so these tests never touch a real player save in user://.
+
+const MAIN_SCENE := preload("res://scenes/world/Main.tscn")
+const AreaViewScript := preload("res://scripts/ui/area_view.gd")
+## StageProgressSaveScript and HARNESS_SAVE_PATH are inherited from the base suite,
+## which owns the redirect that keeps these tests off the player's real save.
+
+var _grid_test: Node
+var _main_instance: Node
+
+
+func suite_name() -> String:
+	return "test_stage_save"
+
+
+# --- Fixtures ------------------------------------------------------------
+
+func _mount_game() -> void:
+	_main_instance = MAIN_SCENE.instantiate()
+	_tree.root.add_child(_main_instance)
+	track_node(_main_instance)
+	_grid_test = _main_instance.find_child("grid_combat", true, false)
+	# Let stage generation, the restored content, turn start, and HUD refresh settle.
+	await flush_frames(6)
+
+
+## Tears the running scene down so the NEXT mount boots from the save file, which
+## is exactly the "quit the game and come back" path this suite has to prove.
+func _unmount_game() -> void:
+	if _main_instance != null and is_instance_valid(_main_instance):
+		_main_instance.queue_free()
+	_main_instance = null
+	_grid_test = null
+	await flush_frames(3)
+
+
+func _stage_number() -> int:
+	var manager: Node = _grid_test.find_child("StageManager")
+	var state: Resource = manager.get("stage_state") as Resource if manager != null else null
+	return int(state.get("stage_number")) if state != null else -1
+
+
+func _progress() -> Resource:
+	return _grid_test.call("get_stage_progress") if _grid_test != null else null
+
+
+func _content() -> Node:
+	return _grid_test.find_child("StageContentController", true, false)
+
+
+func _player() -> Node:
+	return _grid_test.find_child("Player", true, false)
+
+
+func _grid() -> Node:
+	return _grid_test.find_child("Grid", true, false)
+
+
+func _status_text() -> String:
+	return str(_grid_test.get("_last_move_text")) if _grid_test != null else ""
+
+
+func _combat_view() -> Node:
+	var hud: Node = _grid_test.find_child("MobileCombatHUD", true, false)
+	return hud.get_node("%CombatView") if hud != null else null
+
+
+func _town_view() -> Node:
+	var hud: Node = _grid_test.find_child("MobileCombatHUD", true, false)
+	return hud.get_node("%TownView") if hud != null else null
+
+
+## Walks the hero onto `cell` for real, so the walk-on content trigger fires.
+func _step_onto(cell: Vector2i) -> bool:
+	var player: Node = _player()
+	var grid: Node = _grid()
+	for direction in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+		var neighbour: Vector2i = cell + direction
+		if not bool(grid.call("is_walkable", neighbour)) or bool(grid.call("is_occupied", neighbour)):
+			continue
+		if not bool(player.call("place_at", neighbour)):
+			continue
+		player.call("set_free_movement", true)
+		if bool(player.call("try_move", -direction)):
+			return true
+	return false
+
+
+func _cell_of(content_id: StringName) -> Vector2i:
+	for cell in _content().call("get_content_cells"):
+		if _content().call("get_content_id_at", cell) == content_id:
+			return cell
+	return Vector2i(-1, -1)
+
+
+func _find_living_enemy() -> Node:
+	var manager: Node = _grid_test.find_child("StageManager")
+	for enemy in manager.call("get_spawned_enemies"):
+		if enemy != null and is_instance_valid(enemy) and not bool(enemy.call("is_defeated")):
+			return enemy
+	return null
+
+
+func _defeat_all_enemies() -> void:
+	var guard := 0
+	while guard < 80:
+		var enemy := _find_living_enemy()
+		if enemy == null:
+			break
+		enemy.call("handle_defeat")
+		guard += 1
+		await flush_frames(1)
+
+
+## A save file as a previous session would have left it.
+func _write_progress_save(position: int, ceiling: int, completed: Array = [], consumed: Array = []) -> void:
+	var save = StageProgressSaveScript.new(null, null, HARNESS_SAVE_PATH)
+	save.progress.current_stage_number = position
+	save.progress.mark_reached(ceiling)
+	for stage_id in completed:
+		save.progress.completed_stages[stage_id] = true
+	for key in consumed:
+		save.content_state.consumed[key] = true
+	save.save()
+
+
+func _write_raw_save(text: String) -> void:
+	DirAccess.make_dir_recursive_absolute(HARNESS_SAVE_PATH.get_base_dir())
+	var file := FileAccess.open(HARNESS_SAVE_PATH, FileAccess.WRITE)
+	expect(file != null, "the scratch save file can be written")
+	if file == null:
+		return
+	file.store_string(text)
+	file.close()
+
+
+## The payload the running game has written to disk (empty when there is no file
+## yet, or when the file is damaged).
+func _saved_payload() -> Dictionary:
+	if not FileAccess.file_exists(HARNESS_SAVE_PATH):
+		return {}
+	var text := FileAccess.get_file_as_string(HARNESS_SAVE_PATH)
+	if text.strip_edges().is_empty():
+		return {}
+	var json := JSON.new()
+	if json.parse(text) != OK or not (json.data is Dictionary):
+		return {}
+	return json.data as Dictionary
+
+
+func _saved_list(key: String) -> Array:
+	var value: Variant = _saved_payload().get(key, [])
+	return value as Array if value is Array else []
+
+
+# --- Tests ---------------------------------------------------------------
+
+func test_a_new_game_boots_on_stage_one_and_saves_once_progress_happens() -> void:
+	await _mount_game()
+	expect(_grid_test.call("get_stage_save") != null, "the scene owns a progress save")
+	expect(_stage_number() == 1, "a new game boots on stage 1")
+	expect(int(_progress().get("current_stage_number")) == 1, "a new game's position is stage 1")
+	expect(not _status_text().contains("SAVE RESTORED"), "a new game does not claim to have restored anything")
+	# Autosave fires on a REAL change of progress, and booting a new game changes
+	# nothing: a session that has played nothing has nothing to store yet.
+	expect(
+		not StageProgressSaveScript.save_exists_at(HARNESS_SAVE_PATH),
+		"a new untouched game has written no save yet"
+	)
+
+	# Clearing the boot stage is the first real progress, and it is written on its
+	# own — no gameplay path asked for a save.
+	await _defeat_all_enemies()
+	expect(StageProgressSaveScript.save_exists_at(HARNESS_SAVE_PATH), "recording progress created the save file")
+	var payload: Dictionary = _saved_payload()
+	expect(int(payload.get("current_stage_number", -1)) == 1, "the saved position is where the player actually stands")
+	expect(int(payload.get("version", -1)) == StageProgressSaveScript.FORMAT_VERSION, "the file carries the format version")
+	expect(_saved_list("completed_stages").has("forest_001"), "the recorded clear is on disk")
+	expect(_saved_list("consumed_content").is_empty(), "nothing was consumed on this stage")
+
+
+func test_playing_a_stage_writes_position_and_completion_without_asking() -> void:
+	await _mount_game()
+	expect(bool(_grid_test.call("enter_area_stage", 6)), "entering authored stage 06 should succeed")
+	await flush_frames(3)
+	expect(int(_saved_payload().get("current_stage_number", -1)) == 6, "the entry wrote the new position to disk")
+
+	await _defeat_all_enemies()
+	expect(bool(_progress().call("is_stage_completed", 6)), "clearing the stage records the completion in progress")
+	expect(_saved_list("completed_stages").has("forest_006"), "the recorded clear is on disk under its canonical id")
+	expect(int(_saved_payload().get("highest_stage_reached", -1)) >= 6, "the unlock ceiling on disk keeps up with the position")
+
+
+func test_boot_resumes_the_saved_stage_and_its_progress() -> void:
+	await _mount_game()
+	expect(bool(_grid_test.call("enter_area_stage", 6)), "entering authored stage 06 should succeed")
+	await flush_frames(3)
+	await _defeat_all_enemies()
+	expect(bool(_progress().call("is_stage_completed", 6)), "the stage is cleared before the session ends")
+	await _unmount_game()
+
+	# A second session: nothing is carried over in memory, only the save file.
+	await _mount_game()
+	expect(_stage_number() == 6, "the restored session runs the battle of the saved stage")
+	expect(int(_progress().get("current_stage_number")) == 6, "the restored position is the saved stage")
+	expect(bool(_progress().call("is_stage_completed", 6)), "the restored session knows the stage was cleared")
+	expect(bool(_progress().call("is_stage_unlocked", 7)), "the restored completion still unlocks the next stage")
+	expect(_status_text().contains("SAVE RESTORED"), "the restored session says so instead of silently starting mid-path")
+
+
+func test_a_restored_unlock_ceiling_keeps_the_map_open() -> void:
+	# The plan's explicit warning: a save that forgot highest_stage_reached would
+	# come back with the map's unlocked stages lost. Nothing here is completed, so
+	# stage 8 is open ONLY because the restored ceiling reaches it.
+	_write_progress_save(5, 8)
+	await _mount_game()
+	expect(int(_progress().get("highest_stage_reached")) == 8, "the unlock ceiling is restored")
+	expect(bool(_grid_test.call("open_world_map")), "the world map opens")
+	await flush_frames(2)
+	var map: Node = _grid_test.find_child("MobileCombatHUD", true, false).get_node("%WorldMapView")
+	var forest: Node = map.call("get_area_view", &"forest")
+	expect(forest != null, "the forest area view is built")
+	var inside_ceiling: Button = forest.call("get_stage_node", 8) as Button
+	expect(inside_ceiling != null and not bool(inside_ceiling.disabled), "a stage inside the restored ceiling is enterable")
+	var past_ceiling: Button = forest.call("get_stage_node", 9) as Button
+	expect(past_ceiling != null and bool(past_ceiling.disabled), "a stage past the ceiling is still locked")
+	var position_node: Button = forest.call("get_stage_node", 5) as Button
+	expect(
+		position_node != null and int(position_node.get_meta("stage_state")) == AreaViewScript.NodeState.CURRENT,
+		"the map marks the restored position as the current stage"
+	)
+
+
+func test_a_saved_position_past_the_authored_path_resumes_as_endless() -> void:
+	# Past the last authored area the position is legal and must be resumed as it
+	# is: pulling it back into a range would undo the player's progress.
+	_write_progress_save(57, 57)
+	await _mount_game()
+	expect(_stage_number() == 57, "the endless position resumes as a battle on that stage")
+	expect(int(_progress().get("current_stage_number")) == 57, "the restored position is not pulled back into an area")
+	expect(String(_progress().call("get_current_area_id")) == "", "that position derives no area (the endless tail)")
+	expect(_find_living_enemy() != null, "the resumed endless stage actually spawned its battle")
+
+
+func test_a_saved_visit_stage_resumes_as_a_playable_battle() -> void:
+	# A save made while standing on a TOWN stage resumes the battle at that stage
+	# number rather than re-opening the town: the visit is already recorded as
+	# completed, and a boot that started no stage would leave the arena with no
+	# enemies and no way to move on.
+	_write_progress_save(8, 8, ["forest_008"])
+	await _mount_game()
+	expect(_stage_number() == 8, "the saved town position resumes as a battle on that stage")
+	expect(_town_view() != null and not bool(_town_view().get("visible")), "the town view is not re-opened on boot")
+	expect(_combat_view() != null and bool(_combat_view().get("visible")), "the restored session shows a playable combat view")
+	expect(_find_living_enemy() != null, "the resumed stage has a battle to play")
+	expect(bool(_progress().call("is_stage_completed", 8)), "the recorded town visit is still recorded")
+
+
+func test_consumed_content_is_restored_with_the_progress() -> void:
+	await _mount_game()
+	expect(bool(_grid_test.call("enter_area_stage", 6)), "entering authored stage 06 should succeed")
+	await flush_frames(3)
+	var chest_cell: Vector2i = _cell_of(&"cache")
+	expect(chest_cell != Vector2i(-1, -1), "the one-shot chest exists on the first visit")
+	expect(_step_onto(chest_cell), "the hero can walk onto the chest cell")
+	await flush_frames(3)
+	expect(_saved_list("consumed_content").has("forest_006:cache"), "the consumed chest is on disk")
+	await _unmount_game()
+
+	# Second session: the consumed chest must stay gone, the repeatable pool must
+	# return — the "half restored" state this save exists to prevent.
+	await _mount_game()
+	var state: Resource = _content().call("get_state")
+	expect(bool(state.call("is_consumed", "forest_006", &"cache")), "the consumed chest is still consumed after a reload")
+	expect(_cell_of(&"cache") == Vector2i(-1, -1), "the consumed chest does not respawn in the restored session")
+	expect(_cell_of(&"spring") != Vector2i(-1, -1), "the repeatable content does respawn in the restored session")
+	expect_eq(_content().call("get_content_count"), 1, "only the repeatable entry is restored")
+
+
+func test_a_damaged_save_boots_a_new_game_instead_of_a_half_restored_one() -> void:
+	_write_raw_save("{ this is not json")
+	await _mount_game()
+	expect(_stage_number() == 1, "a damaged save boots a new game at stage 1")
+	expect(int(_progress().get("current_stage_number")) == 1, "a damaged save leaves the fresh position alone")
+	expect(not _status_text().contains("SAVE RESTORED"), "a refused save is not reported as restored")
+	await _unmount_game()
+
+	# A save written by a NEWER build is refused rather than half-read.
+	_write_raw_save("{\"version\": %d, \"current_stage_number\": 6}" % (StageProgressSaveScript.FORMAT_VERSION + 1))
+	await _mount_game()
+	expect(_stage_number() == 1, "a future-format save boots a new game at stage 1")
+	expect(int(_progress().get("current_stage_number")) == 1, "a future-format save leaves the fresh position alone")

@@ -6,7 +6,7 @@ const SubHeroAttackEffectResource = preload("res://scripts/combat/sub_hero_attac
 const StageFlowScript = preload("res://scripts/systems/stage_flow.gd")
 const StageDatabaseScript = preload("res://scripts/data/stage_database.gd")
 const StageContentControllerScript = preload("res://scripts/world/stage_content_controller.gd")
-const AuthoredContentStateScript = preload("res://scripts/progress/authored_content_state.gd")
+const StageProgressSaveScript = preload("res://scripts/progress/stage_progress_save.gd")
 ## The battlefield spans the full screen width up to this cap (the base 720px
 ## design width), so it stays a sane size on very wide windows or devices.
 const MAX_GRID_WIDTH: float = 720.0
@@ -41,6 +41,12 @@ var _flow: StageFlow
 ## behaviour: for a stage whose authored content is empty this controller does
 ## nothing at all.
 var _stage_content: StageContentController
+## The player-side progress save (Phase 8): it owns the PlayerProgress and the
+## AuthoredContentState the rest of the scene is built from, restores them on boot
+## and persists them whenever the flow announces a real progress change. It is the
+## ONE mount point — the flow and the content controller are injected from it, so
+## neither can end up with its own private copy of the player's state.
+var _stage_save: StageProgressSave
 
 
 func _ready() -> void:
@@ -90,16 +96,26 @@ func _ready() -> void:
 	hud.auto_toggle_requested.connect(_on_hud_auto_toggle_requested)
 	hud.farming_toggle_requested.connect(_on_hud_farming_toggle_requested)
 	hud.game_speed_requested.connect(_on_hud_game_speed_requested)
-	# Authored-stage flow: the scene hosts it, the flow owns the rules.
-	_flow = StageFlowScript.new()
+	# Player-side progress save. Loading happens BEFORE the flow and the content
+	# controller exist, so both are built from the restored state instead of having
+	# to be repaired afterwards. The saved position is resumed at the end of _ready.
+	_stage_save = StageProgressSaveScript.new()
+	_stage_save.load()
+	# Authored-stage flow: the scene hosts it, the flow owns the rules. It is given
+	# the save's progress object — the flow never builds its own.
+	_flow = StageFlowScript.new(_stage_save.progress)
 	_flow.gameplay_requested.connect(_apply_stage_entry)
 	# Authored content layer. It reads the flow's current area and the stage's
-	# authored entries; consumed state is kept separately from map progress.
+	# authored entries; consumed state is kept separately from map progress and is
+	# restored from the same save.
 	_stage_content = StageContentControllerScript.new()
 	_stage_content.name = "StageContentController"
 	add_child(_stage_content)
-	_stage_content.configure(grid, player, stage_manager, _flow, gold_system, AuthoredContentStateScript.new())
+	_stage_content.configure(grid, player, stage_manager, _flow, gold_system, _stage_save.content_state)
 	_stage_content.content_resolved.connect(_on_stage_content_resolved)
+	# Autosave: the save subscribes to the one writer of progress and to consumed
+	# content, so every path that changes either persists without a save call here.
+	_stage_save.bind(_flow)
 	hud.area_stage_enter_requested.connect(_on_hud_area_stage_enter_requested)
 	# World map host — the map view is refreshed from PlayerProgress and its
 	# stage clicks route through the same enter_area_stage entry.
@@ -122,12 +138,39 @@ func _ready() -> void:
 	_sync_sub_hero_combatants()
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_layout_portrait_grid()
-	stage_manager.initialize_stage(1)
+	_start_first_stage()
 	_refresh_arena_markers()
 	queue_redraw()
 	# The HUD's CombatSection is sized only after the first container sort, so
 	# run the layout again once that rect becomes measurable.
 	_relayout_when_combat_ready()
+
+
+## Boots the first battle of this session: the stage the save left the player on,
+## or the first stage of a new game.
+##
+## The saved position is authoritative and is NOT pulled back into an authored
+## area — a position past every area (the endless tail) is the normal state after
+## the authored content runs out, and it resumes as the plain endless battle it
+## belongs to. The battle level equals the global stage number, which is the same
+## mapping the endless loop already uses.
+##
+## A save made while standing on a visit-type stage (the town) resumes the battle
+## at that stage number rather than re-opening the town: the visit is already
+## recorded as completed, and a boot that started no stage at all would leave the
+## arena with no enemies and no way to move on. The town stays one map click away.
+##
+## A save that cannot be used never blocks booting: the save keeps its fresh state
+## and the session starts a new game from stage 1.
+func _start_first_stage() -> void:
+	var resume_stage: int = _stage_save.get_resume_stage_number() if _stage_save != null else 1
+	if resume_stage > 1 and stage_manager.initialize_stage(resume_stage):
+		# _on_stage_started has already reported the battle; replace that with what
+		# actually happened, so a restored session is visible rather than silent.
+		_last_move_text = "SAVE RESTORED — STAGE %02d" % resume_stage
+		queue_redraw()
+		return
+	stage_manager.initialize_stage(1)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -241,6 +284,14 @@ func _can_advance_to_next_stage() -> bool:
 ## Public so tests and later wiring can read the current position.
 func get_stage_progress() -> PlayerProgress:
 	return _flow.get_progress() if _flow != null else null
+
+
+## The player-side progress save this scene owns (Phase 8): the object holding the
+## progress and the consumed-content state that were restored on boot and that every
+## progress change is written back to. Public so tests, and later save-slot UI, can
+## reach it without poking private fields.
+func get_stage_save() -> StageProgressSave:
+	return _stage_save
 
 
 ## Requests entry to an authored stage by its GLOBAL stage number, e.g.

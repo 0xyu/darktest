@@ -11,11 +11,16 @@
 > - 「endless boot 从不写进度」→ **推翻**：开机那一关就在第一个 Area 的区间内，清掉就记账。
 > 落地报告：`docs/coding-plans/reports/area-stage-progression-phase-07-6-report.md`。
 >
-> 文档版本：**Rev 2.1**（Phase 7.5：authored stage 改「普通关 + 内容层」模型、EVENT 退役、next-stage 单一 seam、StageFlow 抽取）。
+> 文档版本：**Rev 3.2**（Phase 8 落地后修订：模型无变更，只在 Phase 8 节追加实现备注）。
 > 历史：
 > - Rev 1 曾设想 `one stage = one .tres`（`forest_01.tres` … `forest_10.tres`），已在 Rev 2 **废弃**。原因见下方「# 关键架构变更」。
 > - **Rev 2.1**：见「# Rev 2.1 变更（Phase 7.5）」。落地报告：`docs/coding-plans/reports/area-stage-progression-phase-07-5-report.md`。
-> - **Rev 3**（Phase 7.6）：见上方的取代说明。
+> - **Rev 3**（Phase 7.6）：见上方的取代说明。落地报告：`docs/coding-plans/reports/area-stage-progression-phase-07-6-report.md`。
+> - **Rev 3.1**（文档修订，**无代码改动**）：
+>   1. **Phase 8（Save / Load）整节重写**——它原来写的 JSON 形状（`"current_area": "forest"` / `"current_stage": 6`）是 Rev 2.1 模型的产物，Rev 3 已删除存储字段 `current_area_id`、新增 `highest_stage_reached`，旧形状直接作废。
+>   2. **Phase 9（新增 Area）删除**——它的目标是"验证加 Area 不用改核心"，这件事已由 Phase 7.6 的**合成 Area 2（11–20）测试**验证完毕（`test_stage_range` T2/T3/T6 + `test_world_map` 的窗口偏移用例），再 ship 一个真 Area 不会带来新架构结论；真正剩下的是**内容设计任务**。其仍有价值的两条清理项并入 Phase 10，做法准则压缩为文末**附录 A**。
+>   3. 相应更新：`Final Architecture` 的 `PlayerProgress` 字段块、Multi-Chat 执行序、Definition of Done 的"新增 Area"片段。
+> - **Rev 3.2**（Phase 8 落地）：Phase 8 已实施（`StageProgressSave` 唯一挂载点 + 自动存档 + 开机恢复），**数据模型未变**；落地报告：`docs/coding-plans/reports/area-stage-progression-phase-08-report.md`。
 
 ## 总目标
 
@@ -211,6 +216,8 @@ StageData (静态)         completed_stages
 ```
 
 `StageData / AreaData / StageDatabase` 只描述静态结构，绝不保存 completed / unlocked / visited / current。
+
+> ⚠️ **Rev 3.1 更正**：上面右栏是 Rev 2 时代的字段表，已被 Rev 3 取代。当前 `PlayerProgress` 是 `current_stage_number`（唯一位置）+ `highest_stage_reached`（单调解锁上限）+ `completed_stages`；**没有** `current_area_id`（推导量），"unlocked 由连续推进推算"改为 `is_stage_unlocked(n)` = `n==1 或 n<=highest_stage_reached 或 n-1 已完成`。序列化口径以 **Phase 8** 节为准。
 
 ---
 
@@ -515,7 +522,7 @@ battle StageManager（刷怪/门点/胜利/farming/auto 全部照旧）
 > - 状态支持 `LOCKED / AVAILABLE / COMPLETED / CURRENT`，全部读自 `PlayerProgress`（presentation only）。
 > - HUD ViewContainer 第三视图 + CombatView 底部 **MAP** 按钮；`grid_combat` 成为 map host：`open_world_map()` 用实时 `PlayerProgress` refresh 后切视图；节点点击（仅非 LOCKED 可点，host 侧再叠加解锁门槛）走既有 `enter_area_stage`；`_apply_stage_entry` 进入后收敛回 Combat/Town 视图（顺带关闭地图）。默认运行循环不变；DEV「AREA STAGES」QA 直达入口保留（可绕过解锁演示）。
 > - **10K 呈现**：单 Area > `NODES_PER_WINDOW`(24) 节点时按窗口分页，每次只物化一页 Control（合成 1,000 关走同一条 `AreaView` 路径验证），不改数据架构。
-> - **未实现**：完成/解锁/返回流程（Phase 7）、存档（Phase 8）、Event/Boss 专属内容、多 Area 间切换的呈现打磨（数据层已就绪，见 Phase 9）。
+> - **未实现**：完成/解锁/返回流程（Phase 7）、存档（Phase 8）、Event/Boss 专属内容、多 Area 间切换的呈现打磨（数据层已就绪；原 Phase 9 已于 Rev 3.1 删除，做法见文末**附录 A**）。
 
 ## 目标
 
@@ -631,64 +638,114 @@ Forest 05
 
 ---
 
-# Phase 8 — Save / Load
+# Phase 8 — Save / Load（**Rev 3.1 重写**）
+
+> ⚠️ **本节曾按 Rev 2.1 的"每 Area 各自编号 + 存储 `current_area_id`"模型书写**（旧样例如 `{"current_area": "forest", "current_stage": 6, ...}`）。该模型已被 Rev 3（Phase 7.6）取代：`current_area_id` **已从 `PlayerProgress` 删除**（area 改为推导量），并新增单调字段 `highest_stage_reached`。**照旧样例实现 = 把"两份位置"请回存档里**，故整节按当前代码重写。
 
 ## 目标
 
-持久化 Area/Stage 进度，**只存 identifier，不存 Resource**：
+持久化**玩家侧进度**，只存 identifier / 标量，**不存 Resource，也不存 area**。
+
+当前正确形状（4 组数据，来自 2 个对象）：
 
 ```json
 {
-  "current_area": "forest",
-  "current_stage": 6,
+  "version": 1,
+  "current_stage_number": 6,
+  "highest_stage_reached": 9,
   "completed_stages": ["forest_001", "forest_002", "forest_003", "forest_004", "forest_005"],
   "consumed_content": ["forest_006:cache"]
 }
 ```
 
-> **Rev 2.1：玩家侧状态是两个独立对象**，存档要同时覆盖：
-> * `PlayerProgress` — `current_area_id` / `current_stage_number` / `completed_stages`
-> * `AuthoredContentState` — `consumed`（key 形如 `"forest_006:cache"`）
->
-> 两者**都已是**纯 identifier 形态，且 `StageFlow._init(progress)` 与
-> `StageContentController.configure(..., state)` **都已支持注入**，因此 Phase 8 不需要改数据模型，只需决定唯一挂载点（建议由一个 session/存档对象同时持有二者，避免挂载点分裂）与存档时机（`StageFlow.on_battle_cleared()` 命中后、`resolve_at()` 消费一次性内容后）。
+| 字段 | 来源 | 为什么必须存 |
+|---|---|---|
+| `current_stage_number` | `PlayerProgress.current_stage_number` | **唯一位置**（全局关号）。可以小于 `highest_stage_reached`（阵亡回退过） |
+| `highest_stage_reached` | `PlayerProgress.highest_stage_reached` | **单调解锁上限**。漏存 → 读档后地图解锁状态丢失（Phase 7.6 报告 §7 点名） |
+| `completed_stages` | `PlayerProgress.completed_stages` | 显式通关集合，key 为 canonical id（`forest_006`）。**不能由位置推导**：当前站着的那关还没清 |
+| `consumed_content` | `AuthoredContentState.consumed` | 一次性内容（宝箱）已消费集合，key 形如 `forest_006:cache` |
 
-Load 重建：
+**明确不存**：
 
 ```text
-Save → PlayerProgress → (area_id, stage_number) → StageDatabase.lookup → StageData → 进入对应玩法
+current_area_id / 任何 area 字段      # 推导量：StageDatabase.area_for_stage(n)。存它 = 第二份位置回归
+StageDatabase / StageData 本体        # 静态数据由 .tres 提供；存本体等于把 10K 关快照进存档
+area 局部关号作为"位置"                # 全局号是唯一编号
 ```
 
-`completed_stages` 用 stage id 字符串即可；`current_stage` 也可用数字，由 DB 再生成 id。不要序列化 StageDatabase / StageData 本体。
+## Load 重建
+
+```text
+存档 → PlayerProgress(current_stage_number / highest_stage_reached / completed_stages)
+      + AuthoredContentState(consumed)
+     → 注入 StageFlow / StageContentController
+     → 位置 n → StageDatabase.lookup(n) → StageData → StageRouter → 进入对应玩法
+```
+
+* **区间外的位置是合法存档**（如 51+ 的纯 endless 尾段）：不要夹取回区间内，那是"author 内容走完"的正常状态。
+* 至少要两条校验：`current_stage_number >= 1`；`highest_stage_reached >= current_stage_number`（不满足时用 `PlayerProgress.mark_reached(current_stage_number)` **抬高上限**，而不是压低位置）。
+* `completed_stages` 里存在**当前内容已不覆盖**的 id（区间被重划分过）不是坏档：`is_stage_completed()` 只认能从 `StageDatabase` 取到 id 的号，旧 id 静静留着即可 —— 但那正是下一节说的迁移点。
+
+## 挂载点与存档时机（现状）
+
+今天两个状态对象都是**就地 `new()`**，没有任何注入点：
+
+```gdscript
+# scripts/world/grid_combat.gd _ready()
+_flow = StageFlowScript.new()                                      # → 自建 PlayerProgress
+_stage_content.configure(..., AuthoredContentStateScript.new())    # → 自建 AuthoredContentState
+```
+
+两者**都已支持注入**（`StageFlow._init(progress)`、`StageContentController.configure(..., state)`），所以本 Phase **不需要改数据模型**，只需要：
+
+1. 定下**唯一挂载点** —— 建议由一个存档 / session 对象**同时持有** `PlayerProgress` 与 `AuthoredContentState`，避免挂载点分裂（分裂的后果就是读档只恢复一半）。
+2. 把上面两处 `new()` 换成**注入**已加载（或新建）的实例。
+3. 存档时机（全是低频事件，直接写盘即可）：`StageFlow.on_stage_started()` 改位置后、`StageFlow.on_battle_cleared()` 记完成后、`AuthoredContentState.consume()` 消费一次性内容后。
+
+## 可复用的先例
+
+仓库已有"对象自带 `to_save_data()/load_save_data()` + 外层聚合"的形状（`SubHeroInstance` / `SubHeroProgressionService`，见 `docs/area-stage-architecture-audit.md` 的「序列化形状」一行）——本 Phase 的两个状态对象正好同形。但**落盘本身在仓库里尚无先例**（`scripts/` 下没有任何 `FileAccess`），文件位置 / 格式由本 Phase 自定。
+
+## 与区间重划分的耦合（迁移成本提醒）
+
+`completed_stages` 的 key 是 **canonical id（`<area_id>_<补零全局号>`）**，而补零宽度由**该 Area 区间末号**决定。因此**重新划分区间**（例如把 dungeon 从 21 起改成 25 起）会改变该 Area 的 id 形态，旧存档里的旧 id 不会被新查询认出来。
+
+* 当前项目**尚无存档**，此代价为零。
+* **Phase 8 一落地，此代价就不再为零**：此后改区间需要一次迁移，或靠 `version` 字段做格式转换。这是选"id"而非"纯全局号"换可读性的代价（取舍见 `global-stage-range-coding-plan.md` §5.2 / §12.2）。
+
+## 不做
+
+不改 `StageDatabase` / `StageData` / `StageRouter` / `PlayerProgress` 的字段模型（它们已经是 identifier 形态）；不改战斗引擎；不把存档做成新的 autoload 全局状态（先由 host 持有并注入）。
+
+> 产物见 `docs/coding-plans/reports/area-stage-progression-phase-08-report.md`（**已完成**）。
+>
+> 实现备注（落地范围）：
+> - 新增 **`StageProgressSave`**（`scripts/progress/stage_progress_save.gd`）：**唯一挂载点**，同时持有 `PlayerProgress` + `AuthoredContentState`；落盘 `user://save/stage_progress.json`（JSON，5 个字段：`version` / `current_stage_number` / `highest_stage_reached` / `completed_stages` / `consumed_content`，**零 area 字段、零 Resource 本体**）。
+> - **自动存档 = 订阅信号**，而不是在游戏各路径里调 `save()`：`StageFlow.progress_changed`（只在位置或解锁上限**真的变了**时发）+ `AuthoredContentState.content_consumed`（幂等重复消费不发）。计划要求的三处时机全覆盖，且 FARMING 挂机不会反复写盘。副作用一处：**一次什么都没做的新开局不会立刻产生存档文件**。
+> - **开机恢复**：`grid_combat._start_first_stage()` 从存档关号继续（`initialize_stage(n)`），**不**经过 `StageRouter` —— COMBAT/BOSS 走 router 与不走 router 的可观察结果完全相同（战斗关卡号 == 全局关号），而 TOWN 位置若"进入城镇"会让开机时**没有任何关卡启动**（无敌人、无法推进），故 TOWN 位置按该关号的普通战斗恢复。坏档 / 未来版本档不阻塞开机，直接开新游戏。
+> - **校验**：`version` 缺失或比本版本更新 → 拒绝；`current_stage_number ∈ [1, 999999]`（字段自身声明域）；`highest_stage_reached < position` → **抬高上限**（`mark_reached`）而不是压低位置；**区间外位置（57+）是合法存档且不夹取**；已不被 area 覆盖的旧 id 保留。
+> - **测试隔离**：`StageProgressSave.set_default_path()` 是运行期静态开关（不写 `project.godot`）；UI harness 在每个测试前把游戏存档重定向到 `res://.godot/ui_harness/stage_progress.json` 并删除，**绝不触碰玩家的真存档**（见 `docs/ui-harness.md` 陷阱 9）。
+> - **回归**：新增 `tests/stage_progress_save_smoke_test.gd`（11 用例 / 88 断言）+ `tools/ui_harness/suites/test_stage_save.gd`（8 用例 / 52 断言）；全量 ui_harness **91 tests / 90 passed / 1 failed**（唯一失败为既有历史失败 `test_combat_log_wiring::test_kill_logs_event_end_to_end`，baseline 同样失败）；7 个 SceneTree smoke 全绿；编辑器实机验证"玩 → 关掉 → 再开 → 从存档关继续"通过。
 
 ---
 
-# Phase 9 — Add More Area（Swamp / 更多）
+# Phase 9 — 新增 Area（**Rev 3.1：已删除**）
 
-## 目标
-
-验证架构不是只为 Forest 写的，且**扩展一个 Area 不需要改核心**。
-
-新增例如 `Swamp`：
-
-```text
-Swamp
-├── 01..05  COMBAT
-├── 06      EVENT
-├── 07..09  COMBAT（可用 stage_count 更大验证：如 07~29 COMBAT）
-├── ...     TOWN / BOSS 依规则
-└── N       BOSS
-```
-
-做法：**只新增一个 `resources/stage_databases/swamp.tres`**（`area_id="swamp"`，`stage_count=N`，`default_stage_type=COMBAT`，`special_stages` 覆盖 EVENT/TOWN/BOSS 节点）。
-
-若想加入 ELITE / SHRINE 等内容：**先确认它是"另一种玩法"还是"叠加在战斗关上的内容"**。
-* 是**内容**（绝大多数情况，如精英敌人、宝箱怪、祭坛交互）→ 用**内容层**：在 swamp 的 `special_stages` 条目上挂 `StageContent` 条目即可，**核心改动为零**。
-* 是**另一种玩法视图**（真的不打架、要独立场景）→ 才扩展 `StageType` 枚举 + `StageRouter` 的 destination 表。
-
-**核心 `StageRouter / StageFlow / PlayerProgress / WorldMap / StageDatabase` 不应改动。**
-
-如果为了 Swamp 必须大改核心，说明仍有 hard-code，需要在本 Phase 修掉。
+> **本节作为"架构验证 Phase"已删除**，理由：
+>
+> 1. 它的目标是"验证扩展一个 Area 不需要改核心"。**这件事已经验证完了**——Phase 7.6 用**内存里的合成 Area 2（11–20，`StageDatabase.set_area_table_override()`）**跑通了同一条路径，零新增游戏内容：
+>    * `test_stage_range` **T2**：清掉 10 → 推进 11 → area 推导自动变 area 2、地图 HERE 落在 area 2 的 11、area 1 不再标 HERE；
+>    * `test_stage_range` **T3**：完成 10 → `is_stage_unlocked(11)` 为真（跨区间解锁链）；
+>    * `test_stage_range` **T6**：区间重叠被 `collect_range_conflicts()` 报出，相邻（10/11）不算重叠；
+>    * `test_world_map`：**非默认 `first_stage` 的窗口偏移**用例。
+>
+>    再 ship 一个真 Area 不会得出新的架构结论，只会得到"这确实是内容"。
+> 2. 真去做第二个 Area，主要工作是**游戏设计**（区间起点/长度、哪些节点挂哪种内容、难度曲线），不是 coding phase；按项目规则也不应为它先建投机代码。
+> 3. 原 Phase 9 里**仍然可执行**的清理项已并入 **Phase 10** 的检查清单（DEV 面板仍写死 `load_area(&"forest")` 与 `FOREST %02d` 标签）。
+>
+> 新增 Area 的做法与"内容层 vs 新 `StageType`"的判断准则**压缩保留在文末「附录 A」**，需要时照它做即可。
+>
+> **Phase 10 的编号保留不动**，以免与历史报告里"Phase 9 = 新增 Area"的说法打架。
 
 ---
 
@@ -702,6 +759,13 @@ Swamp
 stage == 6 / stage == 8 / stage == 10            # 玩法硬编码
 forest_01.tres / forest_02.tres / ...            # 一 stage 一文件设计
 "res://resources/stage_databases/forest_006.tres" # 按文件拼路径
+```
+
+并确认**没有**（Rev 3.1：自原 Phase 9 并入的 area 字面量清理）：
+
+```text
+load_area(&"forest") / area id 字面量出现在核心与 UI 代码里   # 已知遗留：scripts/ui/development_panel.gd
+"FOREST %02d" 之类写死的区域名                                # 应读 StageDatabase.display_name
 ```
 
 确认职责：
@@ -765,14 +829,20 @@ stage result 依赖 is_auto_enabled() / is_farming_enabled()
   内容不改变路由，也不改变这一关进入哪种玩法
 ```
 
-同时：
+同时（**Rev 3.1 更正** —— 旧版此处列出的 `current_area_id` 已不存在，area 是推导量）：
 
 ```text
-PlayerProgress
+PlayerProgress（玩家侧 · 位置与通关）
 │
-├── current_area_id
-├── current_stage_number
+├── current_stage_number      ← 唯一位置（全局关号），唯一写入点 StageFlow.on_stage_started()
+├── highest_stage_reached     ← 单调解锁上限（阵亡回退不下降）
 └── completed_stages (id → true)
+
+AuthoredContentState（玩家侧 · 另一个独立对象）
+└── consumed ("<stage_id>:<content_id>" → true)
+
+area 不是字段：由 StageDatabase.area_for_stage(current_stage_number) 推导
+存档只序列化上面 3 + 1 项（见 Phase 8），不含任何 area 字段
 ```
 
 独立于静态 `AreaData / StageDatabase / StageData`。
@@ -797,9 +867,10 @@ Chat 06  Phase 5   Combat / Town Integration          ✅ 完成
 Chat 07  Phase 6   WorldMap Integration                ✅ 完成
 Chat 08  Phase 7   Completion / Return Flow            ✅ 完成（部分语义被 7.5 取代）
 Chat 08b Phase 7.5 Authored Stage 模型 + StageFlow 抽取 ✅ 完成
-Chat 09  Phase 8   Save / Load                          ← 当前
-Chat 10  Phase 9   More Area（Swamp）
-Chat 11  Phase 10  Final Refactor
+Chat 08c Phase 7.6 Global Stage Range 模型（Rev 3）        ✅ 完成
+Chat 09  Phase 8   Save / Load（按 Rev 3 模型序列化）       ✅ 完成
+         Phase 9   新增 Area                                ✗ 已删除（Rev 3.1，见该节；做法见附录 A）
+Chat 10  Phase 10  Final Refactor                          ← 下一个
 ```
 
 ---
@@ -880,8 +951,16 @@ WorldMap
 
 ```text
 一个 StageDatabase 数据资源（resources/stage_databases/swamp.tres）
-（如需新玩法类型，则扩展 StageType 枚举）
+  ├── area_id            = "swamp"
+  ├── display_name       = "Swamp"
+  ├── first_stage        ← Rev 3：区间起点（全局号），必须与已有区间不重叠
+  ├── stage_count        ← 区间长度（first_stage .. first_stage + count - 1）
+  ├── default_stage_type ← 共享默认规则
+  └── special_stages[]   ← 稀疏覆盖（内容层也挂这里）
+（如需新玩法类型，则扩展 StageType 枚举；加内容不改路由）
 ```
+
+> 这条路径**已由 Phase 7.6 的合成 Area 2 测试证明**（`test_stage_range` T2/T3/T6），不需要真 ship 第二个 Area 才算验证完毕；真 ship 是内容任务，做法见**附录 A**。
 
 全程不出现：
 
@@ -890,3 +969,40 @@ one stage = one .tres
 ```
 
 这才是这个系统真正的扩展性目标。
+
+---
+
+# 附录 A — 新增 Area / 新内容怎么做（内容任务，非架构 Phase）
+
+> Rev 3.1：原 Phase 9 的内容压缩为这份准则保留。这是**内容设计**的做法说明，不是待执行的 Phase；真要做时按它做即可。
+
+## A.1 加一个 Area
+
+只新增一个 `resources/stage_databases/<area>.tres`：
+
+```text
+area_id            = "swamp"
+display_name       = "Swamp"
+first_stage        = 11        # 区间起点（全局号），必须落在已有区间之外
+stage_count        = 20        # 于是覆盖 11–30
+default_stage_type = COMBAT
+special_stages     = [ 覆盖节点：TOWN / BOSS / 带内容层的节点 ]
+```
+
+* **区间不重叠**由 `StageDatabase.collect_range_conflicts()` 校验（相邻 10 / 11 不算重叠，ship 的 area 必须通过）。
+* 放完即出现在 WorldMap（`WorldMapView._discover_databases()` → `StageDatabase.discovered_databases()` 扫目录 + `is_valid()` 过滤），**核心零改动**。注意区域表是**进程内缓存**的：运行中新增 `.tres` 需 `StageDatabase.invalidate_cache()`，重启则自然生效。
+* 该 Area 的 stage id 形如 `swamp_011`：补零宽度 = `max(3, 区间末号的位数)`。**改区间起点/长度会改 id 形态** → 存档迁移代价见 Phase 8 节。
+
+## A.2 加内容（绝大多数情况）
+
+先确认它是"另一种玩法"还是"叠加在战斗关上的内容"：
+
+* **内容**（精英敌人 / 宝箱怪 / 祭坛交互 / 治疗池 …）→ 走**内容层**：在该 Area 的 `special_stages` 条目上挂 `StageContent` 条目（`one_shot` 决定一次性还是可重复），**核心改动为零，路由不变**。
+* **另一种玩法视图**（真的不打架、要独立场景）→ 才扩展 `StageType` 枚举 + `StageRouter` 的 destination 表。
+
+"这一关不是真战斗"这类事**永远走内容层**，不要新增 `StageType`（Rev 2.1 起 `EVENT` 已退役）。
+
+## A.3 何时才需要重新评估核心
+
+如果为了加一个 Area 必须改 `StageRouter / StageFlow / PlayerProgress / StageDatabase / WorldMap`，说明仍有 hard-code（已知遗留见 Phase 10 清单），应先修 hard-code 而不是为它加特例。
+

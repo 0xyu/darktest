@@ -11,6 +11,19 @@
 ## refreshes, layout, and `_process()` all behave like the real game.
 extends RefCounted
 
+const StageProgressSaveScript := preload("res://scripts/progress/stage_progress_save.gd")
+
+## Where the game persists player progress (see stage_progress_save.gd). Suites
+## mount the REAL game scene, and that scene restores the player's saved stage on
+## boot — so every test must start from a clean save, otherwise a stage one test
+## played would be resumed by the next one, and the suite would depend on the order
+## it ran in.
+##
+## The path is inside the project's generated .godot/ folder and the game is
+## redirected to it for the whole run, so a suite can never read or write the
+## player's own save in user://.
+const HARNESS_SAVE_PATH := "res://.godot/ui_harness/stage_progress.json"
+
 var _tree: SceneTree
 var _created: Array[Node] = []
 var _failures: Array[String] = []
@@ -62,6 +75,7 @@ func run_all() -> Dictionary:
 		_assertion_count = 0
 		_skipped = false
 		_skip_reason = ""
+		_reset_game_save()
 		setup()
 		# KEY: awaiting the test method pumps process_frame, so deferred
 		# refreshes / layout / _process actually run (McpTestRunner's sync path
@@ -193,6 +207,14 @@ func push_click(control: Control) -> void:
 # ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
+
+## Points the game's save at the harness scratch file and deletes it, so this test
+## starts from a brand-new player. Called by the driver before every test (not from
+## setup(), which subclasses override).
+func _reset_game_save() -> void:
+	StageProgressSaveScript.set_default_path(HARNESS_SAVE_PATH)
+	StageProgressSaveScript.delete_save_at(HARNESS_SAVE_PATH)
+
 
 func _test_methods() -> Array[String]:
 	var names: Array[String] = []

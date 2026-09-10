@@ -317,11 +317,13 @@ n 之后没有任何 area        → 沿用现有 endless 文案（"REACH THE EX
 Phase 8（Save / Load）计划序列化的正是本 Rev 要改的东西（`current_area_id` / `current_stage_number` / `forest_006` 形态 id）。先做 Phase 8 = 写两遍存档代码 + 两套迁移。建议执行序调整为：
 
 ```text
-Chat 09  Phase 7.6  Global Stage Range 模型（Rev 3，本文件）   ← 先做
-Chat 10  Phase 8    Save / Load                                ← 序列化新模型
-Chat 11  Phase 9    更多 Area（用区间表达，验证扩展性）
-Chat 12  Phase 10   Final Refactor
+Chat 09  Phase 7.6  Global Stage Range 模型（Rev 3，本文件）   ✅ 已完成
+Chat 10  Phase 8    Save / Load                                ← 序列化新模型（已按 Rev 3 重写，见老 plan Rev 3.1）
+         Phase 9    更多 Area                                  ✗ 已删除：扩展性已由本 Rev 的合成 Area 2 测试证明
+Chat 11  Phase 10   Final Refactor
 ```
+
+> **Rev 3.1 追记**：上面第 3 行原为 `Chat 11 Phase 9 更多 Area`。Rev 3 落地后（见 `reports/area-stage-progression-phase-07-6-report.md` §4/§6），加 Area 的架构路径已由 `test_stage_range` T2/T3/T6 与 `test_world_map` 的窗口偏移用例在内存合成 Area 2 上验证通过，Phase 9 作为架构验证 Phase 已删除；做法准则移入 `area-stage-progression-coding-plan.md` **附录 A**，遗留的 area 字面量清理并入 Phase 10 清单。
 
 ---
 
