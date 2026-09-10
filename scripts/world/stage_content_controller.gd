@@ -114,21 +114,19 @@ func clear_content() -> void:
 	_active_stage_id = ""
 
 
-## Spawns the authored content for `stage_number` of the area the player is
-## currently on, and returns how many entries were placed.
+## Spawns the authored content for `stage_number` (a GLOBAL stage number) and
+## returns how many entries were placed.
 ##
-## Returns 0 for anything that is not an authored stage: no area entered yet (the
-## endless boot loop), an area that does not author this stage number, or a stage
-## whose content has all been consumed. Those stages are plain normal stages and
-## this method leaves them completely alone.
+## Returns 0 for anything that is not an authored stage: a position past every
+## authored area, or a stage the covering area does not author. Those stages are
+## plain normal stages and this method leaves them completely alone.
 func spawn_for_stage(stage_number: int) -> int:
 	clear_content()
 	if _grid == null or _flow == null or _state == null:
 		return 0
-	var area_id: StringName = _flow.get_current_area_id()
-	if area_id.is_empty():
+	if _flow.get_current_area_id().is_empty():
 		return 0
-	var stage := StageDatabaseScript.lookup(area_id, stage_number)
+	var stage := StageDatabaseScript.lookup(stage_number)
 	if stage == null:
 		return 0
 	_active_stage_id = String(stage.id)

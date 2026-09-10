@@ -3,10 +3,11 @@ extends RefCounted
 
 ## Phase 4 dispatcher of the Area / Stage / StageType system (Coding Plan Rev 2).
 ##
-## StageRouter is the single seam that turns an "enter this stage" request —
-## (area_id, stage_number) — into the gameplay the player should reach. It looks
-## the stage up through StageDatabase and dispatches from the authored
-## StageData.stage_type, NEVER from hard-coded stage numbers (no `if stage == 6`).
+## StageRouter is the single seam that turns an "enter this stage" request — a
+## GLOBAL stage number (Phase 7.6: the area is derived from it, never passed in by
+## the caller) — into the gameplay the player should reach. It looks the stage up
+## through StageDatabase and dispatches from the authored StageData.stage_type,
+## NEVER from hard-coded stage numbers (no `if stage == 6`).
 ##
 ## Phase 4 scope is a routing shell only:
 ##   * route() / destination_for_stage() answer "where does this stage take the
@@ -85,11 +86,14 @@ func destination_for_stage(stage: StageData) -> int:
 
 
 ## Full route record for one stage request. Looks the stage up through
-## StageDatabase.lookup; unknown / un-authored / out-of-range requests resolve to
-## a clean failed route (ok == false, reason set) — mirroring the "unknown query
-## returns null" style of Phase 2.
-func route(area_id: StringName, stage_number: int) -> Dictionary:
-	var stage := StageDatabaseScript.lookup(area_id, stage_number)
+## StageDatabase for the area whose range covers this GLOBAL stage number; a
+## number no area authors (or a non-positive one) resolves to a clean failed
+## route (ok == false, reason set) — mirroring the "unknown query returns null"
+## style of Phase 2.
+func route(stage_number: int) -> Dictionary:
+	var database := StageDatabaseScript.database_for_stage(stage_number)
+	var area_id: StringName = database.area_id if database != null else &""
+	var stage: StageData = database.get_stage(stage_number) if database != null else null
 	if stage == null:
 		return {
 			"ok": false,
@@ -101,7 +105,7 @@ func route(area_id: StringName, stage_number: int) -> Dictionary:
 			"destination": Destination.NONE,
 			"destination_name": "",
 			"display_name": "",
-			"reason": "No authored stage %s/%d (unknown area or out of range)." % [area_id, stage_number],
+			"reason": "No authored stage %d (no area covers that stage number)." % stage_number,
 		}
 	var destination := _destination_for_stage_type(stage.stage_type)
 	return {
@@ -122,8 +126,8 @@ func route(area_id: StringName, stage_number: int) -> Dictionary:
 ## authored and routable, emits enter_requested(route) and returns true. Returns
 ## false (emitting nothing) for unknown / un-authored stages — the caller decides
 ## what to show on a failed entry, since lock gating is a Phase 7 flow concern.
-func request_enter(area_id: StringName, stage_number: int) -> bool:
-	var route_result := route(area_id, stage_number)
+func request_enter(stage_number: int) -> bool:
+	var route_result := route(stage_number)
 	if not bool(route_result.get("ok", false)):
 		return false
 	enter_requested.emit(route_result)

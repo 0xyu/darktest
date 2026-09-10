@@ -3,10 +3,13 @@ extends "res://tools/ui_harness/ui_harness_suite.gd"
 ## Phase 6 headless suite: the WorldMapView inside the running combat scene.
 ##
 ## The map must be a data-driven presenter: stage nodes are generated from each
-## area's StageDatabase (never a hard-coded Stage 01..10 list and never
+## area's StageDatabase RANGE (never a hard-coded Stage 01..10 list and never
 ## `if stage == 6` type checks), states (LOCKED / AVAILABLE / COMPLETED /
 ## CURRENT) come from PlayerProgress, and clicking an unlocked stage routes into
 ## the matching gameplay through the existing grid_combat host.
+##
+## Phase 7.6: the numbers on the nodes are GLOBAL stage numbers, so an area that
+## starts at 11 shows 11..20 rather than restarting at 1.
 
 const MAIN_SCENE := preload("res://scenes/world/Main.tscn")
 const StageDatabaseScript := preload("res://scripts/data/stage_database.gd")
@@ -106,25 +109,31 @@ func test_stage_nodes_are_generated_from_stage_database() -> void:
 		return
 	var database: Resource = StageDatabaseScript.load_area(&"forest")
 	expect(database != null, "forest StageDatabase loads")
-	var stage_count: int = int(database.get("stage_count"))
+	if database == null:
+		return
+	var first_stage: int = int(database.get("first_stage"))
+	var last_stage: int = int(database.call("get_last_stage"))
 
-	# The node list must come from stage_count, not a hard-coded 01..10 list.
+	# The node list must come from the authored RANGE, not a hard-coded 01..10 list.
 	var present: Array[int] = []
-	for number in range(1, stage_count + 1):
+	for number in range(first_stage, last_stage + 1):
 		if forest.call("get_stage_node", number) != null:
 			present.append(number)
-	expect_eq(present.size(), stage_count, "one stage node per StageDatabase stage_count entry")
+	expect_eq(present.size(), int(database.get("stage_count")), "one stage node per authored stage")
+	expect_eq(forest.call("get_window_start"), first_stage, "the first window starts at the area's first global stage")
+	expect_eq(forest.call("get_window_end"), last_stage, "the first window ends at the area's last global stage")
+	expect(forest.call("get_stage_node", last_stage + 1) == null, "no node exists past the area's range")
 
 	# Every node's type must equal the authored stage_type from the database —
 	# proving icons/labels are stage_type driven, never `if stage == 6`.
-	for number in range(1, stage_count + 1):
+	for number in range(first_stage, last_stage + 1):
 		var node: Button = forest.call("get_stage_node", number) as Button
 		var stage: Resource = database.call("get_stage", number)
 		expect(int(node.get_meta("stage_type")) == int(stage.get("stage_type")),
 			"stage %d node type matches authored stage_type" % number)
 
 
-func test_default_progress_starts_with_stage_one_ready() -> void:
+func test_default_progress_stands_on_stage_one() -> void:
 	await _mount_game()
 	await _open_map()
 	var forest := _forest_view()
@@ -136,10 +145,12 @@ func test_default_progress_starts_with_stage_one_ready() -> void:
 	expect(node1 != null and node2 != null, "nodes 1 and 2 are built")
 	if node1 == null or node2 == null:
 		return
-	expect(not bool(node1.disabled), "fresh progress: stage 1 is enterable (AVAILABLE)")
-	expect(bool(node2.disabled), "fresh progress: stage 2 is locked")
-	expect(int(node1.get_meta("stage_state")) == AreaViewScript.NodeState.AVAILABLE,
-		"node 1 state is AVAILABLE")
+	# Boot is global stage 1, which IS Forest 01: the map marks it HERE, and the
+	# next stage is still locked because 01 has not been cleared yet.
+	expect(not bool(node1.disabled), "stage 1 is enterable")
+	expect(bool(node2.disabled), "stage 2 is locked")
+	expect(int(node1.get_meta("stage_state")) == AreaViewScript.NodeState.CURRENT,
+		"node 1 state is CURRENT (the boot position is there)")
 	expect(int(node2.get_meta("stage_state")) == AreaViewScript.NodeState.LOCKED,
 		"node 2 state is LOCKED")
 
@@ -148,10 +159,12 @@ func test_map_states_reflect_completion_and_current() -> void:
 	await _mount_game()
 	var progress: Resource = _progress()
 	for number in range(1, 4):
-		expect(bool(progress.call("complete_stage", &"forest", number)),
-			"complete forest stage %d" % number)
-	progress.set("current_area_id", &"forest")
+		expect(bool(progress.call("complete_stage", number)),
+			"complete stage %d" % number)
+	# The position is one number; the area it belongs to is derived from it, so
+	# there is nothing else to set. Reaching it also raises the unlock ceiling.
 	progress.set("current_stage_number", 4)
+	progress.call("mark_reached", 4)
 
 	await _open_map()
 	var forest := _forest_view()
@@ -176,6 +189,7 @@ func test_map_states_reflect_completion_and_current() -> void:
 func test_clicking_a_locked_stage_does_not_enter() -> void:
 	await _mount_game()
 	var progress: Resource = _progress()
+	var position_before: int = int(progress.get("current_stage_number"))
 	await _open_map()
 	var forest := _forest_view()
 	expect(forest != null, "forest area view present")
@@ -187,7 +201,7 @@ func test_clicking_a_locked_stage_does_not_enter() -> void:
 	# A real click must not reach a disabled node (so no stage entry occurs).
 	push_click(node2)
 	await flush_frames(2)
-	expect(String(progress.get("current_area_id")) == "", "locked click must not move progress")
+	expect_eq(int(progress.get("current_stage_number")), position_before, "locked click must not move the position")
 	expect(_stage_number() == 1, "locked click must not start a battle for stage 2")
 
 
@@ -196,7 +210,7 @@ func test_clicking_an_unlocked_boss_stage_starts_its_battle() -> void:
 	var progress: Resource = _progress()
 	# Unlock the boss stage the honest way: clear stages 1..9.
 	for number in range(1, 10):
-		progress.call("complete_stage", &"forest", number)
+		progress.call("complete_stage", number)
 
 	await _open_map()
 	var forest := _forest_view()
@@ -214,7 +228,7 @@ func test_clicking_an_unlocked_boss_stage_starts_its_battle() -> void:
 	boss_node.pressed.emit()
 	await flush_frames(3)
 	expect(_stage_number() == 10, "clicking stage 10 starts the battle at level 10")
-	expect(int(progress.get("current_stage_number")) == 10, "progress now stands on forest stage 10")
+	expect(int(progress.get("current_stage_number")) == 10, "progress now stands on stage 10")
 	var combat: Node = _combat_view()
 	var map: Node = _world_map()
 	expect(combat != null and bool(combat.get("visible")), "combat view shown after entering the stage")
@@ -248,3 +262,34 @@ func test_very_large_area_is_paginated_not_materialized() -> void:
 	view.show_window(view.get_window_count() - 1)
 	await flush_frames(2)
 	expect(view.call("get_stage_node", 1000) != null, "last window still reaches stage 1000")
+
+
+func test_paginated_area_with_a_non_default_first_stage() -> void:
+	# An area that starts at global stage 11 pages on the SAME numbers it shows:
+	# window 0 holds 11..34, window 1 continues at 35 — never a restart at 1.
+	var database := StageDatabaseScript.new()
+	database.area_id = &"late"
+	database.display_name = "Late"
+	database.first_stage = 11
+	database.stage_count = 1000
+	database.default_stage_type = StageTypeScript.COMBAT
+
+	var view = AreaViewScript.new()
+	view.setup(database, null)
+	track_node(view)
+	await flush_frames(2)
+
+	expect(view.call("get_window_start") == 11, "the first window starts at the area's first global stage")
+	expect(view.call("get_window_end") == 34, "the first window ends 24 global stages later")
+	expect(view.call("get_stage_node", 11) != null, "window 0 builds the area's first stage (11)")
+	expect(view.call("get_stage_node", 34) != null, "window 0 builds global stage 34")
+	expect(view.call("get_stage_node", 35) == null, "window 0 does not pre-build global stage 35")
+	expect(view.call("get_stage_node", 10) == null, "a number before the range is never built")
+	expect(view.call("show_window_for_stage", 40), "the view can jump to the window holding a global stage")
+	await flush_frames(2)
+	expect(view.call("get_stage_node", 40) != null, "the jumped-to window builds global stage 40")
+	expect(view.call("get_stage_node", 11) == null, "and no longer holds the first window")
+
+	view.show_window(view.get_window_count() - 1)
+	await flush_frames(2)
+	expect(view.call("get_stage_node", 1010) != null, "the last window reaches the range's last stage (1010)")

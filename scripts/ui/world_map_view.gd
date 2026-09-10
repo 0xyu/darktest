@@ -6,16 +6,24 @@ extends Control
 ## This is the full-screen world map shown inside the HUD's ViewContainer:
 ## it lists every authored area (from resources/stage_databases/) and lets the
 ## player enter unlocked stages. Area stage nodes are NOT hard-coded — each
-## AreaView is built from its StageDatabase (stage_count + stage_type), and
-## LOCKED / AVAILABLE / COMPLETED / CURRENT state comes from PlayerProgress.
+## AreaView is built from its StageDatabase (its stage-number range +
+## stage_type), and LOCKED / AVAILABLE / COMPLETED / CURRENT state comes from
+## PlayerProgress.
+##
+## Stage numbers are GLOBAL (Phase 7.6), so the areas are listed in progression
+## order and a click carries only the stage number: the host derives the area.
+## When the map opens it follows the player — the area holding the current
+## position jumps to the window containing it — and when the position is past
+## every authored area (the endless tail) the map says so instead of pretending
+## the player is nowhere.
 ##
 ## The view stays a dumb presenter: it never routes, never starts combat, never
-## writes progress. Clicking a stage emits stage_enter_requested(area, number)
-## and the grid_combat host decides what happens next (StageRouter). Closing
-## the map emits close_requested and the HUD restores the previous view.
+## writes progress. Clicking a stage emits stage_enter_requested(number) and the
+## grid_combat host decides what happens next (StageRouter). Closing the map
+## emits close_requested and the HUD restores the previous view.
 
 signal close_requested
-signal stage_enter_requested(area_id: StringName, stage_number: int)
+signal stage_enter_requested(stage_number: int)
 
 const StageDatabaseScript := preload("res://scripts/data/stage_database.gd")
 const AreaViewScript := preload("res://scripts/ui/area_view.gd")
@@ -40,6 +48,7 @@ var _progress: PlayerProgress
 var _area_views: Array = []
 var _areas_box: VBoxContainer
 var _summary_label: Label
+var _endless_label: Label
 
 
 func _ready() -> void:
@@ -61,6 +70,10 @@ func get_progress() -> PlayerProgress:
 
 ## (Re)builds one AreaView per authored StageDatabase so the map always mirrors
 ## the current data + progress. Safe to call repeatedly (e.g. every open).
+##
+## The current position is used twice: to color the nodes, and to open the area
+## that holds it on the window containing it, so the map never shows an area
+## whose HERE marker is a page away.
 func refresh() -> void:
 	if _areas_box == null:
 		return
@@ -68,15 +81,20 @@ func refresh() -> void:
 		_areas_box.remove_child(child)
 		child.queue_free()
 	_area_views.clear()
-	var databases := _discover_databases()
+	var databases := StageDatabaseScript.discovered_databases()
+	var live_progress: PlayerProgress = _progress if _progress != null else PlayerProgressScript.new()
+	var current_stage: int = int(live_progress.current_stage_number)
+	var current_area: StringName = live_progress.get_current_area_id()
 	var total_stages: int = 0
 	for database in databases:
 		var view = AreaViewScript.new()
-		view.setup(database, _progress if _progress != null else PlayerProgressScript.new())
+		view.setup(database, live_progress)
 		view.stage_enter_requested.connect(_on_area_stage_enter_requested)
 		_areas_box.add_child(view)
 		_area_views.append(view)
 		total_stages += int(database.stage_count)
+		if not current_area.is_empty() and database.area_id == current_area:
+			view.call("show_window_for_stage", current_stage)
 	if _summary_label != null:
 		var area_count := databases.size()
 		_summary_label.text = "%d AREA%s · %d STAGES — from StageDatabase" % [
@@ -84,6 +102,11 @@ func refresh() -> void:
 			"" if area_count == 1 else "S",
 			total_stages,
 		]
+	if _endless_label != null:
+		# Past the last authored area there is no range to mark: say so plainly
+		# rather than showing a HERE marker the data cannot justify.
+		_endless_label.visible = current_area.is_empty()
+		_endless_label.text = "ENDLESS — stage %d (no area authored)" % current_stage
 	if databases.is_empty():
 		var empty := Label.new()
 		empty.text = "No area authored yet (resources/stage_databases/)."
@@ -113,6 +136,15 @@ func get_stage_node_button(area_id: StringName, stage_number: int) -> Button:
 	if not view.has_method("get_stage_node"):
 		return null
 	return view.call("get_stage_node", stage_number) as Button
+
+
+## The footer line shown when the current position is past every authored area,
+## or "" while an authored area covers it. Public so callers (and tests) can ask
+## "is the player past the authored content?" without poking private labels.
+func get_endless_text() -> String:
+	if _endless_label == null or not _endless_label.visible:
+		return ""
+	return _endless_label.text
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +202,14 @@ func _build_ui() -> void:
 	_areas_box.add_theme_constant_override("separation", 12)
 	scroll.add_child(_areas_box)
 
+	# Footer: where the player stands when no authored area covers the position.
+	_endless_label = Label.new()
+	_endless_label.visible = false
+	_endless_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_endless_label.add_theme_color_override("font_color", COLOR_MUTED)
+	_endless_label.add_theme_font_size_override("font_size", 11)
+	content.add_child(_endless_label)
+
 
 func _build_header() -> HBoxContainer:
 	var header := HBoxContainer.new()
@@ -222,35 +262,20 @@ func _build_legend() -> HBoxContainer:
 	return legend
 
 
-func _on_area_stage_enter_requested(area_id: StringName, stage_number: int) -> void:
-	stage_enter_requested.emit(area_id, stage_number)
+func _on_area_stage_enter_requested(stage_number: int) -> void:
+	stage_enter_requested.emit(stage_number)
 
 
 # ---------------------------------------------------------------------------
 # Area discovery
 # ---------------------------------------------------------------------------
 
-## Loads every authored StageDatabase under resources/stage_databases/ (valid
-## ones only), sorted by area id. Adding a new area = dropping a new .tres in
-## that folder; no view / core change is needed.
+## The authored StageDatabases, taken from StageDatabase's cached range table so
+## the map and the "which area covers this stage number" lookup can never
+## disagree about which areas exist. Adding a new area = dropping a new .tres in
+## resources/stage_databases/; no view / core change is needed.
 static func _discover_databases() -> Array[StageDatabase]:
-	var databases: Array[StageDatabase] = []
-	var dir := DirAccess.open(StageDatabaseScript.DATABASE_DIR)
-	if dir == null:
-		return databases
-	dir.list_dir_begin()
-	var file_name := dir.get_next()
-	while file_name != "":
-		if not dir.current_is_dir() and file_name.ends_with(".tres"):
-			var database := load(StageDatabaseScript.DATABASE_DIR + file_name) as StageDatabase
-			if database != null and database.is_valid():
-				databases.append(database)
-		file_name = dir.get_next()
-	dir.list_dir_end()
-	databases.sort_custom(func(a: StageDatabase, b: StageDatabase) -> bool:
-		return String(a.area_id) < String(b.area_id)
-	)
-	return databases
+	return StageDatabaseScript.discovered_databases()
 
 
 func _make_style(background: Color, border: Color, border_width: int, radius: int) -> StyleBoxFlat:

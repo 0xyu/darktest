@@ -371,6 +371,17 @@ Stage 11
 
 Stages increase in difficulty.
 
+The numbers are **one global counter that never resets**: stage 11 follows stage 10,
+and there is no second numbering that restarts per region. Areas (authored
+regions such as Forest) are **ranges on that counter** — Forest covers 1–10, the
+next authored area continues from 11 — so entering "the next area" means entering
+global stage 11, not "stage 1 of somewhere else". A stage number no authored area
+covers is simply a normal endless stage.
+
+Clearing a stage opens the next one on the same global chain, including across an
+area boundary (clearing 10 opens 11), and stages the player has already reached
+stay open even if a defeat moves them back.
+
 ## 5.1 Hybrid Level Data
 
 The playable stage pipeline resolves a level through `LevelManager` and

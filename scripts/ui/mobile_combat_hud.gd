@@ -13,12 +13,13 @@ signal auto_toggle_requested
 signal farming_toggle_requested
 signal game_speed_requested(speed: int)
 ## Forwarded from the DEV panel's AREA STAGES section: request entry to an
-## authored area stage. grid_combat resolves it via StageRouter.
-signal area_stage_enter_requested(area_id: StringName, stage_number: int)
+## authored stage by its GLOBAL stage number. grid_combat derives the area and
+## resolves it via StageRouter.
+signal area_stage_enter_requested(stage_number: int)
 ## The combat MAP button requests the world map open/close toggle.
 signal world_map_toggle_requested
-## Forwarded from the WorldMapView stage nodes: enter an unlocked area stage.
-signal world_map_stage_enter_requested(area_id: StringName, stage_number: int)
+## Forwarded from the WorldMapView stage nodes: enter an unlocked stage.
+signal world_map_stage_enter_requested(stage_number: int)
 ## The TownView close button was pressed. grid_combat decides where to go (a
 ## typed town visit that came from the world map returns to the refreshed map;
 ## any other close restores the combat view).
@@ -174,8 +175,8 @@ func _on_town_view_requested() -> void:
 
 
 ## Forwarded from the DEV panel's AREA STAGES section to grid_combat.
-func _on_dev_area_stage_enter_requested(area_id: StringName, stage_number: int) -> void:
-	area_stage_enter_requested.emit(area_id, stage_number)
+func _on_dev_area_stage_enter_requested(stage_number: int) -> void:
+	area_stage_enter_requested.emit(stage_number)
 
 
 func _on_town_warehouse_requested() -> void:
@@ -231,8 +232,8 @@ func _on_world_map_close_requested() -> void:
 
 
 ## Forwarded from a WorldMapView stage node to the grid_combat host.
-func _on_world_map_stage_enter_requested(area_id: StringName, stage_number: int) -> void:
-	world_map_stage_enter_requested.emit(area_id, stage_number)
+func _on_world_map_stage_enter_requested(stage_number: int) -> void:
+	world_map_stage_enter_requested.emit(stage_number)
 
 
 func _on_skills_button_pressed() -> void:

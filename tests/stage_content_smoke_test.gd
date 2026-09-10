@@ -41,7 +41,7 @@ func _run() -> void:
 
 
 func _test_forest_authored_content() -> void:
-	var stage: Resource = StageDatabaseScript.lookup(&"forest", 6)
+	var stage: Resource = StageDatabaseScript.lookup(6)
 	_expect(stage != null, "forest 06 should be authored")
 	if stage == null:
 		return
@@ -69,7 +69,7 @@ func _test_forest_authored_content() -> void:
 func _test_content_does_not_change_the_route() -> void:
 	# Content is layered on top of the gameplay: an authored stage with content
 	# keeps the same stage_type, so adding content can never re-route a stage.
-	var stage: Resource = StageDatabaseScript.lookup(&"forest", 6)
+	var stage: Resource = StageDatabaseScript.lookup(6)
 	_expect(stage != null, "forest 06 should be authored")
 	if stage == null:
 		return
@@ -81,7 +81,7 @@ func _test_un_authored_stages_have_no_content() -> void:
 	# The endless default: a stage nobody authored carries no content at all, which
 	# is exactly what makes it a plain normal stage.
 	for number in [1, 2, 3, 5, 7, 9]:
-		var stage: Resource = StageDatabaseScript.lookup(&"forest", number)
+		var stage: Resource = StageDatabaseScript.lookup(number)
 		_expect(stage != null, "forest %d should exist" % number)
 		if stage != null:
 			_expect(stage.get("content").is_empty(), "un-authored forest %d should carry no content" % number)

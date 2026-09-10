@@ -1,9 +1,21 @@
 # Godot Area → Stage → StageType 关卡系统（Stage Database 架构）
 
+> ⚠️ **Rev 3 取代说明（Phase 7.6）**：本文件的**位置/编号模型**已被
+> `global-stage-range-coding-plan.md`（Rev 3，Phase 7.6，已实施）取代。仍然有效的部分：
+> StageDatabase 紧凑规格、StageData 运行时对象、StageRouter 由 `stage_type` 决定 destination、
+> 内容层叠加、单一 advance seam、StageFlow 分层。**作废**的部分：
+> - 「每个 Area 各自从 1 编号」→ Stage 号是**一个全局递增计数器**，Area 只是它上面的一段**区间**
+>   （`StageDatabase.first_stage + stage_count`）；area 局部编号不再存在。
+> - 「`PlayerProgress.current_area_id` 是存储字段」→ 已**删除**，area 一律由位置**推导**
+>   （`StageDatabase.area_for_stage(n)`），并新增单调字段 `highest_stage_reached`。
+> - 「endless boot 从不写进度」→ **推翻**：开机那一关就在第一个 Area 的区间内，清掉就记账。
+> 落地报告：`docs/coding-plans/reports/area-stage-progression-phase-07-6-report.md`。
+>
 > 文档版本：**Rev 2.1**（Phase 7.5：authored stage 改「普通关 + 内容层」模型、EVENT 退役、next-stage 单一 seam、StageFlow 抽取）。
 > 历史：
 > - Rev 1 曾设想 `one stage = one .tres`（`forest_01.tres` … `forest_10.tres`），已在 Rev 2 **废弃**。原因见下方「# 关键架构变更」。
-> - **Rev 2.1**（本版）：见「# Rev 2.1 变更（Phase 7.5）」。落地报告：`docs/coding-plans/reports/area-stage-progression-phase-07-5-report.md`。
+> - **Rev 2.1**：见「# Rev 2.1 变更（Phase 7.5）」。落地报告：`docs/coding-plans/reports/area-stage-progression-phase-07-5-report.md`。
+> - **Rev 3**（Phase 7.6）：见上方的取代说明。
 
 ## 总目标
 
@@ -388,7 +400,9 @@ get_current_stage()  # → { area_id, stage_number }
 
 ## 命名注意（已清理）
 
-battle 侧 `PlayerProgression`（Resource，角色**数值成长**：level / experience / gold / skills）与本 `PlayerProgress`（**地图/关卡进度**）是两回事。混淆源 `PlayerProgression.current_stage`（从未被任何玩法代码读取的死字段——战斗 HUD 阶段条实际读 battle `StageState`）已在 Phase 3 **一并移除**（含 UI fixture / 测试），现仓库不再有两套「current stage」并存。长期若仍想消除一字之差，可单独发 `refactor:` commit 把旧类改名 `CharacterProgression`，勿混入 gameplay Phase。
+battle 侧 `PlayerProgression`（Resource，角色**数值成长**：level / experience / gold / skills）与本 `PlayerProgress`（**地图/关卡进度**）是两回事。混淆源 `PlayerProgression.current_stage`（从未被任何玩法代码读取的死字段——战斗 HUD 阶段条实际读 battle `StageState`）已在 Phase 3 **一并移除**（含 UI fixture / 测试）。长期若仍想消除一字之差，可单独发 `refactor:` commit 把旧类改名 `CharacterProgression`，勿混入 gameplay Phase。
+
+> ⚠️ **Rev 3 更正（Phase 7.6）**：上一段原写的「现仓库不再有两套『current stage』并存」**当时判断错误** —— Phase 3 只删了死字段 `PlayerProgression.current_stage`，漏算了地图正在读写的活字段 `PlayerProgress.current_area_id` + `current_stage_number`。后者是第二份位置，且只有"进入某一关"会写它，于是"清场推进"与"地图位置"逐步漂开（详见 `global-stage-range-coding-plan.md` §1.1）。Phase 7.6 已删除 `current_area_id`、把位置收敛为唯一写入点，该结论现在成立。
 
 ## Output
 
@@ -550,7 +564,9 @@ WorldMap 不判断 `if stage == 6 → event icon`；一律走 `stage_data.stage_
 > - 「EVENT 占位 / 进入即算完成」→ EVENT 已退役。
 > - 「完成语义依赖 AUTO/FARMING」→ **result 与自动化完全解耦**。
 >
-> 仍然有效的部分：完成判定只依赖 `(area_id, stage_number)`（经 StageRouter/StageDatabase 解析）、零 stage 数字硬编码、下一关文案数据驱动、TOWN 进入即完成、endless boot 从不写进度。
+> 仍然有效的部分：完成判定只依赖 stage number（经 StageRouter/StageDatabase 解析）、零 stage 数字硬编码、下一关文案数据驱动、TOWN 进入即完成。
+>
+> ⚠️ **Rev 3 更正（Phase 7.6）**：本段原先写的「endless boot 从不写进度」**已作废**。开机那一关就是全局 stage 1，落在第一个 Area 的区间内，清场即记账；`PlayerProgress` 现在是 `current_stage_number`（唯一位置）+ `highest_stage_reached`（单调解锁上限）+ `completed_stages`（显式完成），而 `current_area_id` 已删除、改为推导。详见 `global-stage-range-coding-plan.md`。
 
 > 产物见 `docs/coding-plans/reports/area-stage-progression-phase-07-report.md`。
 >

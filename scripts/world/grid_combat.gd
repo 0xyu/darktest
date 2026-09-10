@@ -4,6 +4,7 @@ extends Node2D
 const SpecialEncounterTypeResource = preload("res://scripts/systems/special_encounter_type.gd")
 const SubHeroAttackEffectResource = preload("res://scripts/combat/sub_hero_attack_effect.gd")
 const StageFlowScript = preload("res://scripts/systems/stage_flow.gd")
+const StageDatabaseScript = preload("res://scripts/data/stage_database.gd")
 const StageContentControllerScript = preload("res://scripts/world/stage_content_controller.gd")
 const AuthoredContentStateScript = preload("res://scripts/progress/authored_content_state.gd")
 ## The battlefield spans the full screen width up to this cap (the base 720px
@@ -242,24 +243,26 @@ func get_stage_progress() -> PlayerProgress:
 	return _flow.get_progress() if _flow != null else null
 
 
-## Requests entry to an authored area stage, e.g. enter_area_stage(&"forest", 8).
-## Returns true when the stage is authored and its gameplay has been started.
-## Returns false (with a status message) for unknown / un-authored / out-of-range
-## stages. `from_world_map` marks an entry clicked on the world map, so a town
-## visit opened from the map closes back to the refreshed map.
-func enter_area_stage(area_id: StringName, stage_number: int, from_world_map: bool = false) -> bool:
+## Requests entry to an authored stage by its GLOBAL stage number, e.g.
+## enter_area_stage(8). The area is derived from the number by the flow, so
+## there is no area argument to get wrong. Returns true when the stage is
+## authored and its gameplay has been started. Returns false (with a status
+## message) for un-authored / out-of-range numbers. `from_world_map` marks an
+## entry clicked on the world map, so a town visit opened from the map closes
+## back to the refreshed map.
+func enter_area_stage(stage_number: int, from_world_map: bool = false) -> bool:
 	if _flow == null:
 		return false
-	if _flow.request_enter(area_id, stage_number, from_world_map):
+	if _flow.request_enter(stage_number, from_world_map):
 		return true
-	_last_move_text = _flow.get_entry_failure_reason(area_id, stage_number)
+	_last_move_text = _flow.get_entry_failure_reason(stage_number)
 	queue_redraw()
 	return false
 
 
 ## Forwarded from the HUD (DEV panel's AREA STAGES section).
-func _on_hud_area_stage_enter_requested(area_id: StringName, stage_number: int) -> void:
-	enter_area_stage(area_id, stage_number)
+func _on_hud_area_stage_enter_requested(stage_number: int) -> void:
+	enter_area_stage(stage_number)
 
 
 ## Refreshes the WorldMapView against the live progress and shows it.
@@ -290,12 +293,13 @@ func _on_hud_world_map_toggle_requested() -> void:
 ## bypasses lock gating for QA), the map only lets the player enter stages the
 ## linear progression has actually unlocked — the lock rule lives in
 ## PlayerProgress and is reached through the flow so map and flow share one rule.
-func _on_world_map_stage_enter_requested(area_id: StringName, stage_number: int) -> void:
-	if _flow != null and not _flow.is_stage_unlocked(area_id, stage_number):
-		_last_move_text = "AREA %s // STAGE %d LOCKED — CLEAR THE PREVIOUS STAGE FIRST" % [area_id, stage_number]
+func _on_world_map_stage_enter_requested(stage_number: int) -> void:
+	if _flow != null and not _flow.is_stage_unlocked(stage_number):
+		var area_id: StringName = StageDatabaseScript.area_for_stage(stage_number)
+		_last_move_text = "AREA %s // STAGE %d LOCKED — CLEAR THE PREVIOUS STAGE FIRST" % [String(area_id).to_upper(), stage_number]
 		queue_redraw()
 		return
-	enter_area_stage(area_id, stage_number, true)
+	enter_area_stage(stage_number, true)
 
 
 # ---------------------------------------------------------------------------
@@ -303,10 +307,15 @@ func _on_world_map_stage_enter_requested(area_id: StringName, stage_number: int)
 # The policy lives in StageFlow; this section only performs it. The authored loop
 #   WorldMap → Stage → Gameplay → Complete (PlayerProgress) → unlock next →
 #   next battle (or the map, whenever the player opens it)
-# Completion depends only on (area_id, stage_number) resolved through the router /
+# Completion depends only on the stage number resolved through the router /
 # StageDatabase, and never on AUTO / FARMING, so automation cannot change a
-# result. The endless default loop (no authored stage ever entered) writes no
-# progress at all.
+# result.
+#
+# Position bookkeeping is NOT done here: the flow writes the position from
+# StageManager.stage_started (forwarded in _on_stage_started below), which every
+# stage-changing path reaches — boot, a map / DEV entry, an advance (AUTO and
+# manual share one seam), a defeat fallback and a FARMING re-spawn. That single
+# writer is why the stage bar, the map's HERE marker and PlayerProgress agree.
 # ---------------------------------------------------------------------------
 
 ## Town close routed through the host: a town visit opened from the world map
@@ -468,6 +477,11 @@ func _relayout_when_combat_ready() -> void:
 
 
 func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
+	# THE single position writer: every stage-changing path reaches
+	# StageManager.initialize_stage() -> stage_started, so forwarding it here keeps
+	# PlayerProgress, the stage bar and the world map's HERE marker on one number.
+	if _flow != null:
+		_flow.on_stage_started(stage_state.stage_number)
 	player.set_free_movement(false)
 	_active_enemies = enemies
 	for enemy_node in _active_enemies:

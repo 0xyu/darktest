@@ -81,7 +81,7 @@ func _step_onto(cell: Vector2i) -> bool:
 
 func test_authored_stage_spawns_its_content_on_a_normal_battle() -> void:
 	await _mount_game()
-	expect(bool(_grid_test.call("enter_area_stage", &"forest", 6)), "entering authored forest 06 should succeed")
+	expect(bool(_grid_test.call("enter_area_stage", 6)), "entering authored forest 06 should succeed")
 	await flush_frames(3)
 
 	# The stage is still a normal battle: content is layered on top of the
@@ -98,19 +98,19 @@ func test_authored_stage_spawns_its_content_on_a_normal_battle() -> void:
 
 func test_plain_stages_spawn_no_content() -> void:
 	await _mount_game()
-	# Boot is the endless loop with no authored area entered: a plain stage.
-	expect_eq(_content().call("get_content_count"), 0, "the endless boot stage carries no content")
+	# Boot is global stage 1 of Forest, which authors no content: a plain stage.
+	expect_eq(_content().call("get_content_count"), 0, "the boot stage carries no content")
 
-	# Forest 02 is authored by nobody, so it is a plain normal stage.
-	expect(bool(_grid_test.call("enter_area_stage", &"forest", 2)), "entering forest 02 should succeed")
+	# Stage 02 is authored by nobody, so it is a plain normal stage.
+	expect(bool(_grid_test.call("enter_area_stage", 2)), "entering stage 02 should succeed")
 	await flush_frames(3)
-	expect_eq(_stage_number(), 2, "forest 02 started its battle")
+	expect_eq(_stage_number(), 2, "stage 02 started its battle")
 	expect_eq(_content().call("get_content_count"), 0, "an un-authored stage carries no content")
 
 
 func test_walking_onto_the_chest_grants_gold_consumes_it_and_removes_it() -> void:
 	await _mount_game()
-	expect(bool(_grid_test.call("enter_area_stage", &"forest", 6)), "entering authored forest 06 should succeed")
+	expect(bool(_grid_test.call("enter_area_stage", 6)), "entering authored forest 06 should succeed")
 	await flush_frames(3)
 
 	var state: Resource = _content().call("get_state")
@@ -130,7 +130,7 @@ func test_walking_onto_the_chest_grants_gold_consumes_it_and_removes_it() -> voi
 
 func test_one_shot_content_stays_gone_but_repeatable_content_returns() -> void:
 	await _mount_game()
-	expect(bool(_grid_test.call("enter_area_stage", &"forest", 6)), "entering authored forest 06 should succeed")
+	expect(bool(_grid_test.call("enter_area_stage", 6)), "entering authored forest 06 should succeed")
 	await flush_frames(3)
 
 	# Consume the chest during this visit.
@@ -141,7 +141,7 @@ func test_one_shot_content_stays_gone_but_repeatable_content_returns() -> void:
 
 	# Re-enter the same authored stage: the one-shot chest must not come back, the
 	# repeatable pool must. This is what "the stage is a normal stage again" means.
-	expect(bool(_grid_test.call("enter_area_stage", &"forest", 6)), "re-entering authored forest 06 should succeed")
+	expect(bool(_grid_test.call("enter_area_stage", 6)), "re-entering authored forest 06 should succeed")
 	await flush_frames(3)
 	expect_eq(_content().call("get_content_count"), 1, "only the repeatable entry respawns")
 	expect(_cell_of(&"cache") == Vector2i(-1, -1), "the consumed chest does not respawn")
@@ -153,7 +153,7 @@ func test_one_shot_content_stays_gone_but_repeatable_content_returns() -> void:
 
 func test_healing_pool_restores_hp_once_per_visit() -> void:
 	await _mount_game()
-	expect(bool(_grid_test.call("enter_area_stage", &"forest", 6)), "entering authored forest 06 should succeed")
+	expect(bool(_grid_test.call("enter_area_stage", 6)), "entering authored forest 06 should succeed")
 	await flush_frames(3)
 
 	var stats: Resource = _player().get("player_stats")

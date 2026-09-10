@@ -68,6 +68,13 @@ func _refresh_from_manager() -> void:
 	_apply_display()
 
 
+## The stage number the bar currently highlights. Public so callers (and tests)
+## can check the bar agrees with the battle stage and with PlayerProgress without
+## reaching into private state.
+func get_current_stage() -> int:
+	return _current_stage
+
+
 ## Fills the slot labels from the current stage and recolors them.
 func _apply_display() -> void:
 	var values := _slot_values_for(_current_stage)

@@ -43,6 +43,7 @@ display_name = "Forest Boss"
 script = ExtResource("1_db")
 area_id = &"forest"
 display_name = "Forest"
+first_stage = 1
 stage_count = 10
 default_stage_type = 0
 special_stages = Array[ExtResource("2_stage")]([SubResource("StageData_forest_006"), SubResource("StageData_forest_008"), SubResource("StageData_forest_010")])

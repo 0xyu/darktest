@@ -1,10 +1,10 @@
 class_name StageFlow
 extends RefCounted
 
-## Owns the authored-stage FLOW POLICY for the running scene: which area / stage
-## the player is on, what completing a stage means, what the authored path
-## offers next, which stages the linear gate lets the player enter, and where a
-## town visit returns to.
+## Owns the authored-stage FLOW POLICY for the running scene: which stage the
+## player is on, what completing a stage means, what the authored path offers
+## next, which stages the linear gate lets the player enter, and where a town
+## visit returns to.
 ##
 ## Why this class exists
 ## --------------------
@@ -16,13 +16,30 @@ extends RefCounted
 ## views, forwards engine / HUD signals — and owns no flow rules. The rules are
 ## also testable without mounting the combat scene and driving a real battle.
 ##
+## One global stage counter, one writer (Phase 7.6)
+## ------------------------------------------------
+## Stage numbers are global and an area is a RANGE on that counter, so the flow
+## passes stage numbers around and DERIVES the area through
+## StageDatabase.database_for_stage / area_for_stage. Nothing here stores an area
+## of its own.
+##
+## The position has exactly ONE writer: on_stage_started(). Every path that moves
+## the battle to a different stage — boot, a world-map / DEV entry, an advance
+## (AUTO and manual share the single advance seam), a defeat fallback and a
+## FARMING re-spawn — reaches StageManager.initialize_stage(), which emits
+## stage_started, which the host forwards here. A visit-type stage starts no
+## battle, so the flow calls the same writer from its own entry bookkeeping. That
+## is why the map's HERE marker, the stage bar and PlayerProgress can no longer
+## disagree about which stage the player is on.
+##
 ## Rules that live here (and nowhere else)
 ## ---------------------------------------
-##   * entry bookkeeping: entering an authored stage records the current area /
-##     stage and, for a visit-type stage (TOWN), records the clear itself,
-##     because entering a town IS completing that stage in this build
-##   * battle completion: clearing battle stage N completes the authored stage N
-##     of the area the player is currently on, and reports what is next
+##   * position bookkeeping: the stage a battle (or visit) started on becomes the
+##     current stage number, and raises the monotonic highest-stage-reached
+##   * battle completion: clearing a stage covered by an authored area records
+##     that stage under its canonical id and reports what is next; a clear past
+##     the last authored area records nothing (there is nothing authored to
+##     record) while the position still advances
 ##   * next-stage text: read from StageDatabase through the router, never from a
 ##     hard-coded stage number or type table
 ##   * the linear unlock gate handed to the world map
@@ -43,7 +60,8 @@ extends RefCounted
 ## plain endless stage, and a cleared stage continues to the next battle. The
 ## world map is a status view / shortcut that can be opened at any time, not a
 ## hub the player is forced back to after every clear. That is why this class
-## has no "return to map after clearing" rule.
+## has no "return to map after clearing" rule — and why an area boundary is not a
+## wall: clearing 10 simply advances to 11, which the next area covers.
 ##
 ## Static data is never written
 ## ---------------------------
@@ -84,19 +102,38 @@ func get_router() -> StageRouter:
 	return _router
 
 
-## Area the player is currently on, or &"" when no authored stage has been
-## entered yet (the endless boot loop never enters one).
+## Area the player is currently on, DERIVED from the position. Empty only past
+## the last authored area (the endless tail), which is a legal state.
 func get_current_area_id() -> StringName:
-	return _progress.current_area_id if _progress != null else &""
+	return _progress.get_current_area_id() if _progress != null else &""
 
 
-## Requests entry to an authored stage. Returns true when the stage is authored
-## and its gameplay has been requested through gameplay_requested. Returns false
-## for unknown / un-authored / out-of-range stages — the caller shows the reason.
-func request_enter(area_id: StringName, stage_number: int, from_map: bool = false) -> bool:
+## The stage number the player currently stands on.
+func get_current_stage_number() -> int:
+	return _progress.current_stage_number if _progress != null else 1
+
+
+## THE single position writer. Called whenever the game moves onto a stage:
+## every battle start (the host forwards StageManager.stage_started) and the
+## entry bookkeeping of a visit-type stage, which starts no battle.
+##
+## Records the position and raises the monotonic highest-stage-reached. A defeat
+## fallback therefore moves the position back while the unlock ceiling stays put.
+func on_stage_started(stage_number: int) -> void:
+	if _progress == null:
+		return
+	_progress.current_stage_number = maxi(stage_number, 1)
+	_progress.mark_reached(stage_number)
+
+
+## Requests entry to an authored stage by its GLOBAL stage number. Returns true
+## when the stage is authored and its gameplay has been requested through
+## gameplay_requested. Returns false for un-authored / out-of-range numbers — the
+## caller shows the reason.
+func request_enter(stage_number: int, from_map: bool = false) -> bool:
 	if _router == null or _progress == null:
 		return false
-	var route: Dictionary = _router.route(area_id, stage_number)
+	var route: Dictionary = _router.route(stage_number)
 	if not bool(route.get("ok", false)):
 		return false
 	var destination: int = int(route.get("destination", StageRouterScript.Destination.NONE))
@@ -107,51 +144,51 @@ func request_enter(area_id: StringName, stage_number: int, from_map: bool = fals
 
 
 ## Reason an entry was rejected, for the host's status line.
-func get_entry_failure_reason(area_id: StringName, stage_number: int) -> String:
+func get_entry_failure_reason(stage_number: int) -> String:
 	if _router == null:
 		return "Cannot enter that stage."
-	var route: Dictionary = _router.route(area_id, stage_number)
+	var route: Dictionary = _router.route(stage_number)
 	return str(route.get("reason", "Cannot enter that stage."))
 
 
-## True when the linear progression lets the player enter this stage. Kept here
-## so the world map's lock gate and the flow share one rule; the rule itself
+## True when the linear progression lets the player enter this GLOBAL stage. Kept
+## here so the world map's lock gate and the flow share one rule; the rule itself
 ## belongs to PlayerProgress.
-func is_stage_unlocked(area_id: StringName, stage_number: int) -> bool:
+func is_stage_unlocked(stage_number: int) -> bool:
 	if _progress == null:
 		return false
-	return _progress.is_stage_unlocked(area_id, stage_number)
+	return _progress.is_stage_unlocked(stage_number)
 
 
-## Records the clear of battle stage `cleared_stage_number` against the authored
-## area the player is currently on and returns the authored "what's next" text.
+## Records the clear of stage `cleared_stage_number` and returns the authored
+## "what's next" text.
 ##
-## Returns "" when this clear is not part of an authored path — either no
-## authored stage has been entered (the endless boot loop, which must never
-## write progress) or the current area does not author that stage number (the
-## player ground past the authored path).
+## Returns "" when there is nothing authored to record — the stage number is past
+## every authored area (the player ground past the end of the authored path).
+## That is not a failure: the position already advanced through
+## on_stage_started(), and the host falls back to the endless text.
 ##
 ## Deliberately independent of AUTO / FARMING: the result is identical either way.
 func on_battle_cleared(cleared_stage_number: int) -> String:
 	if _progress == null:
 		return ""
-	var area_id: StringName = _progress.current_area_id
-	if area_id.is_empty():
+	if not _progress.complete_stage(cleared_stage_number):
 		return ""
-	var stage := StageDatabaseScript.lookup(area_id, cleared_stage_number)
-	if stage == null:
-		return ""
-	_progress.complete_stage(area_id, cleared_stage_number)
-	return next_stage_text(area_id, cleared_stage_number)
+	return next_stage_text(cleared_stage_number)
 
 
-## Authored "what's next" after `stage_number` clears: either the next authored
-## stage — its type read through the router from StageDatabase, never a hard-coded
-## number — or the area-complete summary when it was the final stage.
-func next_stage_text(area_id: StringName, stage_number: int) -> String:
+## Authored "what's next" after `stage_number` clears:
+##   * the next stage is covered by an area  → "STAGE 12 (COMBAT) UNLOCKED",
+##     its type read through the router from StageDatabase, never a hard-coded
+##     number
+##   * the area ends here and another area follows → "AREA FOREST COMPLETE
+##     (10/10) — NEXT: FOREST 2"
+##   * the area ends here and nothing follows → "AREA FOREST COMPLETE (10/10)"
+##   * no area covered `stage_number` at all → "" (the host's endless text)
+func next_stage_text(stage_number: int) -> String:
 	if _router == null:
 		return ""
-	var next_route: Dictionary = _router.route(area_id, stage_number + 1)
+	var next_route: Dictionary = _router.route(stage_number + 1)
 	if bool(next_route.get("ok", false)):
 		var next_stage: int = int(next_route.get("stage_number", 0))
 		var next_type: int = int(next_route.get("stage_type", StageTypeScript.COMBAT))
@@ -159,9 +196,16 @@ func next_stage_text(area_id: StringName, stage_number: int) -> String:
 			next_stage,
 			StageTypeScript.get_display_name(next_type).to_upper(),
 		]
+	var area_id: StringName = StageDatabaseScript.area_for_stage(stage_number)
+	if area_id.is_empty():
+		return ""
 	var database := StageDatabaseScript.load_area(area_id)
-	var total: int = int(database.stage_count) if database != null else stage_number
-	return "AREA %s COMPLETE (%d/%d)" % [String(area_id).to_upper(), total, total]
+	var total: int = int(database.stage_count) if database != null else 1
+	var summary := "AREA %s COMPLETE (%d/%d)" % [String(area_id).to_upper(), total, total]
+	var next_area_id: StringName = StageDatabaseScript.area_for_stage(stage_number + 1)
+	if next_area_id.is_empty() or next_area_id == area_id:
+		return summary
+	return "%s — NEXT: %s" % [summary, _area_label(next_area_id)]
 
 
 ## Decision for a town close: true when the town currently open was entered from
@@ -173,18 +217,27 @@ func on_town_closed() -> bool:
 	return return_to_map
 
 
-## Entry bookkeeping for one resolved route: records the current position and, for
-## a visit-type stage, the clear itself (entering the town IS completing it in
-## this build, so the linear chain can move past it).
+## Entry bookkeeping for one resolved route: for a visit-type stage, records the
+## position through the single position writer and the clear itself (entering the
+## town IS completing it in this build, so the linear chain can move past it).
+## A combat/boss stage starts a battle instead, and the host's stage_started
+## forwarding moves the position — one writer either way.
 func _apply_entry(route: Dictionary, destination: int) -> void:
-	var area_id: StringName = StringName(route.get("area_id", &""))
 	var stage_number: int = int(route.get("stage_number", 0))
 	var from_map: bool = bool(route.get("from_map", false))
-	_progress.current_area_id = area_id
-	_progress.current_stage_number = stage_number
 	_town_open_from_map = destination == StageRouterScript.Destination.TOWN and from_map
 	if destination == StageRouterScript.Destination.TOWN:
-		_progress.complete_stage(area_id, stage_number)
+		on_stage_started(stage_number)
+		if _progress != null:
+			_progress.complete_stage(stage_number)
 		route["visit_completed"] = true
-		route["next_text"] = next_stage_text(area_id, stage_number)
+		route["next_text"] = next_stage_text(stage_number)
 	gameplay_requested.emit(route)
+
+
+## Upper-case display name of an area id, falling back to the id itself.
+func _area_label(area_id: StringName) -> String:
+	var database := StageDatabaseScript.load_area(area_id)
+	if database != null and not database.display_name.is_empty():
+		return database.display_name.to_upper()
+	return String(area_id).to_upper()

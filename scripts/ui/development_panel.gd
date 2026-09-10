@@ -14,8 +14,8 @@ signal data_changed
 ## main view from CombatView to the town hub (TownView).
 signal town_view_requested
 ## Emitted when an AREA STAGES button is pressed; the HUD forwards it to
-## grid_combat, which resolves the authored stage through StageRouter.
-signal area_stage_enter_requested(area_id: StringName, stage_number: int)
+## grid_combat, which derives the area and resolves the stage through StageRouter.
+signal area_stage_enter_requested(stage_number: int)
 
 const UIFixtureScript = preload("res://tests/fixtures/ui_fixture.gd")
 const SubHeroCatalogResource = preload("res://scripts/sub_hero/sub_hero_catalog.gd")
@@ -318,24 +318,26 @@ func _build_area_stage_actions() -> GridContainer:
 		grid.add_child(empty)
 		return grid
 	var default_type: int = int(database.get("default_stage_type"))
-	for number in range(1, int(database.get("stage_count")) + 1):
+	var first_stage: int = int(database.get("first_stage"))
+	var last_stage: int = int(database.call("get_last_stage"))
+	for number in range(first_stage, last_stage + 1):
 		var stage: Resource = database.call("get_stage", number)
 		if stage == null:
 			continue
 		var stage_type: int = int(stage.get("stage_type"))
-		if number != 1 and stage_type == default_type:
+		if number != first_stage and stage_type == default_type:
 			continue
 		var label: String = "FOREST %02d · %s" % [number, StageTypeScript.get_display_name(stage_type)]
 		var accent: Color = COLOR_STAGE_TYPE.get(stage_type, COLOR_TEXT)
-		grid.add_child(_make_button(label, accent, _enter_area_stage.bind(&"forest", number)))
+		grid.add_child(_make_button(label, accent, _enter_area_stage.bind(number)))
 	return grid
 
 
-## QA entry point for an authored area stage: hides the DEV panel and lets the
-## HUD/grid_combat resolve the stage through StageRouter.
-func _enter_area_stage(area_id: StringName, stage_number: int) -> void:
+## QA entry point for an authored stage: hides the DEV panel and lets the
+## HUD/grid_combat derive the area and resolve the stage through StageRouter.
+func _enter_area_stage(stage_number: int) -> void:
 	hide_panel()
-	area_stage_enter_requested.emit(area_id, stage_number)
+	area_stage_enter_requested.emit(stage_number)
 
 
 func _build_rarity_grid() -> GridContainer:

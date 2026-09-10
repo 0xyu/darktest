@@ -3,20 +3,25 @@ extends PanelContainer
 
 ## Phase 6 presentation of ONE authored area path ("WorldMap / AreaMap
 ## Integration"): the stage nodes are generated at runtime from the area's
-## StageDatabase (stage_count + per-stage stage_type), never from a hard-coded
+## StageDatabase (its range + per-stage stage_type), never from a hard-coded
 ## "Stage 01 ... Stage 10" list, and never from `if stage == 6` type checks.
+##
+## Stage nodes carry GLOBAL stage numbers (Phase 7.6): an area is a RANGE on one
+## never-resetting stage counter, so this view renders
+## `first_stage .. first_stage + stage_count - 1` and every number it shows,
+## queries or emits is that global number.
 ##
 ## Each node reads PlayerProgress to show LOCKED / AVAILABLE / COMPLETED /
 ## CURRENT. Clicking an unlocked node emits stage_enter_requested; the owner
-## (grid_combat host) decides the actual gameplay via StageRouter. This view
-## holds no static data and never writes progress.
+## (grid_combat host) derives the area and decides the actual gameplay via
+## StageRouter. This view holds no static data and never writes progress.
 ##
 ## Presentation scale: small areas render as one page. Larger databases
 ## (> NODES_PER_WINDOW) are paginated in windows so a 10,000 stage area never
 ## materializes 10,000 Controls — the data architecture stays untouched
 ## (Coding Plan Phase 6 "10K 呈现问题").
 
-signal stage_enter_requested(area_id: StringName, stage_number: int)
+signal stage_enter_requested(stage_number: int)
 
 const StageDatabaseScript := preload("res://scripts/data/stage_database.gd")
 const StageTypeScript := preload("res://scripts/data/stage_type.gd")
@@ -126,12 +131,14 @@ func get_stage_node(stage_number: int) -> Button:
 	return _nodes.get(stage_number) as Button
 
 
+## First GLOBAL stage number shown in the current window.
 func get_window_start() -> int:
-	return _window_index * NODES_PER_WINDOW + 1
+	return int(_database.first_stage) + _window_index * NODES_PER_WINDOW
 
 
+## Last GLOBAL stage number shown in the current window.
 func get_window_end() -> int:
-	return mini(int(_database.stage_count), get_window_start() + NODES_PER_WINDOW - 1)
+	return mini(int(_database.get_last_stage()), get_window_start() + NODES_PER_WINDOW - 1)
 
 
 ## Number of stage-number windows a database this size is split into.
@@ -145,23 +152,33 @@ func show_window(index: int) -> void:
 	_rebuild_path()
 
 
+## Jumps to the window holding a GLOBAL `stage_number` and rebuilds it. No-op
+## when the number is outside this area's range. Used by the world map to follow
+## the player's position when it opens.
+func show_window_for_stage(stage_number: int) -> bool:
+	if _database == null or not _database.covers(stage_number):
+		return false
+	var offset: int = stage_number - int(_database.first_stage)
+	var index: int = floori(float(offset) / float(NODES_PER_WINDOW))
+	show_window(index)
+	return true
+
+
 ## Player-side presentation state of one authored stage. Pure function of the
 ## live PlayerProgress (static data is never consulted for progress).
-static func compute_state(progress: PlayerProgress, area_id: StringName, stage_number: int) -> int:
+## `first_stage` is this area's range start, used only for the no-progress
+## fallback (a fresh player stands before the first stage of the first area).
+static func compute_state(progress: PlayerProgress, stage_number: int, first_stage: int = 1) -> int:
 	var unlocked: bool = false
 	if progress == null:
-		unlocked = stage_number == 1
+		unlocked = stage_number == first_stage
 	else:
-		unlocked = progress.is_stage_unlocked(area_id, stage_number)
+		unlocked = progress.is_stage_unlocked(stage_number)
 	if not unlocked:
 		return NodeState.LOCKED
-	if progress != null and progress.is_stage_completed(area_id, stage_number):
+	if progress != null and progress.is_stage_completed(stage_number):
 		return NodeState.COMPLETED
-	if (
-		progress != null
-		and String(progress.current_area_id) == String(area_id)
-		and progress.current_stage_number == stage_number
-	):
+	if progress != null and progress.current_stage_number == stage_number:
 		return NodeState.CURRENT
 	return NodeState.AVAILABLE
 
@@ -248,9 +265,14 @@ func _update_header_progress() -> void:
 	if _subtitle_label == null or _database == null:
 		return
 	var current_text := "no current position"
-	if _progress != null and String(_progress.current_area_id) == String(_database.area_id):
+	if _progress != null and _database.covers(_progress.current_stage_number):
 		current_text = "at stage %d" % _progress.current_stage_number
-	_subtitle_label.text = "%s · %s" % [String(_database.area_id).to_upper(), current_text]
+	_subtitle_label.text = "%s (%d–%d) · %s" % [
+		String(_database.area_id).to_upper(),
+		_database.first_stage,
+		_database.get_last_stage(),
+		current_text,
+	]
 
 
 func _build_pager() -> HBoxContainer:
@@ -340,14 +362,14 @@ func _rebuild_path() -> void:
 
 
 func _stage_position(number: int) -> Vector2:
-	var index: int = number - 1 - _window_index * NODES_PER_WINDOW
+	var index: int = number - int(_database.first_stage) - _window_index * NODES_PER_WINDOW
 	var row: int = index / 2
 	var column: int = index % 2
 	return Vector2(COL_LEFT_X if column == 0 else COL_RIGHT_X, PATH_TOP + row * NODE_STEP_Y)
 
 
 func _make_stage_node(stage: StageData, number: int) -> Button:
-	var state := compute_state(_progress, _database.area_id, number)
+	var state := compute_state(_progress, number, int(_database.first_stage))
 	var stage_type: int = stage.stage_type
 	var type_color: Color = TYPE_COLORS.get(stage_type, COLOR_TEXT)
 	var state_color: Color = STATE_COLORS.get(state, Color("9a90ad"))
@@ -368,7 +390,7 @@ func _make_stage_node(stage: StageData, number: int) -> Button:
 	button.add_theme_stylebox_override("hover", _node_style(Color("171224"), state_color, 2, 6))
 	button.add_theme_stylebox_override("pressed", _node_style(Color("443022"), state_color.lightened(0.2), 2, 6))
 	button.add_theme_stylebox_override("disabled", _node_style(Color("0e0c14"), Color("332f45"), 1, 6))
-	button.pressed.connect(_on_node_pressed.bind(_database.area_id, number))
+	button.pressed.connect(_on_node_pressed.bind(number))
 
 	var row := HBoxContainer.new()
 	row.anchor_right = 1.0
@@ -434,8 +456,9 @@ func _make_medallion(stage_type: int, type_color: Color, locked: bool) -> PanelC
 	return medallion
 
 
-func _on_node_pressed(area_id: StringName, stage_number: int) -> void:
-	stage_enter_requested.emit(area_id, stage_number)
+## A node click carries its GLOBAL stage number; the host derives the area.
+func _on_node_pressed(stage_number: int) -> void:
+	stage_enter_requested.emit(stage_number)
 
 
 func _node_style(background: Color, border: Color, border_width: int, radius: int) -> StyleBoxFlat:
