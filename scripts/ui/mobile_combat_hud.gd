@@ -376,20 +376,36 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 		_combat_actions.disable_player_actions()
 
 
-## The NEXT STAGE button is enabled only after a full clear while the player
-## stands on the stage exit cell, outside FARMING (which re-spawns in place)
-## and outside AUTO (which advances on its own after walking to the exit).
+## The NEXT STAGE button is usable only when the player may actually leave the
+## stage through the exit cell:
+##   * after a full clear (VICTORY + stage complete) while standing on the exit,
+##     outside FARMING (which re-spawns in place) and outside AUTO (which advances
+##     on its own after walking to the exit)
+##   * on a stage the player walked back into, whose next stage is already
+##     cleared: the host then opens the exit during the player's own turn even
+##     with enemies still standing.
 func _next_stage_enabled(phase: int) -> bool:
-	if phase != TurnState.VICTORY:
-		return false
 	if _stage_manager == null or not _stage_manager.has_method("is_player_on_stage_exit"):
-		return false
-	var stage_state_variant: Variant = _stage_manager.get("stage_state")
-	if stage_state_variant == null or not bool((stage_state_variant as StageState).get("is_complete")):
 		return false
 	if _farming_enabled_cache or _auto_enabled_cache:
 		return false
-	return bool(_stage_manager.call("is_player_on_stage_exit"))
+	if not bool(_stage_manager.call("is_player_on_stage_exit")):
+		return false
+	if phase == TurnState.VICTORY:
+		var stage_state_variant: Variant = _stage_manager.get("stage_state")
+		return stage_state_variant != null and bool((stage_state_variant as StageState).get("is_complete"))
+	return _host_can_leave_stage_uncleared()
+
+
+## Asks the combat host whether this stage may be left through the exit without
+## clearing it. Guarded (and going through the host rather than reaching into the
+## flow) so the HUD stays mountable on its own and cannot answer differently from
+## the gate it mirrors.
+func _host_can_leave_stage_uncleared() -> bool:
+	var host: Node = get_parent()
+	if host == null or not host.has_method("can_leave_stage_uncleared"):
+		return false
+	return bool(host.call("can_leave_stage_uncleared"))
 
 
 func _can_use_skill(skill_id: StringName) -> bool:

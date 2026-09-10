@@ -178,7 +178,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		auto_combat.toggle_auto()
 		get_viewport().set_input_as_handled()
 		return
-	if event.is_action_pressed("primary_action") and turn_manager.get_phase() == TurnState.VICTORY:
+	if event.is_action_pressed("primary_action") and _is_current_stage_cleared():
+		# SPACE is the keyboard twin of the NEXT STAGE button, but only on the
+		# cleared path: during a fight the same press already ends the player's
+		# turn (PlayerController.action_completed), and the replay skip must not
+		# fight that press for the same key.
 		if _advance_after_clear():
 			get_viewport().set_input_as_handled()
 
@@ -239,6 +243,10 @@ func _on_hud_next_stage_requested() -> void:
 ## same result. FARMING is the single deliberate exception: it means "stay on this
 ## stage", so it keeps the player from advancing at all — that is a chosen mode,
 ## not automation changing an outcome.
+##
+## The gate also admits one NON-cleared case — a stage the player walked back into
+## whose next stage is already cleared — and the move itself is identical, so both
+## cases still leave through this one seam (see _can_advance_to_next_stage).
 func _advance_after_clear() -> bool:
 	if not _can_advance_to_next_stage():
 		return false
@@ -260,14 +268,55 @@ func _player_is_on_stage_exit() -> bool:
 	return player.get_grid_position() == stage_manager.get_stage_exit_cell()
 
 
+## The classic gate: this stage has been fully cleared.
+func _is_current_stage_cleared() -> bool:
+	if stage_manager == null or stage_manager.stage_state == null:
+		return false
+	return turn_manager.get_phase() == TurnState.VICTORY and stage_manager.stage_state.is_complete
+
+
+## True when the stage AFTER this one is already cleared, i.e. the player is
+## standing on a replay of content that is already done. Reads the progress rule
+## through the flow instead of keeping a second copy of it, and does not depend on
+## whose turn it is — the "the exit is open" status hint needs it mid-fight too.
+func _next_stage_is_cleared() -> bool:
+	if _flow == null or stage_manager == null or stage_manager.stage_state == null:
+		return false
+	return _flow.is_next_stage_cleared(stage_manager.stage_state.stage_number)
+
+
+## True when this stage may be left through the Next Stage Point WITHOUT being
+## cleared, because the stage after it is already cleared.
+##
+## The player is free to walk back into an already-cleared stage (from the world
+## map, or a defeat that pushed them back); walking back OUT of it must not demand
+## the fight again, so the exit opens during the player's own turn even with
+## enemies still standing. The fight is simply abandoned: the skipped stage is NOT
+## recorded as cleared, and the next stage was already recorded when it was played.
+##
+## Deliberately narrow, and a complete answer on its own: the player's own turn
+## (never the enemy turn — a resolution is in flight — and never after a defeat),
+## the next stage already cleared, and neither mode that pins the battle down
+## (AUTO fights the stage it stands on; FARMING means "stay on this stage").
+##
+## Public because the HUD's NEXT STAGE button needs the exact same answer as the
+## gate below; a second copy of the rule in the HUD is what would drift.
+func can_leave_stage_uncleared() -> bool:
+	if turn_manager.get_phase() != TurnState.PLAYER_TURN:
+		return false
+	if auto_combat != null and (auto_combat.is_auto_enabled() or auto_combat.is_farming_enabled()):
+		return false
+	return _next_stage_is_cleared()
+
+
+## True when the player may leave this stage through the exit RIGHT NOW: either a
+## full clear with the hero standing on the exit cell, or the replay skip above.
 func _can_advance_to_next_stage() -> bool:
-	return (
-		turn_manager.get_phase() == TurnState.VICTORY
-		and stage_manager.stage_state != null
-		and stage_manager.stage_state.is_complete
-		and not auto_combat.is_farming_enabled()
-		and _player_is_on_stage_exit()
-	)
+	if stage_manager.stage_state == null or auto_combat.is_farming_enabled():
+		return false
+	if not _player_is_on_stage_exit():
+		return false
+	return _is_current_stage_cleared() or can_leave_stage_uncleared()
 
 
 # ---------------------------------------------------------------------------
@@ -547,6 +596,11 @@ func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
 	if stage_state.is_special_encounter:
 		encounter_label = SpecialEncounterTypeResource.get_display_name(stage_state.special_encounter_type).to_upper()
 	_last_move_text = "%s // %s started" % [stage_manager.current_definition.display_name, encounter_label]
+	if _next_stage_is_cleared():
+		# Replaying a stage whose next stage is already cleared: the exit is open
+		# without a fight, so say it up front instead of letting the player assume
+		# the whole stage has to be played again.
+		_last_move_text += " · STAGE %02d ALREADY CLEARED — THE EXIT IS OPEN" % (stage_state.stage_number + 1)
 	# Authored content appears whenever the stage starts, however the player got
 	# here (map click, previous-stage exit, or the endless loop). Stages that
 	# author nothing are left untouched — they are plain normal stages.
@@ -631,8 +685,13 @@ func _on_stage_generation_failed(stage_number: int, reason: String) -> void:
 
 func _on_player_moved(from_cell: Vector2i, to_cell: Vector2i, points_remaining: int) -> void:
 	_last_move_text = "Moved %s → %s" % [from_cell, to_cell]
-	if turn_manager.get_phase() == TurnState.VICTORY and _player_is_on_stage_exit():
-		_last_move_text = "ON THE EXIT — NEXT STAGE READY"
+	if _player_is_on_stage_exit():
+		if _is_current_stage_cleared():
+			_last_move_text = "ON THE EXIT — NEXT STAGE READY"
+		elif can_leave_stage_uncleared():
+			_last_move_text = "ON THE EXIT — NEXT STAGE READY (STAGE %02d ALREADY CLEARED)" % (
+				stage_manager.stage_state.stage_number + 1
+			)
 	queue_redraw()
 
 

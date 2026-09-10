@@ -128,9 +128,15 @@ func initialize_stage(new_stage_number: int = -1, requested_special_encounter_ty
 	return true
 
 
+## Starts the stage after the one currently generated.
+##
+## "May the player leave this stage at all" is deliberately NOT decided here: the
+## stage-flow gate owns that rule (grid_combat._can_advance_to_next_stage, backed
+## by StageFlow) and is the only caller. The gate needs to allow more than a full
+## clear — a stage the player walked back into may be left through the exit while
+## enemies are still standing when the next stage is already cleared — so this
+## method only performs the move instead of re-checking the clear itself.
 func start_next_stage() -> bool:
-	if not stage_state.is_complete:
-		return false
 	return initialize_stage(stage_state.stage_number + 1)
 
 

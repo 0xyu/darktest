@@ -4,6 +4,11 @@ extends "res://tools/ui_harness/ui_harness_suite.gd"
 ## the right Next Stage Point (10,3) before advancing, with a free-roam victory,
 ## an AUTO walk-to-exit, and FARMING position preservation.
 ##
+## It also covers the replay rule: a stage the player walked back into may be
+## left through the same exit cell WHILE ITS ENEMIES ARE STILL STANDING, because
+## the stage after it has already been cleared (the fight is simply abandoned,
+## and the skipped stage is recorded as cleared by a real clear only).
+##
 ## Mounts the real game scene (res://scenes/world/Main.tscn) and defeats the
 ## spawned enemies through EnemyController.handle_defeat (deterministic, no
 ## turn/attack math), then asserts the progression flow.
@@ -75,6 +80,62 @@ func _place_player(cell: Vector2i) -> void:
 	await flush_frames(1)
 
 
+## Puts the hero on the exit cell WHILE the fight is still running, and reports
+## whether that worked.
+##
+## An enemy may legitimately occupy the exit cell (spawn cells are random), so a
+## blocker is defeated first — one cell can hold at most one enemy, and a stage
+## with two spawned enemies can therefore never lose its whole fight to this.
+func _stand_on_exit_while_fighting() -> bool:
+	var exit_cell: Vector2i = _stage().call("get_stage_exit_cell")
+	if bool(_player().call("place_at", exit_cell)):
+		await flush_frames(1)
+		return true
+	for enemy in _stage().call("get_spawned_enemies"):
+		if enemy == null or not is_instance_valid(enemy) or bool(enemy.call("is_defeated")):
+			continue
+		if enemy.get("grid_position") == exit_cell:
+			enemy.call("handle_defeat")
+			await flush_frames(2)
+	var placed: bool = bool(_player().call("place_at", exit_cell))
+	await flush_frames(1)
+	return placed
+
+
+## Opens an authored stage directly (the DEV / harness entry, which intentionally
+## bypasses the map's lock gate).
+func _enter_typed_stage(stage_number: int) -> void:
+	_grid_test.call("enter_area_stage", stage_number)
+	await flush_frames(3)
+
+
+## Marks stages as already played. Recording a completion directly on
+## PlayerProgress is the sanctioned shortcut for "the player has been here
+## before" — no turn/attack math is involved, and it is what makes the replay
+## case deterministically reachable.
+func _mark_cleared(stage_numbers: Array) -> void:
+	var progress: Resource = _progress()
+	for number in stage_numbers:
+		progress.call("complete_stage", number)
+
+
+func _progress() -> Resource:
+	return _grid_test.call("get_stage_progress") as Resource
+
+
+func _stage_is_complete() -> bool:
+	var state: Resource = _stage().call("get", "stage_state") as Resource
+	return state != null and bool(state.get("is_complete"))
+
+
+func _next_stage_button() -> Button:
+	return _combat_actions().get_node("%NextStageButton") as Button
+
+
+func _status_text() -> String:
+	return str(_grid_test.get("_last_move_text"))
+
+
 func _stage_number() -> int:
 	var stage := _stage()
 	var state: Resource = stage.call("get", "stage_state") as Resource
@@ -118,6 +179,7 @@ func test_manual_clear_gates_advance_on_exit() -> void:
 	_player().call("try_move", Vector2i.RIGHT)
 	await flush_frames(2)
 	expect_eq(_player().call("get_grid_position"), Vector2i(10, 3), "hero stepped onto the exit")
+	expect_contains(_status_text(), "ON THE EXIT — NEXT STAGE READY", "reaching the exit is reported")
 	expect(not bool(button.disabled), "next-stage enabled while standing on the exit")
 
 	# Press NEXT STAGE -> stage 2 starts, hero teleported back to the start.
@@ -154,3 +216,92 @@ func test_farming_respawn_keeps_position() -> void:
 	expect_eq(_stage_number(), 1, "farming stays on the same stage")
 	expect_eq(_player().call("get_grid_position"), Vector2i(5, 5), "farming re-spawn keeps hero position")
 	expect(not bool(_player().call("is_free_moving")), "farming does not enable free-roam victory")
+
+
+# --- The replay rule ------------------------------------------------------
+# A stage the player has already walked through stays enterable. When the stage
+# AFTER the one being replayed is itself already cleared, the exit does not owe
+# the player a second clear: the fight may be abandoned by walking out of it.
+
+func test_replay_skips_the_fight_when_the_next_stage_is_cleared() -> void:
+	await _mount_game()
+	# The player already played 1-3, so stage 3 is done and replaying stage 2 is
+	# a walk back through ground that is already cleared.
+	_mark_cleared([1, 2, 3])
+	await _enter_typed_stage(2)
+
+	expect_eq(_stage_number(), 2, "the replay stage is the one that was entered")
+	expect_eq(_phase(), TurnStateScript.PLAYER_TURN, "a replay still starts a real fight")
+	expect(not _stage_is_complete(), "nothing is cleared yet on the replay")
+	expect(_find_living_enemy() != null, "the replay starts with enemies standing")
+	expect_contains(_status_text(), "STAGE 03 ALREADY CLEARED", "starting a replay announces the open exit")
+
+	var button: Button = _next_stage_button()
+	expect(button != null, "NextStageButton exists")
+	if button == null:
+		return
+
+	expect(await _stand_on_exit_while_fighting(), "the hero can stand on the exit cell mid-fight")
+	expect_eq(_phase(), TurnStateScript.PLAYER_TURN, "the exit was reached during the player's own turn")
+	expect(_find_living_enemy() != null, "enemies are still standing when the exit opens")
+	expect(not _stage_is_complete(), "the exit is open without a clear")
+	expect(bool(_grid_test.call("can_leave_stage_uncleared")), "the replay skip is available on the exit")
+	expect(bool(button.visible) and not bool(button.disabled), "NEXT STAGE is offered mid-fight on a replay")
+
+	# Pressing it abandons the fight and moves the battle on.
+	_hud().emit_signal("next_stage_requested")
+	await flush_frames(6)
+	expect_eq(_stage_number(), 3, "the replay skip advanced to the already-cleared stage 3")
+	expect_eq(int(_progress().get("current_stage_number")), 3, "the position followed the skip")
+	expect_eq(_player().call("get_grid_position"), Vector2i(0, 3), "the new stage re-enters through the start cell")
+	expect_eq(_phase(), TurnStateScript.PLAYER_TURN, "the new stage begins on the player turn")
+
+
+func test_the_clear_is_still_required_when_the_next_stage_is_not_cleared() -> void:
+	await _mount_game()
+	# 1-2 played, 3 not: the stage stands on ground that is done, but the way
+	# FORWARD is not, so the enemies still decide when the exit opens.
+	_mark_cleared([1, 2])
+	await _enter_typed_stage(2)
+	expect(_find_living_enemy() != null, "the stage starts with enemies standing")
+
+	var button: Button = _next_stage_button()
+	expect(button != null, "NextStageButton exists")
+	if button == null:
+		return
+
+	expect(await _stand_on_exit_while_fighting(), "the hero can stand on the exit cell mid-fight")
+	expect_eq(_phase(), TurnStateScript.PLAYER_TURN, "still the player's own turn")
+	expect(not _stage_is_complete(), "the stage is not cleared")
+	expect(not bool(_grid_test.call("can_leave_stage_uncleared")), "no skip: the next stage is not cleared")
+	expect(not bool(button.visible), "NEXT STAGE is not offered mid-fight here")
+
+	_hud().emit_signal("next_stage_requested")
+	await flush_frames(4)
+	expect_eq(_stage_number(), 2, "pressing NEXT STAGE mid-fight changes nothing")
+
+	# The classic rule still opens the exit, on the same cell, after a clear.
+	await _defeat_all_enemies()
+	expect(_stage_is_complete(), "defeating every enemy clears the stage")
+	expect_eq(_phase(), TurnStateScript.VICTORY, "the clear reaches VICTORY")
+	expect(bool(button.visible) and not bool(button.disabled), "the exit is offered after the clear while standing on it")
+	_hud().emit_signal("next_stage_requested")
+	await flush_frames(6)
+	expect_eq(_stage_number(), 3, "the classic clear-then-exit advance still works")
+
+
+func test_farming_blocks_the_replay_skip() -> void:
+	# FARMING means "stay on this stage", so it is not a way around the replay
+	# rule: the exit stays shut until FARMING is switched off.
+	await _mount_game()
+	_mark_cleared([1, 2, 3])
+	await _enter_typed_stage(2)
+	_auto().call("set_farming_enabled", true)
+
+	expect(await _stand_on_exit_while_fighting(), "the hero can stand on the exit cell mid-fight")
+	expect(not bool(_grid_test.call("can_leave_stage_uncleared")), "FARMING keeps the hero on the stage")
+	var button: Button = _next_stage_button()
+	expect(button != null and bool(button.disabled), "NEXT STAGE stays unavailable while FARMING is on")
+	_hud().emit_signal("next_stage_requested")
+	await flush_frames(4)
+	expect_eq(_stage_number(), 2, "FARMING refuses the replay skip")

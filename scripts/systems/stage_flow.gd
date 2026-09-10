@@ -186,6 +186,24 @@ func is_stage_unlocked(stage_number: int) -> bool:
 	return _progress.is_stage_unlocked(stage_number)
 
 
+## True when the stage AFTER `stage_number` has already been cleared, so the
+## player is free to come back through it at any time.
+##
+## This is one progress question and nothing more: it says "the stage the player
+## stands on is a REPLAY of content that is already done". The battle host's
+## advance gate is what turns it into "the Next Stage Point may be used with
+## enemies still standing" (see grid_combat.can_leave_stage_uncleared), so no
+## gate lives here.
+##
+## Stage numbers are one global counter, so this asks about `stage_number + 1`
+## directly. A number no authored area covers (the endless tail) can never be
+## completed, so the endless chain keeps the classic clear-first rule.
+func is_next_stage_cleared(stage_number: int) -> bool:
+	if _progress == null:
+		return false
+	return _progress.is_stage_completed(stage_number + 1)
+
+
 ## Records the clear of stage `cleared_stage_number` and returns the authored
 ## "what's next" text.
 ##

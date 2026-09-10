@@ -353,6 +353,27 @@ FARMING ON + AUTO     →  the stage re-spawns as usual; standing on the exit
                         cell does nothing
 ```
 
+### Re-entering an Already-Cleared Stage
+
+An already-cleared stage stays enterable, so the player can walk back into it
+(from the world map, or because a defeat moved the battle back one stage). When
+the stage **after** the one the player currently stands on is **already cleared**,
+that battle is a replay and the exit does not owe the player a second clear:
+
+```text
+NEXT stage (N+1) NOT cleared      →  classic rule: defeat every enemy on stage N,
+                                     then stand on the exit cell to advance
+NEXT stage (N+1) ALREADY cleared  →  during the player's own turn, standing on
+                                     the exit cell is enough: the NEXT STAGE
+                                     button is usable with enemies still standing
+```
+
+Leaving this way abandons the fight. The skipped stage is **not** recorded as
+cleared (only a real clear is recorded), and the next stage keeps the completion
+it already had. This skip is a manual decision: AUTO keeps fighting the stage it
+stands on, FARMING still means "stay on this stage", and SPACE stays bound to the
+post-clear advance (during a fight the same press ends the player's turn).
+
 ---
 
 # 5. Stage System
@@ -415,7 +436,9 @@ the 4th row of 7), one on each edge:
 Both cells are derived from `StageManager.stage_gate_row` and the grid size.
 Enemies never spawn on the Starting Point (it is occupied by the hero), and any
 enemy sitting on the exit cell is gone once the stage is fully cleared, so the
-exit is always reachable after victory.
+exit is always reachable after victory. While a fight is still running an enemy
+may occupy the exit cell; on a replay (see §4.2) that enemy has to be defeated
+before the hero can stand on the exit and leave.
 
 ## 5.2 Normal Stage
 

@@ -87,12 +87,13 @@ func set_end_turn_state(phase: int, player_turn: bool) -> void:
 		_end_turn_button.disabled = not player_turn
 
 
-## Victory-only NEXT STAGE control. Only revealed during VICTORY, and only
-## enabled once the caller confirms the player stands on the stage exit cell.
+## NEXT STAGE control. It is revealed after a clear (VICTORY) and, while it is not
+## usable, disabled. A stage the player walked back into may leave an enabled
+## control mid-fight, so `enabled` alone can reveal it too.
 func set_next_stage_state(phase: int, enabled: bool) -> void:
 	if _next_stage_button == null:
 		return
-	_next_stage_button.visible = phase == TurnState.VICTORY
+	_next_stage_button.visible = enabled or phase == TurnState.VICTORY
 	_next_stage_button.disabled = not enabled
 
 
