@@ -54,6 +54,11 @@ var _stage_advance_scheduled: bool = false
 var _run_token: int = 0
 var _exit_roam_active: bool = false
 var _exit_roam_remaining_seconds: float = 0.0
+## Optional presentation gate injected by the combat scene (see
+## set_presentation_waiter). FARMING waits on it before re-spawning a cleared
+## stage, so the wave is never rebuilt while the last enemy's final blow — its
+## damage number and death animation — is still on screen.
+var _presentation_waiter: Object = null
 
 
 func _ready() -> void:
@@ -180,6 +185,12 @@ func get_game_speed_label() -> String:
 			return "FASTEST"
 
 
+## Injects the combat-presentation layer (see set_presentation_waiter). Optional
+## so AUTO stays fully runnable — and immediate — without presentation.
+func set_presentation_waiter(waiter: Object) -> void:
+	_presentation_waiter = waiter
+
+
 func _resolve_dependencies() -> void:
 	if _player == null:
 		_player = get_node_or_null(player_path) as PlayerController
@@ -260,14 +271,64 @@ func _advance_after_victory(token: int) -> void:
 		return
 	if _stage_manager == null or not farming_enabled:
 		return
+	var state := _stage_manager.stage_state
+	if state == null:
+		return
 	if _turn_manager == null or _turn_manager.get_phase() != TurnState.VICTORY:
-		if _stage_manager.stage_state == null or not _stage_manager.stage_state.is_complete:
+		if not state.is_complete:
 			return
-	var stage_started: bool = _stage_manager.initialize_stage(_stage_manager.stage_state.stage_number)
+	# The clear is decided the instant the last enemy's HP reaches zero, but its
+	# final blow is still playing: the damage number has not spawned yet and the
+	# death animation has not run. Re-spawning now frees that enemy mid-sequence,
+	# so the wave would vanish without ever reading as killed.
+	var cleared_stage: int = state.stage_number
+	_stage_advance_scheduled = true
+	await _wait_for_presentation_idle()
+	_stage_advance_scheduled = false
+	# Re-checked live instead of against the scheduling token: the wait can span
+	# an AUTO toggle, and FARMING must still re-spawn the stage it was left on.
+	if not farming_enabled or _stage_manager == null or _stage_manager.stage_state == null:
+		return
+	if not _stage_manager.stage_state.is_complete or _stage_manager.stage_state.stage_number != cleared_stage:
+		return
+	var stage_started: bool = _stage_manager.initialize_stage(cleared_stage)
 	if not stage_started:
 		if _auto_enabled:
 			stop_auto()
 		auto_action_taken.emit("Cleared stage could not be restarted")
+
+
+## Bounded wait for the presentation of the final blow to finish.
+##
+## The presentation layer owns every animation duration, so it is polled rather
+## than mirrored here; the deadline keeps a missing, interrupted or stuck
+## animation from stalling the FARMING loop.
+func _wait_for_presentation_idle() -> void:
+	var waiter: Object = _presentation_waiter
+	if not _is_presentation_waiter_ready(waiter):
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	const MAX_WAIT_SECONDS: float = 3.0
+	const POLL_INTERVAL_SECONDS: float = 0.03
+	var remaining: float = MAX_WAIT_SECONDS
+	while remaining > 0.0 and _is_presentation_active(waiter):
+		var poll_timer: SceneTreeTimer = tree.create_timer(POLL_INTERVAL_SECONDS)
+		await poll_timer.timeout
+		if not is_inside_tree():
+			return
+		remaining -= POLL_INTERVAL_SECONDS
+
+
+func _is_presentation_waiter_ready(waiter: Object) -> bool:
+	return waiter != null and is_instance_valid(waiter) and waiter.has_method("is_presentation_active")
+
+
+func _is_presentation_active(waiter: Object) -> bool:
+	if not _is_presentation_waiter_ready(waiter):
+		return false
+	return bool(waiter.call("is_presentation_active"))
 
 
 func _is_cleared_victory() -> bool:

@@ -55,6 +55,13 @@ var _active_player_attacks: int = 0
 ## is RESOLVED, so this counter is what tells whether the swing is still on
 ## screen; player-driven movement stays locked while it is above zero.
 var _active_enemy_attacks: int = 0
+## Number of Sub Hero impact sequences still in flight (projectile travel, impact,
+## damage number and the death they may trigger). Counted from the request itself
+## so a queued sequence is never missed while it is still travelling.
+var _active_impact_feedback: int = 0
+## Number of death animations on screen, counted from the actor's death — before
+## the collapse's start delay — until the collapse has finished.
+var _active_deaths: int = 0
 
 
 func _ready() -> void:
@@ -123,6 +130,22 @@ func test_effect(case: StringName) -> void:
 ## so a manual attack reads as one finished swing before the enemy reacts.
 func is_player_attack_active() -> bool:
 	return _active_player_attacks > 0
+
+
+## True while ANY combat presentation sequence is still on screen: the hero's own
+## attack, an enemy strike, a Sub Hero impact, or a death animation.
+##
+## Gameplay is already decided when these play (the last enemy counts as defeated
+## the moment its HP reaches zero), so a consumer that rebuilds the arena — the
+## FARMING re-spawn — polls this first and otherwise frees the enemy in the middle
+## of its final blow, losing the damage number and the death animation.
+func is_presentation_active() -> bool:
+	return (
+		_active_player_attacks > 0
+		or _active_enemy_attacks > 0
+		or _active_impact_feedback > 0
+		or _active_deaths > 0
+	)
 
 
 func _on_attack_resolved(result: DamageResult) -> void:
@@ -303,7 +326,16 @@ func _on_actor_died(actor: Node) -> void:
 	_play_death(actor)
 
 
+## Counts one death animation as an active presentation for the whole sequence,
+## start delay included, and hands the animation to _run_death so every early exit
+## still releases the counter.
 func _play_death(actor: Node) -> void:
+	_active_deaths += 1
+	await _run_death(actor)
+	_active_deaths = maxi(_active_deaths - 1, 0)
+
+
+func _run_death(actor: Node) -> void:
 	await _wait(CombatPresentationConfig.DEATH_DELAY * _speed_multiplier)
 	if not is_instance_valid(actor):
 		return
@@ -317,6 +349,9 @@ func _play_death(actor: Node) -> void:
 	if token == null or token.is_dying():
 		return
 	token.play_death()
+	# Held until the collapse has finished (the token reports it even when it
+	# leaves the tree mid-animation) so nothing rebuilds the arena over it.
+	await token.death_finished
 
 
 # ---------------------------------------------------------------------------
@@ -374,9 +409,19 @@ func _on_sub_hero_attack_feedback_requested(result: DamageResult, target: Node) 
 
 ## The HUD already draws the Sub Hero projectile (SubHeroAttackEffect); this
 ## only lands the world-space impact once that projectile would have arrived.
+##
+## Counted as an active presentation from the request, because the target can be
+## the last enemy of a wave: the kill is already decided here while the projectile
+## is still travelling.
 func _play_sub_hero_feedback(result: DamageResult, target: Node) -> void:
 	if result == null or result.is_miss or not _is_presentable(target):
 		return
+	_active_impact_feedback += 1
+	await _run_sub_hero_feedback(result, target)
+	_active_impact_feedback = maxi(_active_impact_feedback - 1, 0)
+
+
+func _run_sub_hero_feedback(result: DamageResult, target: Node) -> void:
 	var mult: float = _speed_multiplier
 	await _wait(CombatPresentationConfig.PROJECTILE_TRAVEL * mult)
 	if not is_instance_valid(target):

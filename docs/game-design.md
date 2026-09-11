@@ -366,6 +366,11 @@ every enemy on the current stage re-spawns that stage's enemies — AUTO keeps
 attacking it automatically (idle farming), and manual play continues on the
 same stage. No NEXT STAGE prompt appears while FARMING is on.
 
+The re-spawn happens once the last enemy's final blow has finished playing: the
+kill is decided the moment its HP reaches zero, but the wave is only rebuilt
+after its damage number and death animation are done, so a wave never resets out
+from under the enemy that just died.
+
 When FARMING is OFF a cleared stage advances to the next one through the
 **Next Stage Point** (exit). The hero must physically stand on the exit cell
 before the stage can advance:

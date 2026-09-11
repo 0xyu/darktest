@@ -56,6 +56,22 @@ func _combat_actions() -> Node:
 	return _hud().get("_combat_actions")
 
 
+func _combat() -> Node:
+	return _grid_test.find_child("CombatSystem", true, false)
+
+
+func _presentation() -> Node:
+	return _grid_test.find_child("CombatPresentation", true, false)
+
+
+func _living_enemies() -> Array:
+	var living: Array = []
+	for enemy in _stage().call("get_spawned_enemies"):
+		if enemy != null and is_instance_valid(enemy) and not bool(enemy.call("is_defeated")):
+			living.append(enemy)
+	return living
+
+
 func _find_living_enemy() -> Node:
 	var stage := _stage()
 	for enemy in stage.call("get_spawned_enemies"):
@@ -216,6 +232,60 @@ func test_farming_respawn_keeps_position() -> void:
 	expect_eq(_stage_number(), 1, "farming stays on the same stage")
 	expect_eq(_player().call("get_grid_position"), Vector2i(5, 5), "farming re-spawn keeps hero position")
 	expect(not bool(_player().call("is_free_moving")), "farming does not enable free-roam victory")
+
+
+## Regression: a FARMING re-spawn must not rebuild the wave while the LAST enemy's
+## final blow is still on screen. The clear is decided the moment its HP reaches
+## zero, so a re-spawn triggered from the clear alone frees that enemy before its
+## damage number spawns and before its death animation runs — it then simply
+## disappears instead of dying.
+func test_farming_respawn_waits_for_the_final_blow() -> void:
+	await _mount_game()
+	_auto().call("set_farming_enabled", true)
+	# Leave exactly one enemy standing. The extras die through handle_defeat, which
+	# runs no presentation, so the final blow below is the only sequence on screen.
+	var guard := 0
+	while guard < 80:
+		var standing: Array = _living_enemies()
+		if standing.size() <= 1:
+			break
+		standing[0].call("handle_defeat")
+		guard += 1
+		await flush_frames(1)
+	var last: Node = _find_living_enemy()
+	expect(last != null, "a last enemy is standing before the final blow")
+	if last == null:
+		return
+	var token: Node = last.get_node_or_null(^"CharacterToken")
+	expect(token != null, "the last enemy owns a presentation token")
+	var number_layer: Node = _presentation().find_child("NumberLayer", false, false)
+
+	# A real attack through the combat system, so the presentation sequence runs.
+	_combat().call("resolve_attack", _player(), last, 9999.0, 99)
+	expect(bool(last.call("is_defeated")), "the final blow defeats the last enemy")
+	expect(_stage_is_complete(), "the clear is recorded as soon as the enemy dies")
+
+	# The sequence must actually play while the wave is still the old one ...
+	var saw_number := false
+	var saw_death := false
+	for _i in 60:
+		if number_layer != null and is_instance_valid(number_layer) and number_layer.get_child_count() > 0:
+			saw_number = true
+		if token != null and is_instance_valid(token) and bool(token.call("is_dying")):
+			saw_death = true
+		if saw_number and saw_death:
+			break
+		await flush_frames(1)
+	expect(saw_number, "the final blow shows its damage number")
+	expect(saw_death, "the last enemy plays its death animation")
+
+	# ... and only then is the stage re-spawned.
+	for _i in 120:
+		if _find_living_enemy() != null:
+			break
+		await flush_frames(1)
+	expect(_find_living_enemy() != null, "the wave re-spawns once the final blow finished")
+	expect_eq(_stage_number(), 1, "farming re-spawned the same stage")
 
 
 # --- The replay rule ------------------------------------------------------

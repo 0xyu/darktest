@@ -141,6 +141,10 @@ func _ready() -> void:
 	# AUTO asks the host to advance instead of moving the stage itself, so an AUTO
 	# advance and the manual NEXT STAGE button take the same path.
 	auto_combat.stage_advance_requested.connect(_on_auto_stage_advance_requested)
+	# FARMING waits on the presentation layer before it re-spawns a cleared stage,
+	# so the last enemy's damage number and death animation play out before the
+	# wave is rebuilt.
+	auto_combat.set_presentation_waiter(combat_presentation)
 	hud.set_farming_mode(auto_combat.is_farming_enabled())
 	hud.set_game_speed(auto_combat.get_game_speed())
 	_sync_sub_hero_combatants()
