@@ -336,10 +336,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("attack"):
 		if _input_enabled and is_selected:
 			attack_requested.emit(self, _get_attack_target())
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var clicked_cell: Vector2i = _grid.world_to_grid(get_global_mouse_position())
-		if clicked_cell == grid_position:
-			set_selected(not is_selected)
 
 
 func try_move(direction: Vector2i) -> bool:
@@ -368,6 +364,44 @@ func try_move(direction: Vector2i) -> bool:
 	queue_redraw()
 	moved.emit(previous_cell, grid_position, movement_points_remaining)
 	return true
+
+
+## Click-to-move reachability: true when the hero could walk to `cell` right now.
+##
+## The gate is the SAME rule the grid highlights with — the cells reachable with
+## the movement points left this turn — so a clicked cell can never take the hero
+## further than the highlighted area, and a cell blocked by an actor or a wall is
+## never a destination. Free roam (walking to the exit after a stage clear) spends
+## no points and is deliberately unbounded, exactly like the AUTO walk to the exit.
+func can_move_to(cell: Vector2i) -> bool:
+	if _grid == null or not is_selected or cell == grid_position:
+		return false
+	if not _grid.is_walkable(cell) or _grid.is_occupied(cell):
+		return false
+	if _free_movement:
+		return _grid.find_path(grid_position, cell).size() > 1
+	if not _input_enabled or movement_points_remaining <= 0:
+		return false
+	return _grid.get_reachable_cells(grid_position, movement_points_remaining).has(cell)
+
+
+## Walks the hero to `cell` along the shortest path. Every step goes through
+## try_move(), so occupancy, movement points, grid feedback and the `moved` signal
+## behave exactly as they do for a manual step; the walk stops early if a step
+## becomes illegal. Returns true when at least one cell was walked.
+func try_move_to(cell: Vector2i) -> bool:
+	if not can_move_to(cell):
+		return false
+	var path: Array[Vector2i] = _grid.find_path(grid_position, cell)
+	if path.size() < 2:
+		return false
+	var moved_cells: int = 0
+	for path_index in range(1, path.size()):
+		var direction: Vector2i = path[path_index] - grid_position
+		if not try_move(direction):
+			break
+		moved_cells += 1
+	return moved_cells > 0
 
 
 func reset_movement_points() -> void:

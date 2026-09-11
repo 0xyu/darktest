@@ -24,6 +24,10 @@ signal world_map_stage_enter_requested(stage_number: int)
 ## typed town visit that came from the world map returns to the refreshed map;
 ## any other close restores the combat view).
 signal town_close_requested
+## A left click on the battlefield area, in screen coordinates. The HUD only
+## reports WHERE the player clicked; grid_combat decides what it means (walk the
+## hero there inside the movement range, or attack the enemy on that cell).
+signal battlefield_clicked(screen_position: Vector2)
 
 @onready var _stage_manager: Node = get_parent().get_node_or_null("StageManager")
 @onready var _turn_manager: Node = get_parent().get_node_or_null("TurnManager")
@@ -108,6 +112,9 @@ func _ready() -> void:
 	_development_panel.area_stage_enter_requested.connect(_on_dev_area_stage_enter_requested)
 	# Phase 6: world map toggle / stage entry / close.
 	_map_button.pressed.connect(func() -> void: world_map_toggle_requested.emit())
+	# The battlefield is drawn by Node2D siblings BEHIND this Control, so a raw
+	# _unhandled_input click would never arrive; the section forwards it instead.
+	_combat_section.gui_input.connect(_on_combat_section_gui_input)
 	if _world_map_view != null:
 		if _world_map_view.has_signal("close_requested"):
 			_world_map_view.connect("close_requested", _on_world_map_close_requested)
@@ -238,6 +245,33 @@ func _on_world_map_stage_enter_requested(stage_number: int) -> void:
 
 func _on_skills_button_pressed() -> void:
 	_skill_panel.toggle_panel()
+
+
+## A left click on the battlefield. Forwarded to grid_combat, which owns the rule
+## (move inside the movement range / attack the enemy standing on the clicked
+## cell). Clicks on an overlay panel are not battlefield commands, so a tap that
+## passes through a PASS-filtered panel never moves the hero by accident.
+func _on_combat_section_gui_input(event: InputEvent) -> void:
+	var click := event as InputEventMouseButton
+	if click == null or not click.pressed or click.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if _is_overlay_open():
+		return
+	battlefield_clicked.emit(click.global_position)
+
+
+func _is_overlay_open() -> bool:
+	for panel in [
+		_inventory_panel,
+		_bestiary_panel,
+		_development_panel,
+		_skill_panel,
+		_shop_panel,
+		_assignment_panel,
+	]:
+		if panel != null and is_instance_valid(panel) and panel.visible:
+			return true
+	return false
 
 
 ## The combat log only belongs on the combat screen. Hide it while any overlay

@@ -150,6 +150,11 @@ Movement can later be modified by:
 
 Movement should remain predictable and easy to understand.
 
+Movement input is a tap / click on a destination cell: the hero walks the shortest
+path to it and spends one movement point per cell. A cell outside the movement
+range of the current turn is not a destination — a tap can never move the hero
+further than the highlighted cells — and the D-pad step stays available.
+
 ## 3.4 Attack
 
 A basic attack requires:
@@ -171,6 +176,10 @@ Future weapons may modify:
 - Target count
 - Damage type
 - Special attack behavior
+
+A tap / click on an enemy selects it and attacks it when it is inside the attack
+range. An enemy outside the range is only selected — the turn is not spent on a
+miss.
 
 ## 3.5 Skills
 

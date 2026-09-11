@@ -117,6 +117,9 @@ func _ready() -> void:
 	# content, so every path that changes either persists without a save call here.
 	_stage_save.bind(_flow)
 	hud.area_stage_enter_requested.connect(_on_hud_area_stage_enter_requested)
+	# Battlefield clicks: the HUD owns the GUI pipeline (the grid is drawn behind a
+	# Control), this scene owns what a click means.
+	hud.battlefield_clicked.connect(_on_hud_battlefield_clicked)
 	# World map host — the map view is refreshed from PlayerProgress and its
 	# stage clicks route through the same enter_area_stage entry.
 	hud.world_map_toggle_requested.connect(_on_hud_world_map_toggle_requested)
@@ -189,6 +192,74 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _on_hud_move_requested(direction: Vector2i) -> void:
 	player.try_move(direction)
+
+
+# ---------------------------------------------------------------------------
+# Battlefield click HOST (click-to-move / click-to-attack).
+# The HUD reports the click position; the RULES stay where they already live: the
+# movement range is the grid's reachable set (PlayerController.can_move_to, the
+# same set the grid highlights) and attack validity is CombatSystem.can_attack, so
+# a click and the D-pad / ATTACK button can never disagree.
+# ---------------------------------------------------------------------------
+
+func _on_hud_battlefield_clicked(screen_position: Vector2) -> void:
+	if grid == null or player == null:
+		return
+	var cell: Vector2i = grid.world_to_grid(screen_position)
+	if not grid.is_valid_cell(cell):
+		return
+	var enemy: EnemyController = _get_living_enemy_at(cell)
+	if enemy != null:
+		_click_attack_enemy(enemy)
+		return
+	_click_move_to(cell)
+
+
+## An enemy under the cursor is the more specific command, so it wins over the
+## cell it stands on: the hero is told to fight it, never to walk into it.
+## Only a legal attack is issued — during the player's own turn, out of free roam,
+## with the target inside the current attack range. An out-of-range click just
+## selects the target and says so, so it cannot burn the turn on a miss.
+func _click_attack_enemy(enemy: EnemyController) -> void:
+	if turn_manager.get_phase() != TurnState.PLAYER_TURN or not player.is_input_enabled() or player.is_free_moving():
+		_last_move_text = "CANNOT ATTACK — not the player's turn"
+		queue_redraw()
+		return
+	player.set_target(enemy)
+	if not combat_system.can_attack(player, enemy):
+		_last_move_text = "%s IS OUT OF RANGE — move closer" % enemy.get_display_name().to_upper()
+		queue_redraw()
+		return
+	player.attack_requested.emit(player, enemy)
+
+
+## A cell click is a move request, allowed only inside the movement range (free
+## roam is unbounded, exactly like the AUTO walk to the stage exit).
+##
+## Clicking the hero's OWN cell is a no-op that re-selects the hero, never a
+## deselect: a deselected hero ignores every click and every D-pad step (both
+## refuse to move while `is_selected` is false), so a stray tap on the hero would
+## silently freeze the player — most visibly in free roam, where walking freely is
+## the whole point.
+func _click_move_to(cell: Vector2i) -> void:
+	if cell == player.get_grid_position():
+		player.set_selected(true)
+		return
+	if not player.can_move_to(cell):
+		_last_move_text = "CANNOT MOVE THERE — beyond the movement range"
+		queue_redraw()
+		return
+	player.try_move_to(cell)
+
+
+func _get_living_enemy_at(cell: Vector2i) -> EnemyController:
+	for enemy_node in _active_enemies:
+		var enemy := enemy_node as EnemyController
+		if enemy == null or not is_instance_valid(enemy) or enemy.is_defeated():
+			continue
+		if enemy.grid_position == cell:
+			return enemy
+	return null
 
 
 func _on_hud_attack_requested() -> void:

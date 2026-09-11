@@ -136,6 +136,14 @@ func _on_skill_requested(attacker: Node, target: Node, skill_id: StringName) -> 
 		_turn_manager.complete_player_turn()
 
 
+## Range/validity check for a BASIC attack, exposed so an input surface can refuse
+## an impossible attack instead of resolving it as a miss that still consumes the
+## player's action (a click on a distant enemy must not waste the turn). The rule
+## itself stays here — callers never re-implement attack range.
+func can_attack(attacker: Node, target: Node) -> bool:
+	return _is_valid_attack(attacker, target)
+
+
 func can_use_skill(attacker: Node, skill_id: StringName, selected_target: Node = null) -> bool:
 	var skill := SkillCatalog.get_skill(skill_id)
 	if skill.skill_id.is_empty():
