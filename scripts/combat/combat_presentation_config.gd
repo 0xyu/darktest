@@ -15,6 +15,10 @@ const ANTICIPATION: float = 0.10
 const DASH: float = 0.13
 const IMPACT_PAUSE: float = 0.06
 const RECOVERY: float = 0.20
+## Longest an enemy strike may keep the hero's movement locked while its attack
+## animation is on screen. A sequence whose animation never reports back (its
+## attacker freed mid-swing) must not strand the hero's movement.
+const ENEMY_ATTACK_LOCK_TIMEOUT: float = 3.0
 const ANTICIPATION_OFFSET: float = 8.0
 const LUNGE_DISTANCE: float = 26.0
 const HEAVY_LUNGE_DISTANCE: float = 34.0

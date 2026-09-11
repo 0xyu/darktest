@@ -9,6 +9,13 @@ const GameLocaleResource = preload("res://scripts/systems/game_locale.gd")
 ## player's own swing is still animating.
 signal player_attacks_idle
 
+## Emitted when the first enemy strike of a presentation sequence starts
+## animating (true) and once the last one has completely finished (false). The
+## combat scene uses it to hold the hero's MOVEMENT while an enemy swing is on
+## screen: the hero may still act from the cell it stands on, but stepping to
+## another cell would visibly race the enemy's attack.
+signal enemy_attack_presentation_changed(active: bool)
+
 ## Event-driven combat presentation layer. It only reacts to gameplay signals
 ## (damage is already resolved when they fire) and never writes gameplay,
 ## grid or turn state. All motion happens through CharacterToken offsets,
@@ -43,6 +50,11 @@ var _speed_multiplier: float = 1.0
 ## Number of player attack sequences (basic attacks and per-target skill hits)
 ## currently still animating. Reaches zero once the hero's action reads as done.
 var _active_player_attacks: int = 0
+## Number of enemy attack sequences (boss multi-hits included) currently still
+## animating. Enemy turn bookkeeping ends the enemy phase as soon as the strike
+## is RESOLVED, so this counter is what tells whether the swing is still on
+## screen; player-driven movement stays locked while it is above zero.
+var _active_enemy_attacks: int = 0
 
 
 func _ready() -> void:
@@ -119,17 +131,72 @@ func _on_attack_resolved(result: DamageResult) -> void:
 	# Only the hero's own attack sequences gate the enemy phase; sub-hero and
 	# enemy strikes are independent and must never be counted here.
 	var is_player_attacker: bool = is_instance_valid(result.attacker) and result.attacker == _player
+	# Enemy strikes are the only ones that lock the hero's movement: the enemy turn
+	# is already over by the time the swing lands on screen, so the lock is what
+	# keeps a manual step from racing the attack. Sub Heroes have their own
+	# feedback path and are deliberately never counted here.
+	var is_enemy_attacker: bool = is_instance_valid(result.attacker) and result.attacker is EnemyController
 	if is_player_attacker:
 		_active_player_attacks += 1
+	if is_enemy_attacker:
+		_begin_enemy_attack_presentation()
 	await _play_attack(result)
-	if not is_player_attacker:
-		return
 	# The sequence ends with the attacker's recovery step still running; let it
-	# settle so the hero is back in place before the enemy turn starts.
+	# settle so the attacker is back in place before the next beat (the hero's
+	# swing before the enemy turn, the enemy's swing before the hero may walk on).
 	await _wait(CombatPresentationConfig.RECOVERY * _speed_multiplier)
-	_active_player_attacks = maxi(_active_player_attacks - 1, 0)
-	if _active_player_attacks == 0:
-		player_attacks_idle.emit()
+	if is_player_attacker:
+		_active_player_attacks = maxi(_active_player_attacks - 1, 0)
+		if _active_player_attacks == 0:
+			player_attacks_idle.emit()
+	if is_enemy_attacker:
+		_finish_enemy_attack_presentation()
+
+
+## Counts one enemy strike on screen; the FIRST one announces the lock so the host
+## holds player movement, and boss multi-hits simply stack on top of it.
+func _begin_enemy_attack_presentation() -> void:
+	_active_enemy_attacks += 1
+	if _active_enemy_attacks == 1:
+		enemy_attack_presentation_changed.emit(true)
+		_arm_enemy_attack_lock_timeout()
+
+
+## Drops the enemy-strike lock and its counter unconditionally. The combat host
+## calls this whenever the arena is rebuilt (the enemies whose swing was animating
+## no longer exist), and the watchdog below calls it for a sequence whose animation
+## never reports back — a strike must never strand the hero's movement.
+func reset_enemy_attack_presentation() -> void:
+	if _active_enemy_attacks == 0:
+		return
+	_active_enemy_attacks = 0
+	enemy_attack_presentation_changed.emit(false)
+
+
+func _finish_enemy_attack_presentation() -> void:
+	_active_enemy_attacks = maxi(_active_enemy_attacks - 1, 0)
+	if _active_enemy_attacks == 0:
+		enemy_attack_presentation_changed.emit(false)
+
+
+# ---------------------------------------------------------------------------
+# Enemy-strike lock safety net
+# ---------------------------------------------------------------------------
+
+
+## Bounds the lock: an enemy strike whose animation never reports back (its
+## attacker freed mid-swing, e.g. by a stage restart) must not strand the hero's
+## movement. The turn manager bounds its own presentation wait the same way.
+func _arm_enemy_attack_lock_timeout() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var watchdog: SceneTreeTimer = tree.create_timer(CombatPresentationConfig.ENEMY_ATTACK_LOCK_TIMEOUT)
+	watchdog.timeout.connect(_on_enemy_attack_lock_timeout)
+
+
+func _on_enemy_attack_lock_timeout() -> void:
+	reset_enemy_attack_presentation()
 
 
 func _play_attack(result: DamageResult) -> void:

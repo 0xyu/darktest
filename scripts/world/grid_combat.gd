@@ -59,6 +59,11 @@ func _ready() -> void:
 	# Enemy turns wait for the hero's attack animation to finish so enemies
 	# never move/attack in the same beat as the player's own swing.
 	turn_manager.set_enemy_phase_waiter(combat_presentation)
+	# The enemy turn ENDS as soon as the enemy's strike is resolved, so its attack
+	# animation keeps playing into the hero's turn. Actions from the cell the hero
+	# stands on stay available (by design), but stepping to another cell waits for
+	# the swing to finish.
+	combat_presentation.enemy_attack_presentation_changed.connect(_on_enemy_attack_presentation_changed)
 	combat_system.attack_resolved.connect(_on_attack_resolved)
 	combat_system.skill_resolved.connect(_on_skill_resolved)
 	combat_system.skill_failed.connect(_on_skill_failed)
@@ -191,7 +196,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _on_hud_move_requested(direction: Vector2i) -> void:
-	player.try_move(direction)
+	player.try_input_move(direction)
 
 
 # ---------------------------------------------------------------------------
@@ -244,6 +249,12 @@ func _click_attack_enemy(enemy: EnemyController) -> void:
 func _click_move_to(cell: Vector2i) -> void:
 	if cell == player.get_grid_position():
 		player.set_selected(true)
+		return
+	# A live enemy-attack movement lock is not a range problem, so it gets its own
+	# message instead of the misleading "beyond the movement range" one.
+	if player.is_movement_locked():
+		_last_move_text = "CANNOT MOVE YET — enemy attack in progress"
+		queue_redraw()
 		return
 	if not player.can_move_to(cell):
 		_last_move_text = "CANNOT MOVE THERE — beyond the movement range"
@@ -654,6 +665,10 @@ func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
 	if _flow != null:
 		_flow.on_stage_started(stage_state.stage_number)
 	player.set_free_movement(false)
+	# Every stage generation (defeat retreat included) frees the enemies whose swing
+	# was still animating, so their strike lock is dropped here before the new turn
+	# starts: the hero must be fully playable on a fresh arena.
+	combat_presentation.reset_enemy_attack_presentation()
 	_active_enemies = enemies
 	for enemy_node in _active_enemies:
 		_register_enemy(enemy_node as EnemyController)
@@ -774,6 +789,15 @@ func _on_enemy_moved(from_cell: Vector2i, to_cell: Vector2i) -> void:
 func _on_enemy_attack_requested(_enemy: EnemyController, _target: Node) -> void:
 	_last_move_text = "Enemy attack requested"
 	queue_redraw()
+
+
+## An enemy attack animation started/finished. Movement (never acting from the
+## current cell) is held until it has completely finished.
+func _on_enemy_attack_presentation_changed(active: bool) -> void:
+	player.set_movement_locked(active)
+	if active:
+		_last_move_text = "Enemy attack — movement locked until it finishes"
+		queue_redraw()
 
 
 func _on_attack_resolved(result: DamageResult) -> void:

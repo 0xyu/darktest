@@ -264,6 +264,26 @@ MVP enemy AI should be deterministic and reliable.
 
 Complex tactical AI is not required initially.
 
+### Enemy Attack Presentation
+
+An enemy turn ends as soon as the enemy's strike is RESOLVED, so its attack
+animation is still playing when the hero's turn resumes. That overlap is
+intentional:
+
+- The hero may keep acting from the cell it stands on (attack, skill, item) while
+  the animation plays — freezing the hero there reads worse than allowing it.
+- Stepping to ANOTHER cell is blocked until the enemy's attack animation has
+  completely finished (recovery step included), so a manual move can never race
+  the enemy's swing.
+
+The movement block covers the player's own movement input (keyboard, D-pad,
+click-to-move) and free roam. The autonomous walkers (AUTO, the exit roam) keep
+their existing behavior, so auto farming never stalls on a presentation.
+
+The block never outlives the strike it describes: rebuilding the arena (a stage
+restart after a defeat, a stage advance) releases it, so the hero is always fully
+playable on a fresh stage.
+
 ---
 
 # 4. Auto Combat

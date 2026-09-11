@@ -42,6 +42,14 @@ var _input_enabled: bool = true
 var _turn_manager: Node
 var _is_defeated: bool = false
 var _free_movement: bool = false
+## Player-input movement lock, driven by the combat host while an enemy's attack
+## animation is still playing. The hero keeps everything it can do from the cell
+## it stands on (attack, skill, item) — only stepping to another cell waits, so a
+## manual move can never race the enemy's swing. It gates the player's own input
+## paths (keyboard, D-pad, click-to-move) and free roam; the autonomous walkers
+## (AUTO, the exit roam) drive try_move() directly and stay unaffected, so auto
+## farming never stalls on a presentation.
+var _movement_locked: bool = false
 var _target: Node
 var _applied_equipment_bonuses: Dictionary = {}
 var _attack_count: int = 0
@@ -321,13 +329,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _grid == null:
 		return
 	if event.is_action_pressed("move_up"):
-		try_move(Vector2i.UP)
+		try_input_move(Vector2i.UP)
 	elif event.is_action_pressed("move_right"):
-		try_move(Vector2i.RIGHT)
+		try_input_move(Vector2i.RIGHT)
 	elif event.is_action_pressed("move_down"):
-		try_move(Vector2i.DOWN)
+		try_input_move(Vector2i.DOWN)
 	elif event.is_action_pressed("move_left"):
-		try_move(Vector2i.LEFT)
+		try_input_move(Vector2i.LEFT)
 	elif event.is_action_pressed("primary_action"):
 		if _turn_manager != null:
 			action_completed.emit()
@@ -336,6 +344,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("attack"):
 		if _input_enabled and is_selected:
 			attack_requested.emit(self, _get_attack_target())
+
+
+## Player-driven step request (keyboard, D-pad, click-to-move). Refused while an
+## enemy attack animation is still playing — see _movement_locked. Free roam is
+## exempt exactly like it is for the other movement gates.
+func try_input_move(direction: Vector2i) -> bool:
+	if _movement_locked and not _free_movement:
+		return false
+	return try_move(direction)
 
 
 func try_move(direction: Vector2i) -> bool:
@@ -371,8 +388,10 @@ func try_move(direction: Vector2i) -> bool:
 ## The gate is the SAME rule the grid highlights with — the cells reachable with
 ## the movement points left this turn — so a clicked cell can never take the hero
 ## further than the highlighted area, and a cell blocked by an actor or a wall is
-## never a destination. Free roam (walking to the exit after a stage clear) spends
-## no points and is deliberately unbounded, exactly like the AUTO walk to the exit.
+## never a destination. A live enemy-attack movement lock also refuses every
+## destination: the hero may act from its own cell, but not step away from it.
+## Free roam (walking to the exit after a stage clear) spends no points and is
+## deliberately unbounded, exactly like the AUTO walk to the exit.
 func can_move_to(cell: Vector2i) -> bool:
 	if _grid == null or not is_selected or cell == grid_position:
 		return false
@@ -380,7 +399,7 @@ func can_move_to(cell: Vector2i) -> bool:
 		return false
 	if _free_movement:
 		return _grid.find_path(grid_position, cell).size() > 1
-	if not _input_enabled or movement_points_remaining <= 0:
+	if _movement_locked or not _input_enabled or movement_points_remaining <= 0:
 		return false
 	return _grid.get_reachable_cells(grid_position, movement_points_remaining).has(cell)
 
@@ -452,6 +471,17 @@ func set_free_movement(enabled: bool) -> void:
 
 func is_free_moving() -> bool:
 	return _free_movement
+
+
+## Holds/releases player-driven movement while an enemy attack animation is still
+## playing (set by the combat host from CombatPresentationSystem). Actions from
+## the current cell stay available: only stepping to another cell waits.
+func set_movement_locked(locked: bool) -> void:
+	_movement_locked = locked
+
+
+func is_movement_locked() -> bool:
+	return _movement_locked
 
 
 func begin_player_turn(movement_points: int = -1) -> void:
