@@ -4,7 +4,8 @@ extends Control
 ## Developer / QA panel exposing the deterministic UI-testing fixtures
 ## (res://tests/fixtures/ui_fixture.gd). Hidden by default; toggled by the
 ## DEV button on the combat HUD. All actions operate on the live player's
-## inventory in memory — nothing is persisted to disk.
+## inventory in memory — nothing is written to disk (RESET SAVE is the one
+## action that touches the save file, and it only deletes it).
 
 signal panel_closed
 ## Emitted after any action mutates the player's data/inventory, so the HUD
@@ -23,6 +24,7 @@ const SubHeroInstanceResource = preload("res://scripts/sub_hero/sub_hero_instanc
 const SubHeroQualityResource = preload("res://scripts/sub_hero/sub_hero_quality.gd")
 const StageDatabaseScript = preload("res://scripts/data/stage_database.gd")
 const StageTypeScript = preload("res://scripts/data/stage_type.gd")
+const StageProgressSaveScript = preload("res://scripts/progress/stage_progress_save.gd")
 
 const SLOT_COUNT: int = 7  # EquipmentSlot.WEAPON .. AMULET
 
@@ -59,6 +61,7 @@ const COLOR_STAGE_TYPE := {
 var _player: PlayerController
 var _slot_rotation: Dictionary = {}
 var _status_label: Label
+var _reset_dialog: ConfirmationDialog
 
 
 func _ready() -> void:
@@ -206,6 +209,26 @@ func dev_summon_sub_hero(hero_id: StringName = &"", level: int = 1) -> Dictionar
 	return result
 
 
+## QA/agent entry point: deletes the player's persisted save data, so the next
+## boot starts a brand-new game on stage 1. Returns true when no save file is left.
+##
+## Only the FILE is removed. The live session's in-memory progress is deliberately
+## left alone: the flow owns that object, so a session that kept playing would write
+## the old position back on its next stage change. A caller that wants a clean
+## session therefore restarts the scene (the RESET SAVE button does, see
+## _on_reset_save_confirmed) — a boot with no save file starts at stage 1.
+##
+## The path comes from the save system itself, never from a hard-coded location, so
+## a harness run redirected to a scratch path deletes the scratch file and never a
+## real player save.
+func dev_reset_save() -> bool:
+	var path: String = StageProgressSaveScript.default_path()
+	StageProgressSaveScript.delete_save_at(path)
+	var cleared: bool = not StageProgressSaveScript.save_exists_at(path)
+	_set_status("Save cleared — restarting" if cleared else "Could not delete %s" % path)
+	return cleared
+
+
 func _get_player() -> PlayerController:
 	if _player != null and is_instance_valid(_player):
 		return _player
@@ -259,6 +282,9 @@ func _build_ui() -> void:
 	content.add_child(_build_subhero_actions())
 	content.add_child(_section_title("COMBAT FX TEST"))
 	content.add_child(_build_fx_actions())
+	content.add_child(_section_title("SAVE DATA"))
+	content.add_child(_build_save_actions())
+	add_child(_build_reset_dialog())
 
 	_status_label = Label.new()
 	_status_label.text = "Ready"
@@ -415,6 +441,40 @@ func _get_presentation_system() -> CombatPresentationSystem:
 	if node == null:
 		node = tree.root.get_node_or_null(^"grid_combat/CombatPresentation")
 	return node as CombatPresentationSystem
+
+
+## The one destructive section in the panel: it wipes the player's persisted
+## progress, so it is the only action that asks for confirmation first.
+func _build_save_actions() -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.add_child(_make_button("RESET SAVE", COLOR_RED, _on_reset_save_pressed))
+	return box
+
+
+func _build_reset_dialog() -> ConfirmationDialog:
+	_reset_dialog = ConfirmationDialog.new()
+	_reset_dialog.title = "RESET SAVE"
+	_reset_dialog.dialog_text = "Delete ALL saved data?\n\nStage progress, unlock ceiling and consumed content are erased, and the game restarts from stage 1. This cannot be undone."
+	_reset_dialog.dialog_autowrap = true
+	_reset_dialog.ok_button_text = "RESET"
+	_reset_dialog.cancel_button_text = "CANCEL"
+	_reset_dialog.confirmed.connect(_on_reset_save_confirmed)
+	return _reset_dialog
+
+
+func _on_reset_save_pressed() -> void:
+	if _reset_dialog != null:
+		_reset_dialog.popup_centered()
+
+
+## Restarts the session after the save is gone, so the wipe is visible and no live
+## object can persist the old progress again. Deferred, so the rebuild happens
+## after this handler returns instead of freeing the panel mid-press.
+func _on_reset_save_confirmed() -> void:
+	if not dev_reset_save():
+		return
+	get_tree().call_deferred(&"reload_current_scene")
 
 
 func _section_title(text: String) -> Label:

@@ -62,12 +62,66 @@ The agent MUST:
 Before a non-trivial implementation:
 
 1. Read the relevant design documentation.
-2. Inspect existing scenes/scripts/resources.
+2. Inspect existing scenes/scripts/resources — targeted reads only, see
+   "Verification & Token Budget" below.
 3. Identify reusable systems.
 4. State the implementation approach briefly.
 5. Implement incrementally.
-6. Run the project.
+6. Verify with the cheapest path that proves the behavior (see below).
 7. Check Godot errors and warnings introduced by the change.
+
+---
+
+## Verification & Token Budget
+
+Every step re-sends the whole conversation, and everything read stays in context
+for the rest of the session: **cost ≈ steps × context size**. Keep both small.
+These rules are mandatory, not advisory.
+
+### Reading (context budget)
+
+1. Locate before reading: `grep -n` first, then `read` with `offset`/`limit`.
+   Never read a file longer than ~300 lines in full.
+2. Never read a file that is already in context. Re-read only after it changed,
+   and state why. Never redo reconnaissance that is already in the transcript.
+3. Recon budget: at most ~6 files before the first edit. For broad or uncertain
+   searches, delegate to a subagent and keep only its short summary here.
+4. Work from short notes (`path:line → symbol`), not from pasted file bodies.
+5. Never dump large machine output into context: transcripts/logs (`*.jsonl`),
+   whole `.tres` dumps, or `git diff` of unreviewed trees. Filter at the source
+   (`Select-String`, `Select-Object -First 40`, `--quiet`) and cap at ~100 lines.
+6. Batch independent tool calls into one step. Each extra step costs a full
+   context re-send, so 2 steps that could be 1 double the bill for that work.
+7. Keep reasoning short on mechanical steps (edits, reruns, renames). Do not
+   narrate file contents back to yourself.
+
+### Verification policy
+
+Run only what covers the change, and normally only once:
+
+```powershell
+# suite names — do not read the harness sources to find them
+tools\ui_harness\run_ui_harness.ps1 -List
+
+# the suite(s) covering the change (-Quiet = failures + one summary line)
+tools\ui_harness\run_ui_harness.ps1 -Suite test_stage_exit_advance -Quiet
+
+# a pure-data smoke test (headless, self-contained)
+D:\IDE\godotEngine\Godot_v4.7.2-stable_win64_console.exe --headless --path . -s res://tests/<name>_smoke_test.gd
+```
+
+- **Never run the full harness** (no `-Suite`) unless the user asks for it. It is
+  slow, noisy, and surfaces failures that have nothing to do with the change.
+- A pre-existing failure unrelated to the current feature: report it in **one
+  line** and move on. Do not create a baseline worktree/tree, package the project,
+  re-run the same suite repeatedly, or read unrelated systems to explain it.
+- One green run is enough. Re-run only after a further change that can affect it.
+- Runtime/visual checks are a last resort: at most one project run plus one state
+  query and one log read — batched, never one step per question.
+- Do not re-read files in order to write the final summary; summarize what is
+  already in context.
+- Budget: a small feature should take ~10–15 steps. If a simple change is heading
+  past ~25 steps, stop and report status instead of exploring further.
 
 ---
 
@@ -207,11 +261,16 @@ Do not change this gameplay rule unless the game design document is updated.
 
 After meaningful changes:
 
-1. Run the Godot project.
-2. Check the debugger for errors.
-3. Check warnings introduced by the change.
-4. Verify the requested gameplay behavior manually.
+1. Verify with the cheapest path that can prove the behavior — headless harness
+   or smoke test before launching the game (see "Verification & Token Budget").
+2. Run the Godot project only when the change needs real runtime or visual behavior.
+3. Check the debugger for errors.
+4. Check warnings introduced by the change.
 5. Do not leave known runtime errors unresolved.
+
+Never report a functional change as verified without at least one green run of the
+suite or smoke test that covers it. Do not leave unrelated failing suites as a
+reason to keep investigating — report them in one line.
 
 For systems that support tests, add focused tests rather than broad end-to-end tests first.
 
@@ -219,13 +278,15 @@ For systems that support tests, add focused tests rather than broad end-to-end t
 
 A deterministic fixture system exists for UI testing — see `docs/testing-fixtures.md`.
 Use `UIFixture` (at `res://tests/fixtures/ui_fixture.gd`) to build equipment,
-inventory, and character data instead of hand-crafting it via `game_eval`. In the
+inventory, and character data instead of assembling it by hand at runtime. In the
 running game, the **DEV** button on the combat HUD opens a development panel that
 generates items/characters straight into the player's inventory. The same panel
 has a **SUB HERO FIXTURES** section; Agent/runtime tests can call
 `DevelopmentPanel.dev_summon_sub_hero(&"skeleton_archer")` directly to add a
 Sub Hero without Gold or summon resources while preserving normal duplicate
-progression. Fixture tests live in `res://tests/test_ui_fixture.gd`.
+progression. Fixture tests live in `res://tests/test_ui_fixture.gd`; UI suites
+that use the fixture run through the headless harness
+(`tools/ui_harness/run_ui_harness.ps1 -Suite <name> -Quiet`).
 
 ---
 
@@ -254,46 +315,19 @@ Prefer built-in Godot functionality for the MVP.
 
 ### Godot MCP Workflow
 
-The project has a connected Godot AI MCP server available during editor and
-runtime work. Prefer Godot MCP over Windows-level Computer Use for Godot-specific
-inspection, testing, and interaction.
+The Godot AI MCP bridge (`addons/godot_ai`) is an **optional** accelerator and may
+be disabled in this environment. Treat the CLI harness path in
+"Verification & Token Budget" as the default; do not block, retry, or restructure a
+session around MCP availability.
 
-Use the following capabilities when the MCP session is connected:
-
-- `session_manage` — list and identify the active Godot editor session.
-- `project_run` — start the main scene, current scene, or a selected scene.
-- `editor_screenshot` — capture the running game with `source="game"`, or the
-  2D editor viewport with `source="viewport_2d"`. With `include_image=true`,
-  the result is an MCP image that can be visually inspected. `user_prompt`
-  may be supplied to describe what should be checked in the image.
-- `game_manage.get_ui_elements` — inspect visible runtime Control nodes,
-  including paths, text, disabled state, and rectangles.
-- `game_manage.input_mouse` — send runtime mouse motion or button events.
-- `game_manage.input_key`, `input_action`, and `input_sequence` — simulate
-  keyboard, project actions, and frame-timed input.
-- `game_manage.get_scene_tree` and `get_node_info` — inspect the runtime tree
-  and node properties.
-- `editor_manage.game_eval` — query or exercise running-game state with
-  GDScript when structured runtime inspection is insufficient.
-- `test_run` and `test_manage` — run and inspect project GDScript tests when present.
-- `tileset_get_atlas_image` and `tileset_get_atlas_tiles` — inspect TileSet
-  atlas images and occupied atlas cells.
-
-Recommended runtime verification flow:
-
-1. Find and activate the unique project session with `session_manage`.
-2. Start the project with `project_run` and confirm the game helper is live.
-3. Use `game_manage.get_ui_elements` to locate controls instead of guessing
-   coordinates when possible.
-4. Use `game_manage.input_mouse` / `input_action` for one interaction at a
-   time, then re-check the UI or capture a fresh `editor_screenshot`.
-5. Visually inspect the returned MCP image after layout or interaction changes.
-
-The MCP game tools require a Godot editor session with the runtime game helper
-connected. If the game was launched externally without that bridge, stop and
-re-run it through the MCP workflow before concluding that MCP cannot access
-the game. Use Computer Use only for Godot interactions that MCP cannot expose
-or when the task explicitly requires Windows-level control.
+- When an MCP session *is* connected, use it only for what headless cannot show:
+  `project_run`, `editor_manage.game_eval`, `logs_read`, `editor_screenshot`, and
+  `game_manage` (UI elements, mouse/key input, scene tree).
+- When it is not connected, verify through the CLI path and move on.
+- Batch runtime MCP checks (one run, one state query, one log read). Do not spend
+  one step per question.
+- Prefer Godot MCP over Windows-level Computer Use for Godot-specific interaction.
+  Use Computer Use only for interactions that nothing else exposes.
 
 ---
 
