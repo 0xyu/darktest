@@ -107,14 +107,26 @@ func _resolve_attack(
 		target.clamp_current_hp()
 	if attacker.has_method("apply_equipment_attack_effects"):
 		attacker.apply_equipment_attack_effects(target, result, attack_context)
-	if result.target_defeated and target.has_method("handle_defeat"):
-		target.handle_defeat()
-	if is_instance_valid(target) and target.has_method("queue_redraw"):
+	if result.target_defeated:
+		resolve_defeat(target)
+	elif is_instance_valid(target) and target.has_method("queue_redraw"):
 		target.queue_redraw()
 	attack_resolved.emit(result)
-	if result.target_defeated:
-		actor_died.emit(target)
 	return result
+
+
+## The ONE kill path: defeat handling plus the actor_died broadcast that every
+## reward listener (EXP, gold, loot) and the presentation layer subscribe to.
+## Player attacks, skills and Sub Heroes all finish a lethal blow here, so a kill
+## grants identical rewards no matter who landed it.
+func resolve_defeat(target: Node) -> void:
+	if target == null or not is_instance_valid(target):
+		return
+	if target.has_method("handle_defeat"):
+		target.handle_defeat()
+	if target.has_method("queue_redraw"):
+		target.queue_redraw()
+	actor_died.emit(target)
 
 
 func _on_attack_requested(attacker: Node, target: Node) -> void:

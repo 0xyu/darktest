@@ -32,6 +32,9 @@ const DEFAULT_FIXED_LEVEL_PATHS: Array[String] = [
 @export_range(0.1, 10.0, 0.01) var attack_growth_rate: float = 1.16
 @export_range(0.1, 10.0, 0.01) var defense_growth_rate: float = 1.15
 @export_range(0.1, 10.0, 0.01) var gold_growth_rate: float = 1.18
+## StageFactor for enemy EXP (§10): 1.15^(stage - 1) tracks the level-requirement
+## curve, so kills per level stays stable while enemy power compounds.
+@export_range(0.1, 10.0, 0.01) var exp_growth_rate: float = 1.15
 @export_range(0.0, 1.0, 0.01) var base_special_encounter_chance: float = 0.03
 @export_range(0.0, 1.0, 0.01) var special_chance_increment: float = 0.01
 @export_range(0.0, 1.0, 0.01) var max_special_encounter_chance: float = 0.15
@@ -72,6 +75,10 @@ func get_enemy_for_summon(_level_id: int, _summon_index: int = 0) -> EnemyData:
 
 func get_gold_growth_rate() -> float:
 	return gold_growth_rate
+
+
+func get_exp_growth_rate() -> float:
+	return exp_growth_rate
 
 
 func get_hp_growth_rate() -> float:

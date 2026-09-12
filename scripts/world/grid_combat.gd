@@ -87,6 +87,9 @@ func _ready() -> void:
 	player.selection_changed.connect(_on_selection_changed)
 	player.equipment_effect_triggered.connect(_on_equipment_effect_triggered)
 	player.sub_hero_slots_changed.connect(_on_sub_hero_slots_changed)
+	# A Sub Hero kill takes the same path as the player's own kill, so it awards
+	# the same EXP, gold and loot.
+	sub_hero_combat_manager.attach_combat_system(combat_system)
 	sub_hero_combat_manager.attack_resolved.connect(_on_sub_hero_attack_resolved)
 	sub_hero_combat_manager.attack_feedback_requested.connect(_on_sub_hero_attack_feedback_requested)
 	sub_hero_combat_manager.cooldown_started.connect(_on_sub_hero_cooldown_started)

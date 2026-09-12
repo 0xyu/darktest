@@ -11,7 +11,8 @@ static func scale_stats(
 	hp_growth_rate: float,
 	attack_growth_rate: float,
 	defense_growth_rate: float,
-	gold_growth_rate: float
+	gold_growth_rate: float,
+	exp_growth_rate: float
 ) -> EnemyStats:
 	var scaled_stats := base_stats.duplicate(true) as EnemyStats
 	var safe_stage: int = maxi(stage_number, 1)
@@ -21,6 +22,7 @@ static func scale_stats(
 	scaled_stats.attack = scale_value(base_stats.attack, attack_growth_rate, safe_stage)
 	scaled_stats.defense = scale_value(base_stats.defense, defense_growth_rate, safe_stage)
 	scaled_stats.gold_reward = scale_value(base_stats.gold_reward, gold_growth_rate, safe_stage)
+	scaled_stats.experience_reward = scale_value(base_stats.experience_reward, exp_growth_rate, safe_stage)
 	scaled_stats.clamp_current_hp()
 	return scaled_stats
 

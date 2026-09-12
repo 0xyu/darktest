@@ -270,7 +270,8 @@ func _scale_enemy_runtime(enemy: EnemyController, stage_number: int, entry: Stag
 		_level_manager.get_hp_growth_rate(),
 		_level_manager.get_attack_growth_rate(),
 		_level_manager.get_defense_growth_rate(),
-		_level_manager.get_gold_growth_rate()
+		_level_manager.get_gold_growth_rate(),
+		_level_manager.get_exp_growth_rate()
 	)
 	var difficulty_multiplier: float = maxf(current_definition.difficulty_multiplier, 0.1)
 	var hp_multiplier: float = entry.hp_multiplier if entry != null else 1.0

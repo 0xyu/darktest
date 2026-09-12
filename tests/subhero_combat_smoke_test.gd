@@ -39,6 +39,7 @@ class MockEnemy:
 
 var _failures: Array[String] = []
 var _attack_results: Array[Resource] = []
+var _deaths: Array[Node] = []
 
 
 func _init() -> void:
@@ -52,6 +53,12 @@ func _run() -> void:
 	var servant = InstanceScript.new(&"dark_servant", 2)
 	var manager = ManagerScript.new()
 	root.add_child(manager)
+	# A Sub Hero kill must travel the same kill path as a player kill, which is
+	# CombatSystem.resolve_defeat() -> actor_died (EXP, gold and loot listeners).
+	var combat_system := CombatSystem.new()
+	root.add_child(combat_system)
+	combat_system.actor_died.connect(_on_actor_died)
+	manager.attach_combat_system(combat_system)
 	manager.attack_resolved.connect(_on_attack_resolved)
 	_expect(manager.register_active_sub_hero(skeleton, skeleton_data), "skeleton should register")
 	_expect(manager.register_active_sub_hero(servant, servant_data), "servant should register")
@@ -71,6 +78,7 @@ func _run() -> void:
 	_expect(_attack_results.size() == 2, "Dark Servant should attack on its independent 3 second timer")
 	_expect(lowest_hp_enemy.current_hp == 0, "level two Dark Servant should defeat the low HP enemy")
 	_expect(lowest_hp_enemy.defeated_flag, "lethal Sub Hero damage should call enemy defeat")
+	_expect(_deaths.size() == 1 and _deaths[0] == lowest_hp_enemy, "lethal Sub Hero damage should announce the death on CombatSystem.actor_died")
 	_expect(manager.get_current_target(&"skeleton_archer") == null, "dead target should be cleared")
 
 	manager._process(1.8)
@@ -83,6 +91,7 @@ func _run() -> void:
 	_expect(scaled_damage == 10, "damage calculation should scale moderately with level")
 
 	manager.free()
+	combat_system.free()
 	if _failures.is_empty():
 		print("Sub Hero combat smoke test passed.")
 	else:
@@ -93,6 +102,10 @@ func _run() -> void:
 
 func _on_attack_resolved(result: Resource) -> void:
 	_attack_results.append(result)
+
+
+func _on_actor_died(actor: Node) -> void:
+	_deaths.append(actor)
 
 
 func _expect(condition: bool, description: String) -> void:

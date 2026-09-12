@@ -59,8 +59,10 @@ Verified equal to `gameplay-spec.md`, so no action needed:
 - Damage formula and order (multipliers after defense, minimum 1).
 - Skills: Whirlwind 0.8 / Arcane Bolt 1.0 / Execution 1.5, max level 5, +0.1 per level,
   1 skill point per level-up, all skills start unlearned.
-- Enemy scaling rates HP 1.20 / ATK 1.16 / DEF 1.15 / gold 1.18, ±15 % variance,
+- Enemy scaling rates HP 1.20 / ATK 1.16 / DEF 1.15 / gold 1.18 / EXP 1.15, ±15 % variance,
   level offsets `40/15/15/10/10/5/5`, enemy count `clamp(1 + floor((stage-1)/3), 1, 4)`.
+  `experience_reward` is stage-scaled at spawn like the other rates, so
+  `EnemyEXP = BaseEXP × EnemyLevelMultiplier × EnemyTypeMultiplier × 1.15^(stage-1)` (§10).
 - Mini Boss every 10th stage; boss level = stage number.
 - Special encounters: 3 % base, +1 % per failure, 15 % cap, reset on success, six types,
   random Mini Boss level window, no pity consumption on boss stages.
@@ -75,6 +77,9 @@ Verified equal to `gameplay-spec.md`, so no action needed:
 - Sub Heroes: 3 slots, 250 gold summon, quality weights 70/25/5, 3 duplicates → +1 level,
   real-time attack interval, damage formula and quality multipliers, enemies never target
   them.
+- Every kill — player attack, skill or Sub Hero — finishes through
+  `CombatSystem.resolve_defeat()` → `actor_died`, so a Sub Hero kill awards the same EXP,
+  gold and loot (same drop chance) as the player's own kill (§15).
 - AUTO speeds 0.40 / 0.20 / 0.05 s, x1 default, no decision reset on speed change.
 - Farming respawns the same stage after the death presentation and blocks advancement;
   the FARMING × AUTO matrix matches the spec (farming repeats the current stage; AUTO
@@ -90,10 +95,11 @@ Verified equal to `gameplay-spec.md`, so no action needed:
 
 ### 3.1 Progression
 
+Closed items are removed from these tables and their number retired, so ids stay stable.
+
 | # | Spec | Current implementation | Impact |
 |---|---|---|---|
-| 1 | §10 `EnemyEXP = BaseEXP × EnemyLevelMultiplier × EnemyTypeMultiplier × 1.15^(stage-1)` | The code has **no `StageFactor`**: `experience_reward` is never stage-scaled — only HP/attack/defense/gold are (`scripts/systems/enemy_scaling.gd`). Level and type factors are already correct (`experience_system.gd`) | Levelling stalls against `1.20^(stage-1)` enemy HP. The formula is fully specified, so this is implementation-only. **Highest-priority gap.** |
-| 2 | §9/§10 enemy level drives stats and EXP | Enemy level drives the EXP reward factor only; stat scaling uses the stage number and ignores level | The displayed enemy level is misleading at high stages |
+| 1 | §9/§10 enemy level drives stats and EXP | Enemy level drives the EXP reward factor only; stat scaling uses the stage number and ignores level | The displayed enemy level is misleading at high stages |
 | 3 | §17 full persistence | Save holds **map progress only**: `current_stage_number`, `highest_stage_reached`, `completed_stages`, `consumed_content` (`user://save/stage_progress.json`, version 1) | Level, EXP, gold, skill points, skill levels, equipment, bag, storage and Sub Heroes are **reset on restart** — directly violates GDD §13.3 |
 
 ### 3.2 Combat & Items
@@ -116,7 +122,6 @@ Verified equal to `gameplay-spec.md`, so no action needed:
 | 12 | §18 Idle AI tiers 1–5 | Not implemented; AUTO is a single fixed decision list | Automation cannot improve over time |
 | 13 | §15 Sub Hero roles (DPS / Assist) | All 8 Sub Heroes are pure damage; no buff or utility role exists | Assist design is unimplemented |
 | 14 | §15 Sub Hero unique effects | The `unique_effect` hook is called on hit but all 8 authored Sub Heroes have `null` | Sub Heroes have no build identity |
-| 15 | §15 Sub Hero kills award EXP, gold, loot | Sub Hero killing blows call `enemy.handle_defeat()` directly, bypassing `CombatSystem.actor_died` | **No EXP, no gold, no loot** from Sub Hero kills — direct conflict with the idle-farming progression pillar |
 | 16 | §15 targeting rules | `Closest to Defeat` is an alias of `Lowest HP` (identical code path) | A documented rule has no distinct behavior |
 
 ### 3.4 Equipment, Loot, Economy
@@ -176,7 +181,7 @@ Headless smoke tests (`res://tests/*_smoke_test.gd`):
 area_stage_data   player_progress   skill_progression   stage_content
 stage_database    stage_progress_save   stage_router
 subhero_combat    subhero_data   subhero_progression   subhero_runtime
-subhero_summon
+subhero_summon    enemy_experience_scaling   subhero_kill_reward
 ```
 
 Run only the suite covering a change. Never run the full harness unless asked.

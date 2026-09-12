@@ -28,6 +28,10 @@ var _active_states: Array[ActiveSubHeroState] = []
 var _enemies: Array[Node] = []
 var _is_running: bool = false
 var _is_paused: bool = false
+## The shared kill path. A Sub Hero killing blow must award the same EXP, gold and
+## loot as the player's own kill, so it is resolved by CombatSystem instead of
+## duplicating defeat handling here.
+var _combat_system: CombatSystem
 
 
 func _process(delta: float) -> void:
@@ -49,6 +53,10 @@ func register_active_sub_hero(instance: SubHeroInstance, data: SubHeroData) -> b
 
 func clear_active_sub_heroes() -> void:
 	_active_states.clear()
+
+
+func attach_combat_system(combat_system: CombatSystem) -> void:
+	_combat_system = combat_system
 
 
 func start_combat(enemies: Array[Node]) -> void:
@@ -171,14 +179,23 @@ func _resolve_attack(state: ActiveSubHeroState, target: Node) -> void:
 		target.queue_redraw()
 	attack_feedback_requested.emit(result, target)
 	cooldown_started.emit(state.instance.hero_id, maxf(state.data.attack_interval, 0.1))
-	if result.target_defeated and target.has_method("handle_defeat"):
-		target.handle_defeat()
+	if result.target_defeated:
+		_complete_kill(target)
 	if state.data.unique_effect != null and state.data.unique_effect.has_method("on_attack_resolved"):
 		state.data.unique_effect.on_attack_resolved(state.instance, target, result.final_damage, {
 			"target_defeated": result.target_defeated,
 			"sub_hero_data": state.data,
 		})
 	attack_resolved.emit(result)
+
+
+## Finishes a Sub Hero kill through CombatSystem's one kill path, so the same
+## actor_died listeners (EXP, gold, loot, presentation) run as on a player kill.
+func _complete_kill(target: Node) -> void:
+	if _combat_system == null:
+		push_error("SubHeroCombatManager requires a CombatSystem to resolve a kill.")
+		return
+	_combat_system.resolve_defeat(target)
 
 
 func _select_target(target_rule: int) -> Node:

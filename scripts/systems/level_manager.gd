@@ -43,6 +43,10 @@ func get_gold_growth_rate() -> float:
 	return _provider.get_gold_growth_rate() if _provider != null else 1.18
 
 
+func get_exp_growth_rate() -> float:
+	return _provider.get_exp_growth_rate() if _provider != null else 1.15
+
+
 func get_hp_growth_rate() -> float:
 	return _provider.get_hp_growth_rate() if _provider != null else 1.20
 
