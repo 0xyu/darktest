@@ -9,7 +9,7 @@ This is a Godot 4.x 2D dark-fantasy RPG focused on:
 - Move + one action per player turn
 - Auto combat
 - Sequential stage progression
-- Random enemies
+- Random enemies and special encounters
 - Mini Bosses every 10 stages
 - Random special encounters
 - Equipment-driven progression
@@ -94,6 +94,48 @@ These rules are mandatory, not advisory.
    context re-send, so 2 steps that could be 1 double the bill for that work.
 7. Keep reasoning short on mechanical steps (edits, reruns, renames). Do not
    narrate file contents back to yourself.
+8. Locate through the CodeMap digest before grepping sources (next section).
+
+### CodeMap digest (locate cheaply)
+
+`tools/codemap.py` indexes the project's scripts, scenes and resources. Refresh it
+(a full rebuild is ~0.3s — always rebuild, there is no incremental mode), then
+grep the index instead of the sources:
+
+```powershell
+python tools\codemap.py index --root .
+Select-String -Path .codemap_probe\map.sym.txt -Pattern '<symbol>'
+python tools\codemap.py refs <symbol>
+```
+
+- `map.sym.txt` — one self-describing line per symbol (`path:line kind name`).
+  Grep it; never read it whole. A symbol lookup returns a few lines, not a file
+  body — this is the whole point of the digest.
+- `map.scripts-full.txt` — per script: class / extends / signals / exports /
+  `%`-unique refs / preloads / funcs with line numbers (~11k tokens). Read this
+  only when you need orientation, and prefer the `map.scripts-t0.txt` variant
+  (~6.6k tokens) for a first pass.
+- `scenes.txt` — scene → node → type → attached script / instanced scene, plus
+  signal connections (~2k tokens).
+- `map.refs.txt` — every reference as `target <- file:line kind [func] detail`.
+  Grep it, never read it. `refs <symbol>` prints the same rows for one symbol
+  (it re-scans, ~0.6s; no index run needed first).
+- Indexed line numbers are exact, so a hit can be opened directly with
+  `read offset=<line>`.
+
+The index is **symbol-exact and reference-complete over text**: names, line
+ranges, and the textual references — call / emit / connect + handler / await /
+string-carried name / `$` node path / preload / scene + instance edge. A wrapped
+statement reports the first line of the statement, not the token's own line.
+
+What it still cannot see: a name computed at runtime (`call(name_var)`, a
+`Callable` built from a variable), a computed `get_node` path, and anything
+written outside the `.tscn` text. `string_ref` rows marked `weak` are literal
+matches that may be coincidental. Before a rename, a signature change or a signal
+removal, always confirm with a source `grep` — treat an empty result as
+"not indexed", never as "unused".
+
+The index skips `addons/` and `archive/`.
 
 ### Verification policy
 
@@ -166,7 +208,7 @@ Avoid putting unrelated responsibilities into these systems.
 
 ### Files
 
-- Scene files: `PascalCase.tscn`
+- Scene files: `snake_case.tscn`
 - GDScript files: `snake_case.gd`
 - Resource files: descriptive `PascalCase.tres` when appropriate
 
@@ -177,46 +219,6 @@ Avoid putting unrelated responsibilities into these systems.
 - Functions: `snake_case`
 - Signals: `snake_case`
 - Constants: `UPPER_SNAKE_CASE`
-
----
-
-## Folder Structure
-
-Target structure:
-
-```text
-res://
-├── scenes/
-│   ├── player/
-│   ├── enemies/
-│   ├── combat/
-│   ├── world/
-│   ├── ui/
-│   └── items/
-├── scripts/
-│   ├── player/
-│   ├── enemies/
-│   ├── combat/
-│   ├── systems/
-│   ├── items/
-│   └── ui/
-├── resources/
-│   ├── enemies/
-│   ├── items/
-│   ├── stages/
-│   └── characters/
-├── assets/
-│   ├── characters/
-│   ├── enemies/
-│   ├── environment/
-│   ├── ui/
-│   ├── items/
-│   └── effects/
-├── autoload/
-└── docs/
-```
-
----
 
 ## Godot Rules
 
@@ -253,7 +255,7 @@ Default movement points:
 3
 ```
 
-Do not change this gameplay rule unless the game design document is updated.
+Do not change these rules unless `docs/game-design.md` is updated.
 
 ---
 
@@ -343,7 +345,7 @@ Keep source assets and runtime-ready assets organized where practical.
 
 ## Documentation Rules
 
-Update documentation when a design or architecture decision materially changes.
+Update documentation only when a design or architecture decision materially changes.
 
 Do not rewrite documentation for minor implementation details.
 
