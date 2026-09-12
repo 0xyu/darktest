@@ -43,6 +43,8 @@ Player turn = move 0..MovementPoints cells + exactly one Action
 | Does the Action end the turn? | **Yes**, immediately (enemy phase starts) |
 | Move after acting? | Not possible |
 | Passing | `END TURN` ends the turn without acting |
+| Spending the last movement point | Auto-strikes an enemy in attack range — the selected target, else the closest one — then the turn ends; with nothing in reach the turn just ends. Never in AUTO or free roam |
+| Move click with 0 points left | Ends the turn, same as `END TURN` (free roam is exempt) |
 | After a stage clear | Free movement: unlimited cells, no point cost, until the player advances |
 
 ## 3. Movement

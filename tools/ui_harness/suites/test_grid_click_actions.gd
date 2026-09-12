@@ -12,6 +12,7 @@ extends "res://tools/ui_harness/ui_harness_suite.gd"
 ## just the movement rule.
 
 const MAIN_SCENE := preload("res://scenes/world/Main.tscn")
+const TurnStateScript := preload("res://scripts/combat/turn_state.gd")
 
 var _grid_test: Node
 
@@ -133,6 +134,86 @@ func _multi_step_destination(start: Vector2i, points: int) -> Array[Vector2i]:
 		if cell.y >= 2 and cell.y <= 4:
 			middle.append(cell)
 	return middle if not middle.is_empty() else candidates
+
+
+## A free cell next to `start`, preferring the middle rows so a click on it lands on
+## the open battlefield rather than under a HUD panel. This is the destination of a
+## single step, the walk that can spend the last movement point of a turn.
+func _adjacent_free_cell(start: Vector2i) -> Vector2i:
+	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+	for direction in directions:
+		var cell: Vector2i = start + direction
+		if cell.y >= 2 and cell.y <= 4 and _free_cell(cell):
+			return cell
+	for direction in directions:
+		var cell: Vector2i = start + direction
+		if _free_cell(cell):
+			return cell
+	return Vector2i(-1, -1)
+
+
+## The destination geometry for the automatic-strike tests: a free step target in the
+## middle rows (so a click on it lands on the battlefield rather than under a HUD
+## panel), a free cell beside it for the hero to start from, and `enemy_slots` further
+## free cells around the target for enemies to stand on inside the hero's attack range.
+## Empty when the board has no such arrangement.
+func _step_geometry(enemy_slots: int) -> Dictionary:
+	var grid_size: Vector2i = _grid().get("grid_size")
+	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+	for y in range(2, mini(grid_size.y - 1, 5)):
+		for x in range(1, grid_size.x - 1):
+			var cell := Vector2i(x, y)
+			if not _free_cell(cell):
+				continue
+			var neighbours: Array[Vector2i] = []
+			for direction in directions:
+				var neighbour: Vector2i = cell + direction
+				if _free_cell(neighbour):
+					neighbours.append(neighbour)
+			if neighbours.size() < enemy_slots + 1:
+				continue
+			return {"start": neighbours[0], "cell": cell, "slots": neighbours.slice(1)}
+	return {}
+
+
+## Puts `enemy` on `cell` through the production grid API (occupancy and position),
+## exactly like _relocate_enemy_to_open_cell places one on a cell of its own choosing.
+func _place_enemy_at(enemy: Node, cell: Vector2i) -> void:
+	var grid := _grid()
+	grid.call("clear_occupied", _cell_of(enemy))
+	grid.call("set_occupied", cell, StringName(enemy.get("enemy_id")))
+	enemy.set("grid_position", cell)
+	enemy.set("global_position", grid.call("grid_to_world", cell))
+
+
+## Moves every living enemy as far from `cell` as the board allows, so a test decides
+## exactly which enemy (if any) ends up inside the hero's attack range.
+func _park_enemies_away_from(cell: Vector2i) -> void:
+	var grid_size: Vector2i = _grid().get("grid_size")
+	for enemy in _living_enemies():
+		var destination: Vector2i = _cell_of(enemy)
+		var best_distance: int = _distance(cell, destination)
+		for y in range(grid_size.y):
+			for x in range(grid_size.x):
+				var candidate := Vector2i(x, y)
+				if not _free_cell(candidate):
+					continue
+				var candidate_distance: int = _distance(cell, candidate)
+				if candidate_distance > best_distance:
+					destination = candidate
+					best_distance = candidate_distance
+		_place_enemy_at(enemy, destination)
+
+
+func _enemy_hp(enemy: Node) -> int:
+	return int(enemy.get("enemy_runtime").get("current_hp"))
+
+
+func _total_enemy_hp() -> int:
+	var total: int = 0
+	for enemy in _living_enemies():
+		total += _enemy_hp(enemy)
+	return total
 
 
 # --- Tests ---------------------------------------------------------------
@@ -363,3 +444,218 @@ func test_click_on_an_out_of_range_enemy_does_not_waste_the_turn() -> void:
 		"an out-of-range enemy click does not attack"
 	)
 	expect(bool(_turn_manager().call("is_player_turn")), "an out-of-range enemy click keeps the player's turn")
+
+
+## Once the hero has spent every movement point, a move click can no longer be a
+## walk: it ends the turn, exactly like the END TURN button, instead of leaving the
+## player clicking a battlefield that refuses every cell. This is the state a turn
+## STARTS in when the hero's stats grant no movement, and the safety net behind the
+## automatic end-of-walk trigger tested below.
+func test_click_with_no_movement_points_left_ends_the_turn() -> void:
+	await _mount_game()
+	var player := _player()
+	var turn_manager := _turn_manager()
+	var start: Vector2i = _cell_of(player)
+	expect_eq(
+		int(turn_manager.call("get_phase")),
+		TurnStateScript.PLAYER_TURN,
+		"the click happens on the hero's own turn"
+	)
+
+	var points: int = int(player.get("movement_points_remaining"))
+	expect(points > 0, "the hero starts the turn with movement points")
+	var candidates: Array[Vector2i] = _multi_step_destination(start, points)
+	expect(not candidates.is_empty(), "a multi-step destination inside the movement range exists")
+	if candidates.is_empty():
+		return
+	var target: Vector2i = candidates[0]
+
+	var completed: Array[bool] = []
+	turn_manager.connect("player_action_completed", func() -> void: completed.append(true))
+
+	# The destination itself stays legal — only the movement points are gone, so the
+	# click is refused for the empty tank and nothing else.
+	player.set("movement_points_remaining", 0)
+	_click_cell(target)
+	await flush_frames(1)
+
+	expect_eq(completed.size(), 1, "a move click with no movement points ends the turn")
+	expect_eq(_cell_of(player), start, "the hero does not walk when the click ends the turn")
+
+
+## Free roam is exempt from the empty-tank rule: a cleared stage spends no movement
+## points, so a click there keeps walking even when the counter reads zero.
+func test_free_roam_click_still_walks_with_no_movement_points() -> void:
+	await _mount_game()
+	var player := _player()
+	await _defeat_all_enemies()
+	await flush_frames(3)
+	expect(bool(player.call("is_free_moving")), "clearing the stage puts the hero into free roam")
+	var start: Vector2i = _cell_of(player)
+	var target: Vector2i = _far_free_cell(start)
+	expect(target != Vector2i(-1, -1), "a free cell at least 3 cells away exists")
+	if target == Vector2i(-1, -1):
+		return
+
+	player.set("movement_points_remaining", 0)
+	_click_cell(target)
+	await flush_frames(3)
+
+	expect_eq(_cell_of(player), target, "free roam still walks with an empty movement-point counter")
+
+
+## With no enemy inside the attack range, a walk that spends the turn's last movement
+## point ends the turn on the spot: the click flow settles the turn by itself, so the
+## player never has to click a second time to be finished.
+func test_the_last_movement_point_ends_the_turn_with_nothing_in_reach() -> void:
+	await _mount_game()
+	var player := _player()
+	var turn_manager := _turn_manager()
+	var geometry: Dictionary = _step_geometry(0)
+	expect(not geometry.is_empty(), "the board has a free step with a free cell beside it")
+	if geometry.is_empty():
+		return
+	var start: Vector2i = geometry["start"]
+	var target: Vector2i = geometry["cell"]
+	# Every enemy is moved to the far side of the board, so nothing is inside the
+	# hero's attack range by the time the walk arrives.
+	_park_enemies_away_from(target)
+	expect(not _living_enemies().is_empty(), "the stage still has an enemy to be out of reach")
+	expect(bool(player.call("place_at", start)), "the hero can stand next to the step")
+
+	var completed: Array[bool] = []
+	turn_manager.connect("player_action_completed", func() -> void: completed.append(true))
+	var enemy_hp_before: int = _total_enemy_hp()
+
+	player.set("movement_points_remaining", 1)
+	_click_cell(target)
+	await flush_frames(1)
+
+	expect_eq(_cell_of(player), target, "the last movement point still walks the hero")
+	expect_eq(completed.size(), 1, "the turn ends on the spot when nothing is in reach")
+	expect_eq(_total_enemy_hp(), enemy_hp_before, "an enemy out of reach is never struck")
+
+
+## An enemy inside the attack range is struck with the turn's remaining action instead
+## of the turn simply ending, so the walk that spends the last point also lands the hit.
+func test_the_last_movement_point_attacks_an_enemy_in_range() -> void:
+	await _mount_game()
+	var player := _player()
+	var geometry: Dictionary = _step_geometry(1)
+	expect(not geometry.is_empty(), "the board has a step with a free cell for an enemy")
+	if geometry.is_empty():
+		return
+	var start: Vector2i = geometry["start"]
+	var target: Vector2i = geometry["cell"]
+	var slots: Array = geometry["slots"]
+	var slot: Vector2i = slots[0]
+	_park_enemies_away_from(target)
+	var enemies: Array = _living_enemies()
+	expect(not enemies.is_empty(), "the stage has a living enemy to strike")
+	if enemies.is_empty():
+		return
+	expect(_free_cell(slot), "the enemy's cell is free once the others were parked away")
+	expect(bool(player.call("place_at", start)), "the hero can stand next to the step")
+	_place_enemy_at(enemies[0], slot)
+	expect_eq(_distance(target, slot), 1, "the enemy waits inside the hero's attack range")
+
+	var enemy_hp_before: int = _enemy_hp(enemies[0])
+	player.set("movement_points_remaining", 1)
+	_grid_test.call("_on_hud_move_requested", target - start)
+
+	expect_eq(_cell_of(player), target, "the last movement point still walks the hero")
+	expect(
+		_enemy_hp(enemies[0]) < enemy_hp_before,
+		"the enemy in reach is struck instead of the turn just ending"
+	)
+	expect(
+		not bool(_turn_manager().call("is_player_turn")),
+		"the automatic strike spends the action and ends the turn"
+	)
+
+
+## The enemy the player clicked is the one struck: a click on a distant enemy selects it
+## as the target, and the walk that spends the last point then swings at THAT enemy even
+## though another enemy stands just as close.
+func test_the_last_movement_point_attacks_the_clicked_enemy() -> void:
+	await _mount_game()
+	var player := _player()
+	# Stage 1 spawns one enemy, so a second one is brought in through the summon path
+	# the mini bosses use: choosing between two enemies needs two of them on the board.
+	var spawned: Array = _living_enemies()
+	expect(not spawned.is_empty(), "the stage spawned a living enemy to summon")
+	if spawned.is_empty():
+		return
+	spawned[0].emit_signal("summon_requested", spawned[0], 1)
+	await flush_frames(2)
+
+	var geometry: Dictionary = _step_geometry(2)
+	expect(not geometry.is_empty(), "the board has a step with free cells for two enemies")
+	if geometry.is_empty():
+		return
+	var start: Vector2i = geometry["start"]
+	var target: Vector2i = geometry["cell"]
+	var slots: Array = geometry["slots"]
+	var slot_a: Vector2i = slots[0]
+	var slot_b: Vector2i = slots[1]
+	_park_enemies_away_from(target)
+	var enemies: Array = _living_enemies()
+	expect(enemies.size() >= 2, "the stage spawns two enemies to choose between")
+	if enemies.size() < 2:
+		return
+	expect(_free_cell(slot_a) and _free_cell(slot_b), "both enemy cells are free after parking")
+	expect(bool(player.call("place_at", start)), "the hero can stand next to the step")
+	_place_enemy_at(enemies[0], slot_a)
+	_place_enemy_at(enemies[1], slot_b)
+
+	# The clicked enemy is deliberately the one the automatic target would NOT reach for
+	# first, so a hit on it can only come from the click.
+	var spawn_order: Array = _grid_test.get("_active_enemies")
+	var clicked: Node = enemies[0] if spawn_order.find(enemies[0]) > spawn_order.find(enemies[1]) else enemies[1]
+	var other: Node = enemies[1] if clicked == enemies[0] else enemies[0]
+	_grid_test.call("_click_attack_enemy", clicked)
+	expect_eq(player.call("get_target"), clicked, "a click on a distant enemy selects it as the target")
+
+	var clicked_hp_before: int = _enemy_hp(clicked)
+	var other_hp_before: int = _enemy_hp(other)
+	player.set("movement_points_remaining", 1)
+	_grid_test.call("_on_hud_move_requested", target - start)
+
+	expect_eq(_cell_of(player), target, "the last movement point still walks the hero")
+	expect(_enemy_hp(clicked) < clicked_hp_before, "the clicked enemy is the one the walk strikes")
+	expect_eq(_enemy_hp(other), other_hp_before, "the other enemy in reach is left alone")
+
+
+## AUTO owns its turn: it walks the hero toward a target and attacks in the SAME
+## turn, so a walk that spends the last movement point must not end the turn out
+## from under that attack. AUTO ends its own turn when the movement is really spent.
+func test_a_full_cost_step_does_not_end_an_auto_owned_turn() -> void:
+	await _mount_game()
+	var player := _player()
+	var auto_controller: Node = _grid_test.find_child("AutoCombatController", true, false)
+	expect(auto_controller != null, "the scene has an AUTO controller")
+	if auto_controller == null:
+		return
+	var start: Vector2i = _cell_of(player)
+	var target: Vector2i = _adjacent_free_cell(start)
+	expect(target != Vector2i(-1, -1), "a free cell next to the hero exists")
+	if target == Vector2i(-1, -1):
+		return
+
+	# AUTO is mid-turn: enabling it only arms its decision timer, so the step below
+	# is the only move that happens before the turn is inspected.
+	auto_controller.call("set_auto_enabled", true)
+	player.set("movement_points_remaining", 1)
+	_grid_test.call("_on_hud_move_requested", target - start)
+
+	expect_eq(_cell_of(player), target, "an AUTO-owned step still walks the hero")
+	expect_eq(
+		int(player.get("movement_points_remaining")),
+		0,
+		"the step spends the last movement point"
+	)
+	expect(
+		bool(_turn_manager().call("is_player_turn")),
+		"an AUTO-owned turn survives a walk that spends the last movement point"
+	)
+	auto_controller.call("set_auto_enabled", false)

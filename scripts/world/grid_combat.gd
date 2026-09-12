@@ -109,6 +109,9 @@ func _ready() -> void:
 	# to be repaired afterwards. The saved position is resumed at the end of _ready.
 	_stage_save = StageProgressSaveScript.new()
 	_stage_save.load()
+	# A stage's guaranteed boss drop is one-shot content, so it is recorded in the
+	# save's consumed-content store — the store that autosaves when it changes.
+	loot_system.attach_content_state(_stage_save.content_state)
 	# Authored-stage flow: the scene hosts it, the flow owns the rules. It is given
 	# the save's progress object — the flow never builds its own.
 	_flow = StageFlowScript.new(_stage_save.progress)
@@ -253,6 +256,9 @@ func _click_attack_enemy(enemy: EnemyController) -> void:
 ## refuse to move while `is_selected` is false), so a stray tap on the hero would
 ## silently freeze the player — most visibly in free roam, where walking freely is
 ## the whole point.
+##
+## With no movement points left the click cannot be a walk, so it ends the turn
+## instead — see _move_settles_the_turn().
 func _click_move_to(cell: Vector2i) -> void:
 	if cell == player.get_grid_position():
 		player.set_selected(true)
@@ -263,11 +269,99 @@ func _click_move_to(cell: Vector2i) -> void:
 		_last_move_text = "CANNOT MOVE YET — enemy attack in progress"
 		queue_redraw()
 		return
+	# No movement points left: the click cannot be a walk, so the turn ends here
+	# instead of the click being refused — see _move_settles_the_turn(). Nothing was
+	# walked, so there is no move to follow up with an attack.
+	if _move_settles_the_turn():
+		_last_move_text = "NO MOVEMENT LEFT — TURN ENDED"
+		queue_redraw()
+		turn_manager.complete_player_turn()
+		return
 	if not player.can_move_to(cell):
 		_last_move_text = "CANNOT MOVE THERE — beyond the movement range"
 		queue_redraw()
 		return
 	player.try_move_to(cell)
+
+
+## True when the hero has no movement points left and the turn's action is therefore
+## the only thing still open — the moment a manual turn settles itself instead of
+## waiting for another input. Called from BOTH movement seams: the end of a walk
+## (_on_player_moved) and a move click with an empty tank (_click_move_to), which is
+## the state a turn starts in when the hero's stats grant no movement.
+##
+## A cleared stage's free roam spends no points and is exempt exactly like its
+## movement gates are, and an out-of-turn or movement-locked hero still refuses
+## rather than settling a turn the player does not own.
+##
+## AUTO is exempt too: it walks the hero and attacks in the SAME turn, so settling the
+## turn on the last step of its walk would cancel the attack it walked there for.
+## AUTO settles its own turn.
+func _move_settles_the_turn() -> bool:
+	if player == null or turn_manager == null:
+		return false
+	if turn_manager.get_phase() != TurnState.PLAYER_TURN:
+		return false
+	if player.is_free_moving() or not player.is_input_enabled():
+		return false
+	if auto_combat != null and auto_combat.is_auto_enabled():
+		return false
+	return player.movement_points_remaining <= 0
+
+
+## The turn's action once the movement is spent: an enemy in reach is struck, and
+## with nothing in reach the turn simply ends. The strike goes out through the same
+## `attack_requested` seam the ATTACK button and an enemy click use, so damage,
+## presentation and the end of the turn behave exactly as they do for a manual
+## attack.
+func _settle_action_after_move() -> void:
+	var target: EnemyController = _reachable_attack_target()
+	if target == null:
+		_last_move_text = "NO MOVEMENT LEFT — TURN ENDED"
+		queue_redraw()
+		turn_manager.complete_player_turn()
+		return
+	player.set_target(target)
+	_last_move_text = "NO MOVEMENT LEFT — ATTACKING %s" % target.get_display_name().to_upper()
+	queue_redraw()
+	player.attack_requested.emit(player, target)
+
+
+## The enemy the auto-attack after a move strikes: the player's CURRENT target when it
+## is alive and inside the attack range (clicking an enemy selects it as the target),
+## otherwise the closest living enemy in range. Null when nothing is in reach, or when
+## the turn's action is no longer the player's to spend.
+##
+## Reachability is CombatSystem.can_attack — the ONE attack-range rule the ATTACK
+## button, the enemy click and AUTO already share — so the automatic strike can never
+## disagree with a manual one about what is hittable.
+func _reachable_attack_target() -> EnemyController:
+	if not turn_manager.is_action_available(player):
+		return null
+	var selected := player.get_target() as EnemyController
+	if _can_strike(selected):
+		return selected
+	var best: EnemyController = null
+	var best_distance: int = 0
+	for enemy_node in _active_enemies:
+		var enemy := enemy_node as EnemyController
+		if not _can_strike(enemy):
+			continue
+		var distance: int = _cell_distance(player.grid_position, enemy.grid_position)
+		if best == null or distance < best_distance:
+			best = enemy
+			best_distance = distance
+	return best
+
+
+func _can_strike(enemy: EnemyController) -> bool:
+	if enemy == null or not is_instance_valid(enemy) or enemy.is_defeated():
+		return false
+	return combat_system.can_attack(player, enemy)
+
+
+func _cell_distance(from_cell: Vector2i, to_cell: Vector2i) -> int:
+	return absi(from_cell.x - to_cell.x) + absi(from_cell.y - to_cell.y)
 
 
 func _get_living_enemy_at(cell: Vector2i) -> EnemyController:
@@ -785,6 +879,13 @@ func _on_player_moved(from_cell: Vector2i, to_cell: Vector2i, points_remaining: 
 			_last_move_text = "ON THE EXIT — NEXT STAGE READY (STAGE %02d ALREADY CLEARED)" % (
 				stage_manager.stage_state.stage_number + 1
 			)
+	# Every movement path — click-to-move, the D-pad and the keyboard arrows — ends
+	# in this signal, so a walk that spends the turn's last movement point settles the
+	# turn here: strike a reachable enemy, or simply be done. Either way the player
+	# never has to click again to finish the turn.
+	if _move_settles_the_turn():
+		_settle_action_after_move()
+		return
 	queue_redraw()
 
 
