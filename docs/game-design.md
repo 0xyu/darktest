@@ -371,7 +371,7 @@ kill is decided the moment its HP reaches zero, but the wave is only rebuilt
 after its damage number and death animation are done, so a wave never resets out
 from under the enemy that just died.
 
-When FARMING is OFF a cleared stage advances to the next one through the
+When FARMING is OFF a cleared stage advances to the next stage through the
 **Next Stage Point** (exit). The hero must physically stand on the exit cell
 before the stage can advance:
 
@@ -451,8 +451,8 @@ LevelManager → LevelProvider → StageDefinition → StageManager → Battle
 composition data such as count, level offset, spawn rule, and optional stat
 overrides. Fixed levels are authored as `LevelConfig` resources under
 `resources/levels/`. Levels without a fixed resource are generated from a
-`LevelTemplate` using the level ID as the procedural seed. Both paths return
-the same `StageDefinition` shape.
+`LevelTemplate` using the level ID as the procedural seed. Both paths return the
+same `StageDefinition` shape.
 
 ### Stage Arena Points
 
@@ -827,6 +827,128 @@ BaseGold × 1.18^(Stage - 1)
 ```
 
 The first MVP may only display and collect Gold.
+
+## 12.1 Vendor Economy
+
+The vendor economy is **Diablo-inspired**, not a direct copy of Diablo's exact item pricing. The purpose is to make selling unwanted equipment useful and vendor purchases meaningful while preserving the game's loot-driven progression loop.
+
+The economy must separate **Combat Power** from **Economic Value**. Changing combat balance must not automatically change vendor prices.
+
+### Economic Value Model
+
+Every sellable equipment item has an internal `EconomicValue` derived from its item level, rarity, and rolled affix quality:
+
+```text
+LevelMultiplier = 1.18^(EquipmentLevel - 1)
+
+AffixMultiplier =
+1 + Σ(
+    AffixRollRatio
+    × AffixEconomicWeight
+    × 0.15
+)
+
+EconomicValue =
+BaseItemValue
+× LevelMultiplier
+× RarityMultiplier
+× AffixMultiplier
+```
+
+`AffixRollRatio` is normalized to `0..1` for the rolled value relative to the valid range of that affix. `AffixEconomicWeight` expresses the economic desirability of an affix and must live in the affix definition/data, not in vendor code.
+
+Recommended starting rarity multipliers:
+
+```text
+Common      1.0
+Uncommon    1.5
+Rare        3.0
+Epic        7.0
+Legendary  15.0
+Mythic     35.0
+```
+
+These are economy tuning values only. They must not be reused as combat-power multipliers.
+
+Recommended starting affix economic weights:
+
+```text
+Attack              1.0
+Defense             0.9
+HP                  0.8
+Critical Chance     1.5
+Critical Damage     1.4
+Dodge               1.3
+Movement            2.5
+Attack Range        2.0
+Life Steal          2.0
+Damage vs Elite     1.5
+Damage vs Boss      1.8
+```
+
+These values intentionally do not need to match combat strength. They describe how strongly an affix contributes to the item's economic value.
+
+### Vendor Buy Price
+
+Vendor purchase price is a gold sink and fallback source of equipment:
+
+```text
+BuyPrice = EconomicValue × VendorBuyMultiplier
+
+VendorBuyMultiplier = 4.0
+```
+
+The vendor should normally be more expensive than obtaining equivalent power through drops. This prevents the vendor from replacing the loot loop.
+
+### Vendor Sell Price
+
+Selling unwanted equipment provides useful recovery value without creating a profitable buy/sell arbitrage loop:
+
+```text
+RawSellPrice = EconomicValue × VendorSellMultiplier
+
+VendorSellMultiplier = 0.25
+
+SellPrice =
+min(
+    RawSellPrice,
+    VendorSellCap
+)
+```
+
+The sell cap is an anti-inflation control:
+
+```text
+VendorSellCap =
+BaseVendorSellCap × 1.12^(Stage - 1)
+```
+
+`BaseVendorSellCap` belongs to economy configuration. The 1.12 growth rate is intentionally slower than the 1.18 stage gold curve so selling equipment does not become the dominant source of gold as the player progresses.
+
+### Economic Design Constraints
+
+- Equipment drops remain the primary source of player power.
+- Vendor purchases are convenience / fallback equipment, not the default best upgrade path.
+- Selling duplicate, obsolete, or low-value equipment should be a useful secondary gold source.
+- `EconomicValue` must never directly determine combat stats.
+- `CombatScore` must never be used as the vendor price.
+- `CombatScore`, `LootScore`, and `EconomicValue` are separate concepts.
+- Vendor multipliers, rarity multipliers, affix economic weights, and caps must be data-driven.
+- Vendor code should consume economy data; it should not contain per-affix balance tables.
+
+The intended economy loop is:
+
+```text
+Fight
+→ Drop Equipment
+→ Inspect
+→ Equip Better Item
+→ Sell Unwanted Items
+→ Spend Gold on Vendor / Services
+→ Return to Combat
+```
+
+Gold is therefore a **secondary progression system and gold sink**, not a replacement for the loot-driven progression loop.
 
 ---
 
