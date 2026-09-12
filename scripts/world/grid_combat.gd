@@ -27,6 +27,10 @@ const ATTACK_REFUSED_REASON: String = "no enemy in attack range"
 @onready var auto_combat: AutoCombatController = $AutoCombatController
 @onready var sub_hero_combat_manager: SubHeroCombatManager = $SubHeroCombatManager
 @onready var combat_presentation: CombatPresentationSystem = $CombatPresentation
+## §16 Magic Tome: the player's companion spellbook. It is part of the scene, so the
+## player has it from the first battle; its cooldowns live in Player Turns and are
+## driven by the turn manager it is attached to below.
+@onready var magic_tome: MagicTome = $MagicTome
 
 var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
@@ -110,6 +114,12 @@ func _ready() -> void:
 	hud.auto_toggle_requested.connect(_on_hud_auto_toggle_requested)
 	hud.farming_toggle_requested.connect(_on_hud_farming_toggle_requested)
 	hud.game_speed_requested.connect(_on_hud_game_speed_requested)
+	# §16 Magic Tome: a cast is free (it never spends the turn) and legal in any
+	# phase, so it is NOT routed through the player's own skill_requested path.
+	magic_tome.attach(combat_system, turn_manager, player)
+	magic_tome.skill_cast.connect(_on_magic_skill_cast)
+	magic_tome.skill_refused.connect(_on_magic_skill_refused)
+	hud.magic_requested.connect(_on_hud_magic_requested)
 	# Player-side progress save. Loading happens BEFORE the flow and the content
 	# controller exist, so both are built from the restored state instead of having
 	# to be repaired afterwards. The saved position is resumed at the end of _ready.
@@ -403,6 +413,58 @@ func can_use_skill(skill_id: StringName) -> bool:
 	if player == null or combat_system == null:
 		return false
 	return combat_system.can_use_skill(player, skill_id, player.get_target())
+
+
+## §16: a Magic Tome spell is available in ANY phase — the player's own turn, the
+## enemy's, and AUTO mode — because it costs neither the action nor the turn. Only a
+## finished fight (VICTORY / DEFEAT) and the cooldown hold it back.
+func can_use_magic(skill_id: StringName) -> bool:
+	if magic_tome == null or turn_manager == null:
+		return false
+	var phase: int = turn_manager.get_phase()
+	if phase == TurnState.VICTORY or phase == TurnState.DEFEAT:
+		return false
+	return magic_tome.can_cast(skill_id)
+
+
+## The Magic row's full state, as the HUD reads it every refresh: one entry per tome
+## spell with its current cooldown in Player Turns and whether it may be cast now.
+func get_magic_state() -> Array[Dictionary]:
+	var states: Array[Dictionary] = []
+	if magic_tome == null:
+		return states
+	for skill in magic_tome.get_skills():
+		states.append({
+			"skill_id": skill.skill_id,
+			"display_name": skill.display_name,
+			"tooltip": skill.description,
+			"cooldown": magic_tome.get_cooldown(skill.skill_id),
+			"usable": can_use_magic(skill.skill_id),
+		})
+	return states
+
+
+func _on_hud_magic_requested(skill_id: StringName) -> void:
+	if not can_use_magic(skill_id):
+		return
+	# The player's selected enemy is only a preference: a spell reaches the whole
+	# battlefield, so the tome falls back to the nearest living enemy on its own.
+	magic_tome.cast(skill_id, player.get_target())
+
+
+func _on_magic_skill_cast(skill_id: StringName, hit_count: int, total_damage: int) -> void:
+	var skill := MagicTomeCatalog.get_skill(skill_id)
+	_last_move_text = "%s hit %d target%s for %d" % [
+		skill.display_name, hit_count, "" if hit_count == 1 else "s", total_damage
+	]
+	hud.log_event("log.magic_cast", {"name": skill.display_name, "damage": total_damage})
+	queue_redraw()
+
+
+func _on_magic_skill_refused(skill_id: StringName, reason: String) -> void:
+	var skill := MagicTomeCatalog.get_skill(skill_id)
+	_last_move_text = "%s not cast: %s" % [skill.display_name, reason]
+	queue_redraw()
 
 
 func _on_hud_item_requested() -> void:

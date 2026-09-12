@@ -28,6 +28,23 @@ func set_combat_targets(targets: Array[Node]) -> void:
 	_combat_targets = targets.duplicate()
 
 
+## The battlefield's enemy list, as last published by the host. Read by the Magic
+## Tome to pick a target without keeping a second copy of the enemy list.
+func get_combat_targets() -> Array[Node]:
+	return _combat_targets.duplicate()
+
+
+## Whether an actor can still be struck. Public so the Magic Tome can choose its own
+## target instead of re-implementing the HP rules.
+func is_living_target(target: Node) -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	var stats: Resource = _get_combat_stats(target)
+	if stats == null:
+		return false
+	return _get_current_hp(target, stats) > 0
+
+
 func connect_actor(actor: Node) -> void:
 	if actor == null:
 		return
@@ -55,13 +72,23 @@ func resolve_attack(
 	return _resolve_attack(attacker, target, damage_multiplier, attack_range_override, skill_id, true)
 
 
+## §16 Magic Tome: a tome spell is globally available, so this path skips the grid
+## range check and the turn budget entirely — casting is never the player's action
+## and never has to wait for the player's turn. Everything else (defense, dodge,
+## criticals, the defeat path and its reward broadcast) is the ONE damage path, so a
+## spell kill grants exactly what a weapon kill grants.
+func resolve_magic_strike(caster: Node, target: Node, damage_multiplier: float, skill_id: StringName) -> DamageResult:
+	return _resolve_attack(caster, target, damage_multiplier, -1, skill_id, false, true)
+
+
 func _resolve_attack(
 	attacker: Node,
 	target: Node,
 	damage_multiplier: float = 1.0,
 	attack_range_override: int = -1,
 	skill_id: StringName = &"",
-	consume_player_action: bool = true
+	consume_player_action: bool = true,
+	bypass_turn_budget: bool = false
 ) -> DamageResult:
 	var result := DamageResult.new()
 	result.attacker_id = _get_actor_id(attacker)
@@ -70,7 +97,11 @@ func _resolve_attack(
 	# Presentation-layer node references (animations); never used for gameplay.
 	result.attacker = attacker
 	result.target = target
-	if not _is_actor_authorized(attacker) or not _is_valid_attack(attacker, target, attack_range_override):
+	# §16: a Magic Tome strike is never the player's turn action, so it is authorized
+	# by "an enemy is alive and reachable from anywhere" instead of by the turn budget.
+	var authorized: bool = true if bypass_turn_budget else _is_actor_authorized(attacker)
+	var strikable: bool = _is_valid_target(attacker, target) if bypass_turn_budget else _is_valid_attack(attacker, target, attack_range_override)
+	if not authorized or not strikable:
 		# §4: a refused attack never happened — no action is spent, and the input
 		# surface reports the reason as text instead of a strike animation.
 		result.is_miss = true
@@ -121,11 +152,14 @@ func _resolve_attack(
 	result.target_defeated = remaining_hp <= 0
 	if target.has_method("clamp_current_hp"):
 		target.clamp_current_hp()
-	# §12 Life Steal and Stun, both driven by the affixes on the attacker.
-	_apply_life_steal(attacker, attacker_stats, result)
-	_apply_stun(attacker_stats, target, result)
-	if attacker.has_method("apply_equipment_attack_effects"):
-		attacker.apply_equipment_attack_effects(target, result, attack_context)
+	# §12 Life Steal, Stun and the equipment attack effects are weapon-hit riders.
+	# A tome spell is pure magic damage and deliberately triggers none of them
+	# (docs/game-design.md §16).
+	if not bypass_turn_budget:
+		_apply_life_steal(attacker, attacker_stats, result)
+		_apply_stun(attacker_stats, target, result)
+		if attacker.has_method("apply_equipment_attack_effects"):
+			attacker.apply_equipment_attack_effects(target, result, attack_context)
 	if result.target_defeated:
 		resolve_defeat(target)
 	elif is_instance_valid(target) and target.has_method("queue_redraw"):
@@ -239,20 +273,27 @@ func _get_skill_level(attacker: Node, skill_id: StringName) -> int:
 
 
 func _is_valid_attack(attacker: Node, target: Node, attack_range_override: int = -1) -> bool:
-	if attacker == null or target == null or not is_instance_valid(attacker) or not is_instance_valid(target):
-		return false
-	if attacker == target:
+	if not _is_valid_target(attacker, target):
 		return false
 	var attacker_stats: Resource = _get_combat_stats(attacker)
-	var target_stats: Resource = _get_combat_stats(target)
-	if attacker_stats == null or target_stats == null:
-		return false
-	if _get_current_hp(attacker, attacker_stats) <= 0 or _get_current_hp(target, target_stats) <= 0:
-		return false
 	var attacker_cell: Vector2i = _get_grid_position(attacker)
 	var target_cell: Vector2i = _get_grid_position(target)
 	var attack_range: int = attack_range_override if attack_range_override >= 0 else maxi(int(attacker_stats.get("attack_range")), 0)
 	return _grid_distance(attacker_cell, target_cell) <= attack_range
+
+
+## The half of "can this strike land" that has nothing to do with the grid: two
+## different, real, living combat actors with stats. Split out for §16, where a Magic
+## Tome spell reaches across the whole battlefield, and shared by the range check above
+## so both paths refuse the same impossible strikes.
+func _is_valid_target(attacker: Node, target: Node) -> bool:
+	if attacker == null or target == null or not is_instance_valid(attacker) or not is_instance_valid(target):
+		return false
+	if attacker == target:
+		return false
+	if _get_combat_stats(attacker) == null:
+		return false
+	return is_living_target(attacker) and is_living_target(target)
 
 
 func _is_actor_authorized(attacker: Node) -> bool:

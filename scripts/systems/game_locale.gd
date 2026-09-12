@@ -29,6 +29,7 @@ const _STRINGS := {
 	"log.enemy_summoned": {"en": "{name} summoned reinforcements", "zh_Hant": "{name} 召喚了援軍"},
 	"log.enemy_stunned": {"en": "{name} is stunned", "zh_Hant": "{name} 被暈眩"},
 	"log.potion_used": {"en": "Potion used — turn ended", "zh_Hant": "使用了藥水 — 結束回合"},
+	"log.magic_cast": {"en": "{name} — {damage} damage", "zh_Hant": "{name} — {damage} 傷害"},
 	"fx.miss": {"en": "MISS", "zh_Hant": "未命中"},
 	"fx.dodge": {"en": "DODGE", "zh_Hant": "閃避"},
 	"fx.block": {"en": "BLOCK", "zh_Hant": "格擋"},

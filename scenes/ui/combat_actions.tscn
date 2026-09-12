@@ -141,6 +141,12 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "AUTO: OFF"
 icon = ExtResource("5_auto")
 
+[node name="MagicRow" type="HBoxContainer" parent="." unique_id=901000001]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_constants/separation = 8
+
 [node name="AutoRow" type="HBoxContainer" parent="." unique_id=2067187605]
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2

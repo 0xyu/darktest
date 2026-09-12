@@ -104,6 +104,32 @@ critical = max(1, round(modified × critical_damage))
 | Total to max all three skills | 15 skill points |
 | Skills share the Action with a basic attack | Yes |
 
+### 6.1 Magic Tome (Tome Spells)
+
+The Main Player owns the Magic Tome from the start of the game. Tome spells are **not**
+player skills: they need no skill level, no skill point and no cell range, and they never
+share the Action (see §2 Turn System). Design intent is in `docs/game-design.md` §16.
+
+| Rule | Value |
+|---|---|
+| Ownership | Always owned (story acquisition is a later content change) |
+| Range | Global — the grid is not consulted |
+| Action cost | **0** — the player's Action and the turn are untouched |
+| Turn phase | Any: player turn, enemy turn, AUTO |
+| Cooldown unit | Player Turns |
+| Cooldown tick | **−1** at the start of every Player Turn, including AUTO-driven turns |
+| Cooldown start | The cast itself — a spell whose targets all dodge still goes on cooldown |
+| Single-target choice | The selected enemy, otherwise the **nearest** living enemy |
+| Area targeting | Every living enemy |
+| Damage | `max(1, round(max(1, Attack − Defense) × Multiplier × equipment × damage_vs_elite/boss))` — dodge and criticals behave as in §5 |
+| Weapon riders | Life steal, stun and equipment attack effects do **not** apply |
+| Kill rewards | A spell kill uses the normal defeat path: same EXP, gold and loot |
+
+| Spell | Targeting | Multiplier | Cooldown (Player Turns) |
+|---|---|---|---|
+| Magic Missile | Single target | 0.9× | 4 |
+| Arcane Nova | All living enemies | 0.6× | 6 |
+
 ## 7. Items
 
 | Rule | Value |

@@ -18,6 +18,7 @@ do*. Every entry in §3 is a work item, not a design decision.
 | Turn manager / phases | `scripts/systems/turn_manager.gd`, `scripts/combat/turn_state.gd` |
 | Damage, targeting, skills resolution | `scripts/combat/combat_system.gd` |
 | Skill definitions | `scripts/combat/skill_catalog.gd`, `skill_definition.gd` |
+| Magic Tome (global spells, Player-Turn cooldowns) | `scripts/combat/magic_tome.gd`, `magic_tome_catalog.gd`, `magic_skill_definition.gd` |
 | Enemy runtime, AI, mini-boss mechanics | `scripts/enemies/enemy_controller.gd` |
 | AUTO, farming, game speed | `scripts/systems/auto_combat_controller.gd` |
 | Stage manager, gates, spawns, clear/defeat | `scripts/systems/stage_manager.gd` |
@@ -174,10 +175,10 @@ UI harness suites (`tools/ui_harness/run_ui_harness.ps1 -Suite <name> -Quiet`):
 test_combat_log_panel      test_combat_log_wiring     test_development_panel
 test_enemy_attack_move_lock test_game_locale          test_grid_click_actions
 test_inventory_panel       test_item_popup            test_stage_content
-test_stage_exit_advance    test_stage_flow            test_stage_progression
-test_stage_range           test_stage_save            test_subhero_assignment
-test_subhero_row           test_subhero_shop          test_town_view
-test_world_map
+test_magic_tome            test_stage_exit_advance    test_stage_flow
+test_stage_progression     test_stage_range           test_stage_save
+test_subhero_assignment    test_subhero_row           test_subhero_shop
+test_town_view             test_world_map
 ```
 
 Headless smoke tests (`res://tests/*_smoke_test.gd`):
@@ -188,7 +189,7 @@ stage_database    stage_progress_save   stage_router
 subhero_combat    subhero_data   subhero_progression   subhero_runtime
 subhero_summon    enemy_experience_scaling   subhero_kill_reward
 beginner_sword_drop   scavenger_shop   economy
-combat_affix      item_registry
+combat_affix      item_registry   magic_tome
 ```
 
 Run only the suite covering a change. Never run the full harness unless asked.

@@ -11,6 +11,9 @@ signal end_turn_requested
 signal next_stage_requested
 signal auto_toggle_requested
 signal farming_toggle_requested
+## §16 Magic Tome: forwarded from the MAGIC row to the combat host, which owns the
+## tome's cooldowns and the cast itself.
+signal magic_requested(skill_id: StringName)
 signal game_speed_requested(speed: int)
 ## Forwarded from the DEV panel's AREA STAGES section: request entry to an
 ## authored stage by its GLOBAL stage number. grid_combat derives the area and
@@ -90,6 +93,7 @@ func _ready() -> void:
 	_combat_actions.next_stage_requested.connect(func() -> void: next_stage_requested.emit())
 	_combat_actions.auto_toggle_requested.connect(func() -> void: auto_toggle_requested.emit())
 	_combat_actions.farming_toggle_requested.connect(func() -> void: farming_toggle_requested.emit())
+	_combat_actions.magic_requested.connect(func(skill_id: StringName) -> void: magic_requested.emit(skill_id))
 	_skills_button.pressed.connect(_on_skills_button_pressed)
 	_speed_x1_button.pressed.connect(func() -> void: game_speed_requested.emit(0))
 	_speed_x2_button.pressed.connect(func() -> void: game_speed_requested.emit(1))
@@ -444,6 +448,10 @@ func _update_buttons(player_stats: PlayerStats) -> void:
 	_combat_actions.set_end_turn_state(phase, player_turn)
 	_combat_actions.set_auto_controls(phase)
 	_combat_actions.set_next_stage_state(phase, _next_stage_enabled(phase))
+	# §16 The MAGIC row is deliberately NOT gated by `player_turn` or `input_enabled`:
+	# a tome spell costs no action and no turn, so it stays pressable while an enemy
+	# acts and while AUTO plays the player's turns.
+	_combat_actions.set_magic_states(_get_magic_states())
 	# Victory is a brief status effect, not a modal result screen. Keep the
 	# compact banner mouse-transparent so it never covers combat controls.
 	_state_banner.visible = phase == TurnState.VICTORY or phase == TurnState.DEFEAT
@@ -489,6 +497,21 @@ func _host_can_leave_stage_uncleared() -> bool:
 func _can_use_skill(skill_id: StringName) -> bool:
 	var combat_scene: Node = get_parent()
 	return combat_scene.has_method("can_use_skill") and bool(combat_scene.call("can_use_skill", skill_id))
+
+
+## §16: the tome lives on the combat host, which owns the cooldowns, so the HUD asks
+## for the row's state instead of keeping a second copy of it.
+func _get_magic_states() -> Array[Dictionary]:
+	var states: Array[Dictionary] = []
+	var combat_scene: Node = get_parent()
+	if combat_scene == null or not combat_scene.has_method("get_magic_state"):
+		return states
+	var reported: Variant = combat_scene.call("get_magic_state")
+	if reported is Array:
+		for entry in reported:
+			if entry is Dictionary:
+				states.append(entry)
+	return states
 
 
 func set_auto_mode(enabled: bool) -> void:

@@ -248,8 +248,13 @@ func _play_attack(result: DamageResult) -> void:
 		_spawn_number((target as Node2D).global_position, DamageNumber.Kind.DODGE, 0, _locale.translate("fx.dodge"))
 		return
 
+	# §16 A Magic Tome spell is cast from where the hero stands and flies to an enemy
+	# anywhere on the grid. It must never use the weapon dash, which would fling the
+	# sprite across the battlefield, so it takes the projectile path with its own VFX.
+	var magic_skill := MagicTomeCatalog.get_skill(result.skill_id)
+	var is_magic: bool = not magic_skill.skill_id.is_empty()
 	var heavy: bool = result.skill_id == &"execution_strike"
-	var is_projectile: bool = result.skill_id == &"arcane_bolt"
+	var is_projectile: bool = result.skill_id == &"arcane_bolt" or is_magic
 	var is_player_attack: bool = attacker == _player
 	var intensity: float = CombatPresentationConfig.PLAYER_INTENSITY if is_player_attack else 1.0
 	var strong: bool = result.is_critical or heavy or is_player_attack
@@ -287,7 +292,7 @@ func _play_attack(result: DamageResult) -> void:
 		projectile.setup_projectile(
 			(attacker as Node2D).global_position + Vector2(0.0, -12.0),
 			(target as Node2D).global_position,
-			&"arcane",
+			magic_skill.vfx_id if is_magic else &"arcane",
 			mult
 		)
 		await _wait(CombatPresentationConfig.PROJECTILE_TRAVEL * mult)
@@ -297,7 +302,9 @@ func _play_attack(result: DamageResult) -> void:
 
 	# 3) Impact: VFX, hit stop (token tween pause — never Engine.time_scale).
 	var target_pos: Vector2 = (target as Node2D).global_position
-	if is_projectile:
+	if is_magic:
+		_spawn_vfx(magic_skill.vfx_id, target_pos, dir, strong, mult)
+	elif is_projectile:
 		_spawn_vfx(&"arcane", target_pos, dir, strong, mult)
 	else:
 		_spawn_vfx(_vfx_for_skill(result.skill_id), target_pos, dir, strong, mult)

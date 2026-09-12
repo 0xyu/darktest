@@ -15,6 +15,10 @@ signal end_turn_requested
 signal next_stage_requested
 signal auto_toggle_requested
 signal farming_toggle_requested
+## §16 Magic Tome: a spell press. It is its own signal (not a `skill_requested`) so
+## the host can grant it a completely different contract: no action, no turn, and
+## legal in any phase.
+signal magic_requested(skill_id: StringName)
 
 const AUTO_OFF_ICON: Texture2D = preload("res://assets/ui/hud/2_options_off.png")
 const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
@@ -22,7 +26,10 @@ const AUTO_ON_ICON: Texture2D = preload("res://assets/ui/hud/2_options_on.png")
 const END_TURN_TEXT := "END TURN"
 const DEFEATED_TEXT := "DEFEATED"
 const ENABLED_COLOR := Color(0.941, 0.906, 0.824, 1.0)
+const DISABLED_COLOR := Color(0.459, 0.435, 0.514, 1.0)
 const ACTIVE_COLOR := Color(0.537, 0.78, 0.592, 1.0)
+const MAGIC_READY_TEXT := "READY"
+const MAGIC_COOLDOWN_TEXT := "CD"
 
 @onready var _attack_button: Button = %AttackButton
 @onready var _whirlwind_button: Button = %WhirlwindButton
@@ -33,8 +40,12 @@ const ACTIVE_COLOR := Color(0.537, 0.78, 0.592, 1.0)
 @onready var _next_stage_button: Button = %NextStageButton
 @onready var _auto_button: Button = %AutoButton
 @onready var _farming_button: Button = %FarmingButton
+@onready var _magic_row: HBoxContainer = %MagicRow
 
 var _skill_buttons: Dictionary = {}
+## §16: the tome's buttons are BUILT from the state the host reports, so a new spell
+## needs no scene edit and the row can never disagree with the catalog.
+var _magic_buttons: Dictionary = {}
 
 
 func _ready() -> void:
@@ -62,6 +73,27 @@ func set_skill_usable(skill_id: StringName, usable: bool) -> void:
 	var button: Button = _skill_buttons.get(skill_id) as Button
 	if button != null:
 		button.disabled = not usable
+
+
+## §16 Magic row. Each entry is one tome spell as the host reports it:
+## {skill_id, display_name, tooltip, cooldown (Player Turns), usable}. A button is
+## created the first time a spell is reported, then only its label and availability
+## are refreshed — the cooldown is shown in Player Turns, which is what it is.
+func set_magic_states(states: Array[Dictionary]) -> void:
+	for state in states:
+		var skill_id: StringName = state.get("skill_id", &"")
+		if skill_id.is_empty():
+			continue
+		var button: Button = _magic_buttons.get(skill_id) as Button
+		if button == null:
+			button = _create_magic_button(state)
+		var cooldown: int = int(state.get("cooldown", 0))
+		var status: String = MAGIC_READY_TEXT if cooldown <= 0 else "%s %d" % [MAGIC_COOLDOWN_TEXT, cooldown]
+		var label: String = "%s\n%s" % [str(state.get("display_name", "")), status]
+		if button.text != label:
+			button.text = label
+		button.tooltip_text = str(state.get("tooltip", ""))
+		button.disabled = not bool(state.get("usable", false))
 
 
 func set_item_button(potion_count: int, usable: bool) -> void:
@@ -130,3 +162,28 @@ func disable_player_actions() -> void:
 			button.disabled = true
 	if _item_button != null:
 		_item_button.disabled = true
+	for button: Button in _magic_buttons.values():
+		if button != null:
+			button.disabled = true
+
+
+## Builds one Magic row button. Styling is copied from the ATTACK button so the row
+## stays visually part of the action cluster without duplicating the style boxes.
+func _create_magic_button(state: Dictionary) -> Button:
+	var skill_id: StringName = state.get("skill_id", &"")
+	var button := Button.new()
+	button.name = "Magic%sButton" % String(skill_id).to_pascal_case()
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.add_theme_font_size_override("font_size", 12)
+	button.add_theme_color_override("font_color", ENABLED_COLOR)
+	button.add_theme_color_override("font_disabled_color", DISABLED_COLOR)
+	if _attack_button != null:
+		for style_name in ["normal", "pressed", "hover"]:
+			var style: StyleBox = _attack_button.get_theme_stylebox(style_name)
+			if style != null:
+				button.add_theme_stylebox_override(style_name, style)
+	button.pressed.connect(func() -> void: magic_requested.emit(skill_id))
+	if _magic_row != null:
+		_magic_row.add_child(button)
+	_magic_buttons[skill_id] = button
+	return button

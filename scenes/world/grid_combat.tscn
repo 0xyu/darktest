@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/grid_combat.gd" id="1_test"]
 [ext_resource type="Script" path="res://scripts/systems/grid_map_2d.gd" id="2_grid"]
@@ -18,6 +18,7 @@
 [ext_resource type="Script" path="res://scripts/sub_hero/sub_hero_combat_manager.gd" id="16_subhero_combat"]
 [ext_resource type="Texture2D" path="res://assets/environment/dungeon.jpg" id="17_dungeon"]
 [ext_resource type="Script" path="res://scripts/combat/combat_presentation_system.gd" id="18_presentation"]
+[ext_resource type="Script" path="res://scripts/combat/magic_tome.gd" id="19_magic_tome"]
 
 [node name="grid_combat" type="Node2D"]
 script = ExtResource("1_test")
@@ -80,3 +81,6 @@ script = ExtResource("16_subhero_combat")
 
 [node name="CombatPresentation" type="Node" parent="."]
 script = ExtResource("18_presentation")
+
+[node name="MagicTome" type="Node" parent="."]
+script = ExtResource("19_magic_tome")

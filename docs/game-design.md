@@ -635,3 +635,67 @@ New features must reinforce Tier 1.
 13. Long-term progression persists.
 14. Higher stages introduce gameplay challenges, not only larger numbers.
 15. New systems must reinforce the core gameplay loop.
+16. Manual interaction stays meaningful while automation plays: the player must always have
+    an action that automation cannot take away (see §16).
+
+---
+
+# 16. Magic Tome Companion
+
+The Main Player owns a **Magic Tome companion**. It will be acquired through the story
+later; for now the player has it from the first battle. The tome holds **magic skills** that
+the player triggers manually and that attack enemies directly.
+
+## 16.1 Why It Exists
+
+AUTO Mode is a design pillar, but on its own it turns combat into a spectator sport: the
+player enables AUTO and then watches for an extended period without any input. The tome
+exists to give AUTO a **manual, player-controlled action** that is still governed by
+turn-based combat instead of real time — pressing it feels like playing, not like
+interrupting automation.
+
+## 16.2 Rules
+
+| Rule | Value |
+|---|---|
+| Ownership | Owned from the start of the game (story acquisition comes later) |
+| Range | **Global** — any living enemy can be struck from any cell; the grid is not consulted |
+| Action cost | **None.** A cast is not the player's Action and never advances the turn |
+| Usable when | Any time during a fight: the player's turn, the enemy's turn, or AUTO |
+| Limit | A per-skill cooldown counted in **Player Turns**, never in real time |
+| Targeting | Spells attack enemies directly; the selected enemy is the preferred target |
+| Weapon riders | None. Life steal, stun and equipment attack effects belong to weapon hits |
+
+## 16.3 Cooldown Model
+
+A cooldown is armed by the cast itself and then ticks down by exactly one at the start of
+every new Player Turn — the player's own turn or an AUTO-driven one:
+
+```text
+Cast Magic Missile   →  cooldown = 4
+Next Player Turn     →  cooldown = 3
+Next Player Turn     →  cooldown = 2
+Next Player Turn     →  cooldown = 1
+Next Player Turn     →  cooldown = 0   →  READY
+```
+
+Because the clock is turns rather than seconds, the HUD's cooldown counter doubles as the
+player's "when may I act again" timer, and a spell can never be spammed by a fast AUTO speed.
+
+## 16.4 Spells
+
+| Spell | Targeting | Cooldown | Multiplier |
+|---|---|---|---|
+| Magic Missile | Single target, anywhere on the battlefield | 4 Player Turns | 0.9× |
+| Arcane Nova | Every enemy on the battlefield | 6 Player Turns | 0.6× |
+
+## 16.5 Design Intent
+
+- The tome is **support**, not a replacement: its damage scales with the Main Player's
+  Attack, so equipment remains the primary progression system (Red Line 1).
+- It must never become an autocast. Its whole value is that the player chooses the moment.
+- A spell is deliberately weaker per hit than a full-Action skill, because it is free.
+- A cast has to be **readable**: its own projectile and impact effect, its own combat-log
+  entry, and a button that visibly counts down to READY.
+- Cooldowns are per spell, so the tome offers a small decision (which spell, when) rather
+  than a single button to mash.
