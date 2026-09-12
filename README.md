@@ -53,6 +53,8 @@ The game should be easy to understand while gradually becoming deeper through eq
 ## Documentation
 
 - `AGENTS.md` — AI coding rules and project conventions
-- `docs/game-design.md` — gameplay and balance design
+- `docs/game-design.md` — design intent, pillars and priorities
+- `docs/gameplay-spec.md` — exact mechanical rules, formulas and tuning values
+- `docs/implementation-status.md` — current implementation and its gaps vs the spec
 
 ## GoDot Engine Path: D:\IDE\godotEngine

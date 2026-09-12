@@ -1,1037 +1,327 @@
 # Game Design Document
 
-## 1. Overview
+What the game is, how it should feel, and which decisions drive it.
 
-### Genre
+## Companion Documents
+
+- `docs/gameplay-spec.md` — exact mechanical rules, formulas and tuning values.
+- `docs/implementation-status.md` — what the current build actually does, and where it
+  deviates from this design.
+
+**Authority:** this document defines **intent**, the spec defines **exact rules**, and the
+implementation document records **current code truth**. When they disagree, the gap list
+in `implementation-status.md` is the work queue — not a reason to change this design.
+
+---
+
+# 1. Game Overview
+
+## Genre
 
 - RPG
-- Grid-based
-- Turn-based combat
-- Loot-focused progression
-- Auto-combat / idle-friendly
-- Dark fantasy
+- Grid-based, turn-based combat
+- Loot-driven progression
+- Auto-combat
+- Idle / Farming
+- Dark Fantasy
 
-### Core Fantasy
+## Platform
 
-The player controls a hero progressing through increasingly difficult stages.
-
-The main gameplay fantasy is:
-
-> Fight enemies → receive loot → discover better equipment → become stronger → clear higher stages → encounter stronger enemies and better loot.
-
-The primary source of player excitement should come from:
-
-1. Killing enemies
-2. Discovering rare equipment
-3. Comparing equipment stats
-4. Finding powerful random affixes
-5. Discovering special enemies and mini bosses
-6. Suddenly becoming much stronger after obtaining a good item
-7. Pushing to a higher stage
-
-The game should feel easy to understand but increasingly deep as equipment builds develop.
+- Primary: mobile, portrait, designed around 9:16
+- Supports other portrait mobile ratios and tablets
+- Desktop is primarily for development / testing
 
 ---
 
 # 2. Core Gameplay Loop
 
 ```text
-Enter Stage
+Manual Combat
     ↓
-Generate Stage
+Loot
     ↓
-Generate Enemies
+Build / Upgrade
     ↓
-Player Turn
+Push Higher Stages
     ↓
-Move + Attack / Skill / Item
+Develop Sub Heroes
     ↓
-Enemy Turn
+Automate Previously Cleared Content
     ↓
-Repeat
+Farm Resources
     ↓
-Enemies Defeated
+Improve Builds
     ↓
-Rewards
-    ├── EXP
-    ├── Gold
-    └── Equipment
-    ↓
-Review / Equip Loot
-    ↓
-Next Stage
+Push Further
 ```
 
-The player should always have a clear reason to continue to the next stage.
+Ultimate progression:
+
+```text
+Manual Play → AUTO → Autonomous Idle
+```
+
+The Main Player handles new and difficult content. Developed Sub Heroes eventually
+automate content the player has already mastered.
+
+Core player fantasy:
+
+> The Main Player pushes into new territory while developed Sub Heroes farm territory
+> the player has already conquered.
+
+The intended feeling:
+
+> The content I once struggled with can now run itself, allowing my Main Player to push
+> even further.
 
 ---
 
-# 3. Combat System
+# 3. Design Pillars
 
-## 3.1 Grid
+## 3.1 Equipment-Driven Progression
 
-Combat takes place on a grid.
+Equipment is the primary long-term source of combat power. Players make decisions based
+on stats, affixes, rarity, unique effects, build synergy, and Main Player vs Sub Hero
+requirements. A single Power Score must not determine equipment value.
 
-Each cell represents one movement position.
+## 3.2 Main Player
 
-The first implementation should support:
+The Main Player is the primary active character, responsible for manual combat, new
+content, stage pushing, bosses and Mini Bosses, build experimentation, and tactical
+decisions.
 
-- Orthogonal movement
-- 4-direction movement
-- Occupied cells
-- Walkable cells
-- Enemy cells
-- Player cell
-- Basic pathfinding
+## 3.3 Sub Heroes
 
-Diagonal movement is not required for the MVP.
+Sub Heroes are secondary characters providing additional combat power, support,
+long-term progression and autonomous farming. A developed DPS Sub Hero can eventually
+farm previously conquered content independently.
 
-## 3.2 Turn Structure
-
-Each player turn consists of:
+## 3.4 Manual vs Automation
 
 ```text
-Movement Phase
-+
-One Action
+Manual → AUTO → Sub Hero Idle
 ```
 
-The player may:
+- **Manual:** highest player control and tactical value.
+- **AUTO:** removes repetitive input while the Main Player still participates.
+- **Idle:** Sub Heroes independently handle repetitive content.
 
-- Move
-- Attack
-- Use Skill
-- Use Item
+Automation reduces repetitive work without replacing the value of active progression.
 
-The intended default behavior is:
+## 3.5 Loot
 
-```text
-Move 0..MovementPoints cells
-+
-1 Action
-```
-
-Example:
-
-```text
-Movement Points = 3
-
-Player may:
-Move 2 cells
-+
-Attack
-```
-
-or:
-
-```text
-Move 3 cells
-+
-Use Item
-```
-
-The player should NOT be forced to choose between movement and action.
-
-## 3.3 Player Movement
-
-Default:
-
-```text
-MovementPoints = 3
-```
-
-Movement can later be modified by:
-
-- Equipment
-- Buffs
-- Debuffs
-- Skills
-- Special effects
-
-Movement should remain predictable and easy to understand.
-
-Movement input is a tap / click on a destination cell: the hero walks the shortest
-path to it and spends one movement point per cell. A cell outside the movement
-range of the current turn is not a destination — a tap can never move the hero
-further than the highlighted cells — and the D-pad step stays available.
-
-## 3.4 Attack
-
-A basic attack requires:
-
-- A valid target
-- Target inside attack range
-- Player has not already consumed the turn action
-
-Default melee attack:
-
-```text
-AttackRange = 1
-```
-
-Future weapons may modify:
-
-- Attack range
-- Area of effect
-- Target count
-- Damage type
-- Special attack behavior
-
-A tap / click on an enemy selects it and attacks it when it is inside the attack
-range. An enemy outside the range is only selected — the turn is not spent on a
-miss.
-
-## 3.5 Skills
-
-Skills use the same player-turn action as a basic attack: the player may move
-0..MovementPoints cells and then use one skill. The initial skill set is:
-
-```text
-Whirlwind       Four orthogonally adjacent cells around the player, 0.8x damage
-Arcane Bolt     Single target, two-cell range, 1.0x damage
-Execution       Single target, one-cell range, 1.5x damage
-```
-
-All skills start at level 0 (unlearned). Each player level-up grants one skill
-point. Spending one point learns a skill or raises its level, up to level 5.
-Each skill level increases its damage multiplier by 0.1. Whirlwind affects
-every living enemy in its four adjacent cells. Arcane Bolt and Execution use
-the currently selected enemy as their target. Skills cannot be used while
-unlearned or without a valid target, and successful skill use ends the
-player's turn.
-
-## 3.6 Damage
-
-Initial base damage:
-
-```text
-BaseDamage = AttackerPower - TargetDefense
-```
-
-Final base damage must be at least 1.
-
-Conceptually:
-
-```text
-FinalDamage =
-Max(1, BaseDamage)
-× SkillMultiplier
-× CriticalMultiplier
-× ModifierMultiplier
-```
-
-The implementation should avoid unnecessary floating-point complexity.
-
-## 3.7 Critical Hit
-
-Initial default values:
-
-```text
-CriticalChance = 5%
-CriticalDamage = 150%
-```
-
-Critical hits should have:
-
-- Distinct visual effect
-- Larger damage number
-- Sound effect
-- Short hit feedback
-
-Critical hits are one of the main combat excitement sources.
-
-## 3.8 Enemy Turn
-
-Turn flow:
-
-```text
-Player Turn
-    ↓
-Enemy AI
-    ↓
-Enemy Turn
-```
-
-Basic enemy AI:
-
-1. Find player
-2. Calculate reachable cells
-3. Move toward player
-4. Attack if target is in range
-5. Otherwise end turn
-
-MVP enemy AI should be deterministic and reliable.
-
-Complex tactical AI is not required initially.
-
-### Enemy Attack Presentation
-
-An enemy turn ends as soon as the enemy's strike is RESOLVED, so its attack
-animation is still playing when the hero's turn resumes. That overlap is
-intentional:
-
-- The hero may keep acting from the cell it stands on (attack, skill, item) while
-  the animation plays — freezing the hero there reads worse than allowing it.
-- Stepping to ANOTHER cell is blocked until the enemy's attack animation has
-  completely finished (recovery step included), so a manual move can never race
-  the enemy's swing.
-
-The movement block covers the player's own movement input (keyboard, D-pad,
-click-to-move) and free roam. The autonomous walkers (AUTO, the exit roam) keep
-their existing behavior, so auto farming never stalls on a presentation.
-
-The block never outlives the strike it describes: rebuilding the arena (a stage
-restart after a defeat, a stage advance) releases it, so the hero is always fully
-playable on a fresh stage.
+Loot stays a major source of excitement: better equipment, higher rarity, interesting
+affixes, unique effects, and build-changing combinations.
 
 ---
 
-# 4. Auto Combat
+# 4. World & Stage Structure
 
-Auto mode is a major feature.
+## 4.1 Global Stage Progression
 
-The player may toggle:
-
-```text
-MANUAL
-AUTO
-```
-
-## Manual
-
-Player controls:
-
-- Movement
-- Target selection
-- Attack
-- Skill
-- Item
-
-## Auto
-
-The system automatically:
-
-1. Selects a target
-2. Finds a path
-3. Moves toward target
-4. Attacks when possible
-5. Uses configured skills
-6. Uses healing items when required
-7. Continues until combat ends
-
-Auto mode should prioritize:
+One global stage number. Numbers never reset between regions.
 
 ```text
-Survival
->
-Target Selection
->
-Damage
->
-Movement Efficiency
+Forest: Stage 1–10
+Next Region: Stage 11+
+Later Regions: continue global numbering
 ```
 
-The player should be able to stop auto mode at any time.
+## 4.2 Stage Types
 
-Auto mode must never permanently soft-lock combat.
+| Type | Purpose |
+|---|---|
+| Combat | Main gameplay: enter an arena, defeat enemies, reach the exit |
+| Town | Safe management area: equipment, storage, skills, Sub Heroes, other progression |
+| Boss | Powerful boss encounter: higher difficulty, stronger rewards, unique mechanics |
 
-### 4.1 Game Speed
+## 4.3 Stage States
 
-Auto combat provides three selectable pacing modes:
-
-```text
-x1       0.40 seconds between automatic decisions
-x2       0.20 seconds between automatic decisions
-FASTEST  existing rapid test/debug pacing (0.05 seconds)
-```
-
-x1 is the default for normal play. Changing the mode immediately updates any
-pending automatic decision without resetting the current turn or other combat
-state. The setting only affects main-hero auto decisions; it does not change
-global engine time or unrelated systems.
-
-## 4.2 Farming Toggle
-
-FARMING (previously labelled AUTO STAGE) controls what happens after a
-cleared stage. It is off by default.
-
-```text
-FARMING ON   →  stay on the cleared stage and re-spawn its enemies so the
-                stage can be fought again (repeat farming)
-FARMING OFF  →  advance to the next stage after a clear
-```
-
-FARMING applies regardless of the AUTO toggle. When FARMING is ON, defeating
-every enemy on the current stage re-spawns that stage's enemies — AUTO keeps
-attacking it automatically (idle farming), and manual play continues on the
-same stage. No NEXT STAGE prompt appears while FARMING is on.
-
-The re-spawn happens once the last enemy's final blow has finished playing: the
-kill is decided the moment its HP reaches zero, but the wave is only rebuilt
-after its damage number and death animation are done, so a wave never resets out
-from under the enemy that just died.
-
-When FARMING is OFF a cleared stage advances to the next one through the
-**Next Stage Point** (exit). The hero must physically stand on the exit cell
-before the stage can advance:
-
-```text
-FARMING OFF + MANUAL  →  after a clear the hero free-roams; the NEXT STAGE
-                        button (to the right of END TURN) stays disabled until
-                        the hero stands on the exit cell, then it may be pressed
-                        (SPACE works the same way)
-FARMING OFF + AUTO    →  after a clear the AUTO controller walks the hero to
-                        the exit cell and auto-starts the next stage when the
-                        hero reaches it
-FARMING ON + AUTO     →  the stage re-spawns as usual; standing on the exit
-                        cell does nothing
-```
-
-### Re-entering an Already-Cleared Stage
-
-An already-cleared stage stays enterable, so the player can walk back into it
-(from the world map, or because a defeat moved the battle back one stage). When
-the stage **after** the one the player currently stands on is **already cleared**,
-that battle is a replay and the exit does not owe the player a second clear:
-
-```text
-NEXT stage (N+1) NOT cleared      →  classic rule: defeat every enemy on stage N,
-                                     then stand on the exit cell to advance
-NEXT stage (N+1) ALREADY cleared  →  during the player's own turn, standing on
-                                     the exit cell is enough: the NEXT STAGE
-                                     button is usable with enemies still standing
-```
-
-Leaving this way abandons the fight. The skipped stage is **not** recorded as
-cleared (only a real clear is recorded), and the next stage keeps the completion
-it already had. This skip is a manual decision: AUTO keeps fighting the stage it
-stands on, FARMING still means "stay on this stage", and SPACE stays bound to the
-post-clear advance (during a fight the same press ends the player's turn).
+World map stages are Locked, Ready, Current or Completed. The map communicates
+progression and navigation.
 
 ---
 
-# 5. Stage System
+# 5. Combat System
 
-The game is divided into sequential stages.
+## 5.1 Grid
 
-```text
-Stage 1
-Stage 2
-Stage 3
-...
-Stage 10
-Stage 11
-...
-```
+**11 × 7 grid**, `X: 0–10`, `Y: 0–6`. Movement is up / down / left / right only —
+diagonal movement is not allowed. Distance uses Manhattan distance.
 
-Stages increase in difficulty.
-
-The numbers are **one global counter that never resets**: stage 11 follows stage 10,
-and there is no second numbering that restarts per region. Areas (authored
-regions such as Forest) are **ranges on that counter** — Forest covers 1–10, the
-next authored area continues from 11 — so entering "the next area" means entering
-global stage 11, not "stage 1 of somewhere else". A stage number no authored area
-covers is simply a normal endless stage.
-
-Clearing a stage opens the next one on the same global chain, including across an
-area boundary (clearing 10 opens 11), and stages the player has already reached
-stay open even if a defeat moves them back.
-
-## 5.1 Hybrid Level Data
-
-The playable stage pipeline resolves a level through `LevelManager` and
-`LevelProvider`, then passes the resulting `StageDefinition` to
-`StageManager`:
+## 5.2 Stage Positions
 
 ```text
-LevelManager → LevelProvider → StageDefinition → StageManager → Battle
+Main Player start:  X = 0,  Y = 3
+Normal exit:        X = 10, Y = 3
 ```
 
-`StageEnemyEntry` references an existing `EnemyData` and stores only stage
-composition data such as count, level offset, spawn rule, and optional stat
-overrides. Fixed levels are authored as `LevelConfig` resources under
-`resources/levels/`. Levels without a fixed resource are generated from a
-`LevelTemplate` using the level ID as the procedural seed. Both paths return
-the same `StageDefinition` shape.
-
-### Stage Arena Points
-
-The combat arena is an 11-column × 7-row grid (columns `x = 0..10`, rows
-`y = 0..6`). Two fixed gate cells sit on a configured lane row (default `y = 3`,
-the 4th row of 7), one on each edge:
-
-- **Stage Starting Point** — left edge (`x = 0`). The hero is teleported here
-  whenever a **new** stage number is generated (first boot, advancing, or a
-  defeat retreat to the previous stage). FARMING re-spawn of the *same* stage
-  number does not move the hero.
-- **Next Stage Point** (exit) — right edge (`x = grid_width - 1`). The hero
-  must stand on this cell to advance (see §4.2).
-
-Both cells are derived from `StageManager.stage_gate_row` and the grid size.
-Enemies never spawn on the Starting Point (it is occupied by the hero), and any
-enemy sitting on the exit cell is gone once the stage is fully cleared, so the
-exit is always reachable after victory. While a fight is still running an enemy
-may occupy the exit cell; on a replay (see §4.2) that enemy has to be defeated
-before the hero can stand on the exit and leave.
-
-## 5.2 Normal Stage
-
-Most stages contain:
-
-- Randomized enemies
-- Random enemy positions
-- Random enemy composition
-
-Enemy level:
+## 5.3 Turn System
 
 ```text
-EnemyLevel = StageLevel + Random(-3, +3)
+Player Turn → Enemy Turn → Player Turn → ...
 ```
 
-Enemy level must not fall below 1.
+A player turn provides **3 Movement Points + 1 Action**. Actions are Attack, Skill or
+Item. Movement never consumes the Action.
 
-Example:
+## 5.4 Movement
+
+The Main Player cannot move through enemies or blocked / occupied cells. Two modes:
+
+- **Destination movement** — select a reachable destination; the shortest valid path
+  within available Movement Points is used.
+- **Direct movement** — one cell at a time via directional controls, for precise
+  positioning.
+
+## 5.5 Basic Attack
+
+Default range: **1 cell**. An enemy outside range may still be selected; selecting an
+unreachable enemy does not consume the Action.
+
+## 5.6 Damage
 
 ```text
-Stage = 20
-
-Possible enemy levels:
-17
-18
-19
-20
-21
-22
-23
+Max(1, Attack - Defense)
 ```
 
-Recommended weighted distribution:
+Skills and modifiers multiply the resulting damage.
+
+## 5.7 Critical Hits
 
 ```text
-StageLevel       40%
-StageLevel -1    15%
-StageLevel +1    15%
-StageLevel -2    10%
-StageLevel +2    10%
-StageLevel -3     5%
-StageLevel +3     5%
+Critical Chance: 5%
+Critical Damage: 150%
 ```
 
-This keeps most enemies close to the intended stage difficulty.
+Critical hits need stronger visual and audio feedback.
 
 ---
 
-# 6. Mini Boss Stages
+# 6. Skills
 
-Every 10th stage contains a guaranteed Mini Boss.
+Each skill has a range, an area, a damage multiplier, a possible special behavior, and a
+skill level.
 
 ```text
-10
-20
-30
-40
-50
-...
+Level 0 = Unlearned
+Maximum Level = 5
 ```
 
-Mini Boss stages should:
+Each Main Player level-up grants **1 Skill Point**. Each skill level adds **+0.1** to the
+damage multiplier.
 
-- Have stronger enemies
-- Have a named Mini Boss
-- Use a unique encounter configuration
-- Guarantee high-value loot
-
-Mini Boss encounters should not feel like normal enemies with more HP.
-
-Each Mini Boss should have at least one special mechanic.
-
-Examples:
-
-- Area attack
-- Summon minions
-- Enrage
-- High mobility
-- Poison
-- Reduced damage from frontal attacks
-- Counter attack
+| Skill | Targeting | Range | Base multiplier |
+|---|---|---|---|
+| Whirlwind | Area: four orthogonally adjacent cells | 1 | 0.8× |
+| Arcane Bolt | Single target | 2 | 1.0× |
+| Execution | Single target | 1 | 1.5× |
 
 ---
 
-# 7. Special Encounters
+# 7. Enemy System
 
-After each stage there is a low chance of a special encounter.
+## 7.1 Enemy AI
 
-Possible encounters:
-
-- Special Monster
-- Elite Monster
-- Treasure Monster
-- Rare Monster
-- Random Mini Boss
-- Gold Monster
-- Cursed Monster
-
-Default special encounter chance:
+Predictable and reliable beats clever:
 
 ```text
-3%
+1. Find Main Player
+2. Determine reachable cells
+3. Move toward Main Player
+4. Attack if in range
+5. End Turn
 ```
 
-Use bad-luck protection.
+Complexity must not come at the expense of reliability.
 
-After each unsuccessful roll:
+## 7.2 Enemy Design
+
+Variety comes from HP, attack, defense, movement, range, skills and special mechanics.
+Higher stages introduce mechanics, not only larger stats.
+
+## 7.3 Enemy Scaling
 
 ```text
-SpecialChance += 1%
+HP      ×1.20 per stage
+Attack  ×1.16 per stage
+Defense ×1.15 per stage
+Gold    ×1.18 per stage
 ```
 
-After a special encounter occurs:
+Individual enemy stats may vary approximately **±15 %**.
+
+## 7.4 Enemy Levels
 
 ```text
-SpecialChance = 3%
+Current stage: 40%
+±1 stage:      15%
+±2 stages:     10%
+±3 stages:      5%
 ```
 
-Recommended cap:
+## 7.5 Enemy Count
+
+Early stages hold 1 enemy; later stages add more, up to **4** in a normal encounter.
+Count must stay readable on the portrait battlefield.
+
+## 7.6 Mini Bosses
+
+Every 10th stage contains a guaranteed Mini Boss that introduces mechanics rather than
+larger numbers — for example Area Attacker, Summoner, Enrager.
+
+## 7.7 Special Encounters
 
 ```text
-MaxSpecialChance = 15%
+Base chance:      3%
+After a failure:  +1%
+Maximum:          15%
 ```
 
-## 7.1 Random Mini Boss
-
-A random Mini Boss may appear on any non-guaranteed stage.
-
-The random Mini Boss level may range from:
-
-```text
-Minimum unlocked stage
-        ↓
-Current stage
-```
-
-Example:
-
-```text
-Current Stage = 100
-
-Random Mini Boss Level:
-1..100
-```
-
-The probability distribution should favor enemies closer to the current stage while still allowing older boss types to appear.
-
-Recommended:
-
-```text
-80%:
-CurrentStage - 20 .. CurrentStage
-
-20%:
-1 .. CurrentStage - 21
-```
-
-Clamp to valid stage range.
-
-## 7.2 High-Value Loot
-
-Special Monsters and Mini Bosses should provide significantly better loot opportunities.
-
-Mini Boss:
-
-```text
-Guaranteed:
-High-quality equipment
-```
-
-Recommended minimum rarity:
-
-```text
-Rare+
-```
-
-A special Mini Boss may use:
-
-```text
-Epic+
-```
-
-Legendary should remain uncommon.
-
-Do not guarantee Legendary on every Mini Boss.
+Special encounters create unusual situations and different / better rewards.
 
 ---
 
-# 8. Enemy Scaling
+# 8. Player Progression
 
-Enemy HP should scale exponentially with stage.
+Main Player progression: Level, EXP, Equipment, Skills, Affixes, Unique effects.
+Equipment remains the primary long-term power source.
 
-The design philosophy borrows from Clicker Heroes: continuously compounding growth creates progression walls and power spikes. The exact formula is intentionally customized for this game.
+## 8.1 Character Level
 
-Recommended initial formula:
+Core stats: HP, Attack, Defense, Movement, Attack Range, Critical Chance, Critical
+Damage, Dodge, Life Steal.
 
-```text
-EnemyHP(stage, enemyBaseHP) =
-enemyBaseHP × HPGrowthRate^(stage - 1)
-```
+Level-up provides an HP increase, an Attack increase, a Defense increase, and a Skill
+Point.
 
-Initial target:
-
-```text
-HPGrowthRate = 1.20
-```
-
-This value is configurable.
-
-Recommended starting values:
+## 8.2 EXP
 
 ```text
-HP Growth       = 1.20
-Attack Growth   = 1.16
-Defense Growth  = 1.15
+EXP requirement: 100 × 1.15^(Level - 1)
+
+EnemyEXP = BaseEXP
+         × EnemyLevelMultiplier
+         × EnemyTypeMultiplier
+         × 1.15^(Stage - 1)
 ```
 
-These are tuning values, not permanent constants.
+**EXP rewards grow with stage and enemy level.** Player levelling must not stall while
+enemy power keeps compounding.
 
 ---
 
-# 9. Player Progression
+# 9. Equipment & Loot
 
-Player power comes primarily from:
+## 9.1 Slots
 
-1. Equipment
-2. Level
-3. Permanent progression
+Weapon, Helmet, Armor, Gloves, Boots, Ring, Amulet.
 
-Equipment should be the most exciting source of power.
+## 9.2 Rarity
 
-Player power should NOT increase at exactly the same rate as enemy power.
+Common, Uncommon, Rare, Epic, Legendary, Mythic.
 
-Intended pattern:
-
-```text
-Enemy gradually becomes stronger
-        ↓
-Player struggles
-        ↓
-New equipment
-        ↓
-Large power increase
-        ↓
-Player temporarily overpowers enemies
-        ↓
-New difficulty wall
-        ↓
-Repeat
-```
-
-A good item should be capable of noticeably changing progression speed.
-
----
-
-# 10. Player Stats
-
-MVP stats:
-
-```text
-Level
-EXP
-HP
-Attack
-Defense
-Critical Chance
-Critical Damage
-Movement
-Attack Range
-Dodge
-Life Steal
-```
-
-Possible future stats:
-
-```text
-Attack Speed
-Armor Penetration
-Elemental Damage
-Damage vs Elite
-Damage vs Boss
-Healing Received
-Status Effect Chance
-Status Effect Duration
-```
-
-Do not implement all future stats during MVP.
-
----
-
-# 11. Experience
-
-Experience is rewarded from enemies.
-
-Recommended concept:
-
-```text
-EnemyEXP =
-BaseEXP
-× EnemyLevelMultiplier
-× EnemyTypeMultiplier
-```
-
-Example:
-
-```text
-EnemyLevelMultiplier =
-1 + (EnemyLevel - 1) × 0.10
-```
-
-Bosses and special enemies should have substantially higher EXP rewards.
-
-## 11.1 Player Level Formula
-
-Recommended initial level requirement:
-
-```text
-EXPToNextLevel =
-100 × 1.15^(Level - 1)
-```
-
-Player level should provide moderate power growth.
-
-On level up:
-
-```text
-+BaseHP
-+BaseAttack
-+BaseDefense
-```
-
-Equipment should remain the most exciting source of power.
-
----
-
-# 12. Gold
-
-Gold is a secondary progression currency.
-
-Gold can be earned from:
-
-- Normal enemies
-- Elite enemies
-- Special enemies
-- Mini Bosses
-
-Recommended scaling:
-
-```text
-Gold =
-BaseGold × 1.18^(Stage - 1)
-```
-
-The first MVP may only display and collect Gold.
-
----
-
-# 13. Equipment System
-
-Equipment is the primary reward system.
-
-MVP equipment slots:
-
-```text
-Weapon
-Helmet
-Armor
-Gloves
-Boots
-Ring
-Amulet
-```
-
----
-
-# 14. Equipment Rarity
-
-Initial rarity tiers:
-
-```text
-Common
-Uncommon
-Rare
-Epic
-Legendary
-Mythic
-```
-
-Rarity affects:
-
-- Number of affixes
-- Affix strength
-- Chance of special effects
-- Visual appearance
-- Equipment score
-
----
-
-# 15. Equipment Affixes
-
-Initial affixes:
-
-```text
-Attack
-Defense
-HP
-Critical Chance
-Critical Damage
-Dodge
-Movement
-Attack Range
-Life Steal
-Damage vs Elite
-Damage vs Boss
-```
-
-Affix strength depends on:
-
-```text
-EquipmentLevel
-EquipmentRarity
-AffixType
-```
-
-Use weighted random generation.
-
-Avoid completely uncontrolled random values that produce impossible or consistently useless items.
-
----
-
-# 16. Equipment Affix Count
-
-Suggested starting model:
-
-```text
-Common:
-1 affix
-
-Uncommon:
-2 affixes
-
-Rare:
-3 affixes
-
-Epic:
-4 affixes
-
-Legendary:
-5 affixes
-+
-chance of unique effect
-
-Mythic:
-5+ affixes
-+
-guaranteed unique effect
-```
-
-Exact values can be tuned through playtesting.
-
----
-
-# 17. Unique Equipment Effects
-
-Some high-rarity equipment can contain unique effects.
-
-Initial examples:
-
-```text
-Every 3rd attack deals +100% damage.
-```
-
-```text
-Critical attacks restore 5% HP.
-```
-
-```text
-Moving at least 2 cells before attacking increases damage by 75%.
-```
-
-```text
-Attacking from behind deals +100% damage.
-```
-
-```text
-Attacking a poisoned enemy deals +50% damage.
-```
-
-Unique effects should interact with grid and turn-based combat.
-
----
-
-# 18. Build Archetypes
-
-The equipment system should gradually support different builds.
-
-Example builds:
-
-## Berserker
-
-Focus:
-
-```text
-High Attack
-High Critical Damage
-```
-
-## Assassin
-
-Focus:
-
-```text
-Critical Chance
-Dodge
-Movement
-Back Attack
-```
-
-## Vampire
-
-Focus:
-
-```text
-Life Steal
-HP
-Critical
-Melee
-```
-
-## Poison
-
-Focus:
-
-```text
-Poison
-Damage over Time
-Movement
-Kiting
-```
-
-## Ranged
-
-Focus:
-
-```text
-Attack Range
-Projectile Damage
-Movement
-```
-
-Builds should emerge naturally from equipment rather than being locked to a rigid class system in the MVP.
-
----
-
-# 19. Loot Generation
-
-Normal enemies should have a chance to drop equipment.
-
-Initial conceptual distribution:
+Normal drop weights:
 
 ```text
 Common     60%
@@ -1039,531 +329,302 @@ Uncommon   25%
 Rare       10%
 Epic        4%
 Legendary   1%
+Mythic      special sources only
 ```
 
-These values are starting values and must be tuned through playtesting.
+Higher rarity means stronger stat potential and better build opportunities.
 
-Special enemies and Mini Bosses should use significantly better loot tables.
+## 9.3 Affixes
 
-Loot chance may depend on:
+Attack, Defense, HP, Critical Chance, Critical Damage, Movement, Attack Range, Dodge,
+Life Steal, Damage against Elite, Damage against Boss.
+
+## 9.4 Unique Effects
+
+| Effect | Behavior |
+|---|---|
+| Combo | Every third attack deals increased damage |
+| Critical Heal | Critical attacks restore HP |
+| Momentum | Moving at least two cells before attacking increases damage |
+| Back Attack | Attacking from behind increases damage |
+| Poison Execution | Attacking poisoned enemies increases damage |
+
+Unique effects exist to enable different builds.
+
+## 9.5 Loot Rewards
+
+Combat may reward equipment, EXP, gold and potions. Target equipment drop rates:
 
 ```text
-EnemyType
-EnemyLevel
-Stage
-Boss status
-Special encounter
+Normal Enemy:       25%
+Elite:              50%
+Special Encounter:  75%
+Mini Boss:         100%
 ```
+
+A successful equipment roll may instead produce a consumable such as a potion.
+
+## 9.6 Loot Presentation
+
+Item information shown: name, slot, rarity, main stats, affixes, unique effects, and a
+comparison with the equipped item. Actions: Equip, Keep, Sell, Discard.
+
+Comparison must not rely exclusively on Power Score.
+
+## 9.7 Inventory
+
+The player has equipment slots, a limited inventory, and long-term storage. Storage is
+for rare equipment, build-specific equipment, future-use equipment and unusual items.
 
 ---
 
-# 20. Loot Philosophy
+# 10. Sub Heroes
 
-The game should contain both:
+Sub Heroes are secondary combat characters operating automatically during combat and are
+never directly controlled. Up to **3** Sub Heroes.
 
-```text
-Frequent small rewards
-```
+| Role | Purpose |
+|---|---|
+| DPS | Damage, faster farming, long-term autonomous combat |
+| Assist | Buffs the Main Player, utility, support builds |
 
-and:
+## 10.1 Progression
 
-```text
-Rare exciting rewards
-```
-
-Normal combat:
-
-```text
-Gold
-EXP
-Common/Uncommon equipment
-```
-
-Elite:
+Sub Heroes have quality, level, combat power, attack behavior, equipment / build
+potential, and idle capability.
 
 ```text
-Uncommon/Rare
+Common:     70%
+Rare:       25%
+Legendary:   5%
 ```
 
-Special:
+Duplicates contribute to progression — for example **3 duplicate copies → +1 Level**.
 
-```text
-Rare/Epic
-```
+## 10.2 DPS Sub Hero Philosophy
 
-Mini Boss:
-
-```text
-Rare+
-```
-
-Legendary should remain rare enough to create excitement.
+A DPS Sub Hero requires meaningful investment (equipment, levels, build optimization,
+progression) before becoming a reliable autonomous fighter. The reward is autonomous
+farming capability.
 
 ---
 
-# 21. Equipment Comparison
+# 11. Automation: AUTO / Farming / Idle
 
-When an item drops, the UI should immediately compare it against the currently equipped item.
+## 11.1 AUTO
 
-Example:
-
-```text
-Epic Sword
-
-Attack      154   ▲29
-Crit         12%  ▲4%
-
-Overall Power:
-+14.7%
-```
-
-Possible actions:
+AUTO controls the Main Player automatically: target selection, pathfinding, movement,
+attack, skill usage, healing item usage.
 
 ```text
-Equip
-Keep
-Sell
-Discard
+Priority
+1. Survival
+2. Target selection
+3. Damage
+4. Movement efficiency
 ```
 
-The comparison UI must be easy to understand.
+AUTO provides convenience without always outperforming a skilled player.
 
-Do not rely solely on an overall power score; show actual stat differences.
+Target speeds, **x1 default**:
+
+```text
+x1:       0.40s
+x2:       0.20s
+FASTEST:  0.05s
+```
+
+Speed affects Main Player AUTO decision timing.
+
+## 11.2 Farming Mode
+
+FARMING and AUTO are separate toggles:
+
+- **FARMING ON** — stay on the cleared stage, respawn its enemies and repeat farming,
+  with or without AUTO.
+- **FARMING OFF + AUTO** — walk to the exit and advance to the next stage.
+- **FARMING OFF + manual** — the player walks to the exit and advances.
+
+Farming is how a conquered stage is converted into repeatable income.
+
+## 11.3 Replay
+
+Previously completed stages can be replayed for rewards. If the next stage is already
+completed, the player may leave through the exit even while enemies remain. Old content
+must not become unnecessarily tedious.
+
+## 11.4 Defeat
+
+When the Main Player is defeated, the player retreats according to progression rules,
+long-term progression is preserved, and play can continue.
 
 ---
 
-# 22. Loot Presentation
+# 12. Idle & Farming Evaluation
 
-Loot should not instantly disappear into inventory.
+## 12.1 Idle Power
 
-Flow:
+Idle Power is an internal / explanatory metric for a Sub Hero's autonomous combat
+strength, based on DPS, survivability, sustain, automation efficiency and build quality.
 
 ```text
-Enemy Dies
+Sub Hero Build
     ↓
-Item Drops
+DPS / Survivability / Sustain / Automation Efficiency
     ↓
-Glow / Animation
+Idle Power
     ↓
-Rarity Reveal
+Stage Evaluation
     ↓
-Stats Display
-    ↓
-Comparison
+Idle Capability
 ```
 
-Legendary and Mythic items should have stronger presentation through:
+Idle Power does **not** directly equal a stage number.
 
-- Glow
-- Particle
-- Sound
-- Screen feedback
-- Special item frame
-- Item reveal animation
+## 12.2 Idle Capability
 
-Loot presentation is part of the gameplay loop.
+Idle Capability is evaluated against specific stage conditions, producing two results:
 
----
-
-# 23. Stage Rewards
-
-At stage completion:
+- **Stable Farming Stage** — the highest stage the Sub Hero repeatedly clears with high
+  reliability.
+- **Maximum Push Stage** — the highest stage it can potentially defeat, with lower
+  success rate, longer combat, lower efficiency and higher failure risk.
 
 ```text
-EXP
-Gold
-Equipment
+Stable Farming Stage ≤ Maximum Push Stage
 ```
 
-Display a summary:
+## 12.3 Farming Efficiency
+
+Farming quality considers success rate, battle duration, recovery time, resource
+consumption, reward value, and battles completed over time.
 
 ```text
-LEVEL CLEAR
-
-Gold      +12,540
-EXP       +2,314
-
-Loot:
-Rare Sword
-Epic Armor
-Legendary Ring
+Farming Efficiency = Success Rate × Reward / Time
 ```
 
-Highlight:
+The highest stage is not necessarily the best farming stage.
 
-```text
-NEW BEST ITEM
-```
+## 12.4 Recommended Farming Stage
 
-when appropriate.
+The recommendation depends on the current farming objective — EXP, gold, equipment or
+other resources — so it does not necessarily equal the highest Stable Farming Stage.
 
----
+## 12.5 Idle AI
 
-# 24. Death
+Automation capability improves through AI tiers:
 
-If the player dies:
+| Tier | Capability |
+|---|---|
+| 1 | Basic attack + target selection |
+| 2 | Active skill usage + basic rotation |
+| 3 | Improved rotation, target selection, basic adaptation |
+| 4 | Resource management, automatic healing, advanced decisions |
+| 5 | Complete Idle AI: efficient rotation, enemy-aware decisions |
 
-```text
-Defeat
-```
-
-The game should allow an MVP-friendly retry flow.
-
-On defeat the player retreats to the previous stage. If AUTO combat was enabled
-before the defeat, it stays enabled and resumes automatically on that stage.
-
-Avoid heavy punishment until the core game loop is proven fun.
+AI Tier is one component of Idle Power and must not completely determine Idle Capability.
 
 ---
 
-# 25. Difficulty Philosophy
+# 13. Town, Gold & Persistent Progression
 
-The intended rhythm is:
+## 13.1 Town
 
-```text
-Easy Progression
-    ↓
-Increasing Challenge
-    ↓
-Difficulty Wall
-    ↓
-Loot Upgrade
-    ↓
-Power Spike
-    ↓
-Fast Progression
-    ↓
-New Difficulty Wall
-```
+Town is a safe management area for equipment, storage, skills, Sub Heroes and other
+progression systems.
 
-The player should not feel permanently stuck.
+## 13.2 Gold
+
+Gold is a progression currency used for Sub Hero summons, Sub Hero progression, town
+services and other progression systems.
+
+## 13.3 Persistent Progression
+
+These persist between sessions: Main Player level, EXP, gold, skills, equipment,
+inventory, storage, Sub Heroes, Sub Hero progression, stage progression, important
+unlocks.
+
+**Long-term character development must never be reset by a normal session restart.**
 
 ---
 
-# 26. Visual Direction
+# 14. Build, Difficulty & Mobile Direction
 
-## Overall Style
+## 14.1 Build Philosophy
 
-Dark fantasy / Gothic ARPG.
+Multiple viable builds should exist:
 
-The UI may take high-level inspiration from dark fantasy action RPG inventory design, but must not directly copy copyrighted artwork or proprietary UI assets.
+| Build | Focus |
+|---|---|
+| Critical | Critical Chance, Critical Damage, single-target damage |
+| Mobility | Movement, positioning, Momentum |
+| Sustain | HP, Defense, Life Steal, healing |
+| Range | Attack Range, ranged skills, position control |
+| Execution | Single-target damage, Elite/Boss damage, finishing weakened enemies |
+| Idle Sustain | Survivability, sustain, automation reliability, farming stability |
 
-Target qualities:
+Idle optimization must not simply mean maximizing DPS.
 
-- Dark
-- Heavy
-- Medieval
-- Metallic
-- Gothic
-- High contrast
-- Premium-looking
-- Strong rarity presentation
+## 14.2 Difficulty
 
-## UI Direction
+Difficulty increases through enemy stats, count, variety and mechanics, elites, Mini
+Bosses, bosses and stage composition. Avoid relying exclusively on stat inflation.
 
-Use:
+Desired player reaction:
 
-- Dark stone / metal frames
-- Gold accents
-- Dark backgrounds
-- Heavy fantasy typography
-- Strong rarity hierarchy
-- Clear readable icons
+> I need a better build or better strategy.
 
-Suggested hierarchy:
+## 14.3 Player Decisions
 
-```text
-HP / Resource
-Stage
-Combat Area
-Enemy Information
-Action Buttons
-Equipment
-Loot
-Auto Mode
-```
+Attack or reposition? Basic attack or skill? Which enemy to kill first? Move closer or
+stay safe? Which equipment to use? Keep or discard unusual equipment? Push or farm?
+Invest in the Main Player or in a Sub Hero? Optimize DPS or stability? Which stage gives
+the best farming efficiency?
 
-The UI must remain readable on small displays.
+## 14.4 Mobile UX
 
----
+Prioritize large touch targets, clear enemy selection, clear reachable cells, simple
+skill buttons, readable damage numbers, strong combat feedback, minimal unnecessary text,
+clear stage progression, and clear AUTO / Farming / Idle status.
 
-# 27. Combat UI
+## 14.5 Visual Direction
 
-Required:
-
-```text
-Player HP
-Enemy HP
-Stage
-Current Turn
-Movement Points
-Action availability
-Attack button
-Item button
-Auto button
-```
-
-Optional future:
-
-```text
-Buffs
-Debuffs
-Cooldowns
-Combat log
-```
+**Dark Fantasy + Pixel Art**: gothic / medieval, strong silhouettes, high contrast,
+dramatic lighting, pixel-art characters, environments and combat effects, strong rarity
+presentation. All UI and assets must feel visually consistent.
 
 ---
 
-# 28. Damage Feedback
-
-Damage numbers should communicate:
-
-```text
-Normal Damage
-Critical Damage
-Healing
-Poison Damage
-```
-
-Critical damage should visually stand out from normal damage.
-
----
-
-# 29. Randomness Philosophy
-
-Randomness should create excitement, not frustration.
-
-Use:
-
-- Weighted random
-- Controlled rarity distribution
-- Bad-luck protection
-- Stage-aware loot
-- Enemy level variance
-- Special encounter chance
-
-Avoid completely uncontrolled RNG.
-
----
-
-# 30. MVP Scope
-
-The first playable version should contain only:
-
-## Combat
-
-- Grid
-- Player movement
-- Enemy movement
-- Turn system
-- Basic attack
-- Damage
-- HP
-- Death
-
-## Progression
-
-- Stage number
-- Stage scaling
-- Enemy levels
-- Mini Boss every 10 stages
-- Special encounter chance
-
-## Loot
-
-- Equipment
-- Rarity
-- Random affixes
-- Equipment slots
-- Equipment comparison
-- Equip / discard
-
-## Progression Rewards
-
-- EXP
-- Level
-- Gold
-
-## Auto
-
-- Auto movement
-- Auto targeting
-- Auto attack
-- Auto continue
-
-## UI
-
-- Combat UI
-- Inventory
-- Equipment comparison
-- Loot popup
-- Stage result
-- Dark fantasy visual direction
-
----
-
-# 31. Non-MVP Features
-
-Do not implement initially:
-
-- PvP
-- Multiplayer
-- Guild
-- Trading
-- Complex crafting
-- Socket system
-- Gems
-- Set equipment
-- Massive skill tree
-- Multiple currencies
-- Complex quest system
-- Multiple playable characters
-- Complex online account system
-
-These may be added after the core loop is proven fun.
-
----
-
-# 32. Design Priorities
-
-Priority order:
-
-1. Combat feels responsive
-2. Loot is exciting
-3. Equipment comparison is easy
-4. Character becomes visibly stronger
-5. Stage progression feels rewarding
-6. Special encounters feel surprising
-7. Auto mode works reliably
-8. Build diversity develops naturally
-9. UI looks premium
-10. Advanced systems come later
-
----
-
-# 33. Golden Rule
-
-The game should create the feeling:
-
-> "I will play one more stage because there might be a better item."
-
-The repeating loop is:
-
-```text
-Fight
-→ Drop
-→ Inspect
-→ Upgrade
-→ Power Spike
-→ Next Stage
-```
-
-This loop is more important than secondary systems.
-
-# Platform & Screen Layout
-
-## Primary Platform
-
-The game is designed primarily for **mobile devices in portrait orientation**.
-
-### Platform Priority
-
-1. Mobile Portrait — **Primary**
-2. Tablet Portrait — Secondary
-3. Desktop — Development / Debugging only
-
-Desktop landscape is **not** the primary target and must not drive UI or gameplay layout decisions.
-
-## Orientation
-
-* Default orientation: **Portrait**
-* Primary aspect ratio: **9:16**
-* Must also support common modern mobile ratios such as:
-
-    * 9:19.5
-    * 9:20
-    * 9:21
-* Never assume a fixed physical screen resolution.
-* UI must adapt to different portrait resolutions and aspect ratios.
-
-## Godot Configuration
-
-Godot project settings must use portrait-oriented display settings.
-
-The project should be configured so that running the game starts in a portrait window.
-
-Do not change the project to landscape orientation unless explicitly requested.
-
-## UI Design Rules
-
-All UI must be designed for a portrait mobile screen.
-
-### Layout
-
-* Use responsive Godot Containers where appropriate.
-* Avoid hard-coded absolute positions for important UI elements.
-* Keep critical controls within comfortable thumb-reach areas.
-* Do not place important information only at the extreme top or bottom edges.
-* Respect mobile safe areas and screen cutouts where applicable.
-* UI must remain usable on narrow portrait screens.
-
-### Interaction
-
-The primary interaction model is:
-
-* Touch
-* Tap
-* Drag where required
-* Short touch interactions
-
-Mouse and keyboard input may be supported for development/debugging, but must not determine the primary interaction design.
-
-## Gameplay Layout
-
-Gameplay must be designed around the portrait viewport.
-
-For the grid-based turn-based RPG:
-
-* The gameplay grid must remain clearly visible in portrait mode.
-* Combat UI must not require landscape orientation.
-* Player/enemy information should be readable without covering the main gameplay area.
-* Action buttons should be positioned for comfortable mobile touch interaction.
-* Important combat actions should remain accessible without excessive scrolling.
-
-## Responsive Layout Requirements
-
-When implementing a new screen, scene, HUD, menu, popup, or gameplay UI, the Agent must consider:
-
-1. Portrait viewport size.
-2. Different mobile aspect ratios.
-3. Touch target size.
-4. Safe areas.
-5. UI readability.
-6. Available gameplay area.
-
-Do not optimize a screen for desktop first and then attempt to squeeze it into portrait mode.
-
-The implementation should be **mobile-first and portrait-first**.
-
-## Development Rule
-
-When implementing or modifying UI:
-
-> **Always treat Mobile Portrait as the source of truth.**
-
-If a design works on desktop but does not work well on a portrait mobile screen, the implementation is considered incorrect.
-
-Desktop support is only for development convenience and must not compromise the mobile portrait experience.
-
-## Agent Acceptance Criteria
-
-Before considering a UI-related task complete, verify:
-
-* [ ] Desktop testing does not replace mobile portrait testing.
-* [ ] Game runs in portrait orientation.
-* [ ] UI is usable at 9:16.
-* [ ] UI does not break on taller portrait screens.
-* [ ] No important UI element is clipped.
-* [ ] Touch targets are large enough for mobile interaction.
-* [ ] Gameplay remains clearly visible.
-* [ ] No landscape-only assumption exists in the implementation.
+# 15. Priority & Design Red Lines
+
+## 15.1 Feature Priority
+
+**Tier 1 — Core Gameplay:** grid combat, Main Player, equipment, loot, stage progression,
+enemy variety, skills.
+
+**Tier 2 — Long-Term Progression:** Sub Heroes, AUTO, farming, idle capability, Mini
+Bosses, world map, town.
+
+**Tier 3 — Expansion:** more builds, regions, bosses, unique effects, stage events,
+idle-specific progression.
+
+New features must reinforce Tier 1.
+
+## 15.2 Design Red Lines
+
+1. Equipment is the primary long-term progression system.
+2. The Main Player remains the primary active character.
+3. Grid-based turn-based combat remains the core gameplay.
+4. Manual gameplay remains meaningful.
+5. AUTO reduces repetitive input but does not replace the Main Player.
+6. Sub Heroes provide secondary power and autonomous progression.
+7. DPS Sub Heroes can eventually become independent farming units.
+8. Idle Power does not directly equal a stage number.
+9. Stable Farming and Maximum Push are the important player-facing results, not Idle
+   Power.
+10. Idle evaluation considers DPS, survivability, sustain and automation efficiency.
+11. Farming should be stable and efficient.
+12. Stage pushing should provide progression and discovery.
+13. Long-term progression persists.
+14. Higher stages introduce gameplay challenges, not only larger numbers.
+15. New systems must reinforce the core gameplay loop.

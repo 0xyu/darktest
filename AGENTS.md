@@ -19,7 +19,9 @@ This is a Godot 4.x 2D dark-fantasy RPG focused on:
 Read these documents before making gameplay changes:
 
 - `README.md`
-- `docs/game-design.md`
+- `docs/game-design.md` — design intent
+- `docs/gameplay-spec.md` — exact rules, formulas and tuning values
+- `docs/implementation-status.md` — what the current build does, and its gaps
 
 ---
 
@@ -255,7 +257,7 @@ Default movement points:
 3
 ```
 
-Do not change these rules unless `docs/game-design.md` is updated.
+Do not change these rules unless `docs/gameplay-spec.md` is updated.
 
 ---
 
@@ -349,4 +351,6 @@ Update documentation only when a design or architecture decision materially chan
 
 Do not rewrite documentation for minor implementation details.
 
-`docs/game-design.md` is the source of truth for gameplay rules.
+`docs/gameplay-spec.md` is the source of truth for gameplay rules.
+`docs/game-design.md` holds design intent; `docs/implementation-status.md` records what
+the current build actually does and every deviation from the spec.
