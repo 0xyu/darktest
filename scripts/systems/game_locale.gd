@@ -27,10 +27,13 @@ const _STRINGS := {
 	"log.stage_clear": {"en": "Stage {stage} cleared", "zh_Hant": "第 {stage} 關 通關"},
 	"log.player_defeated": {"en": "Player defeated", "zh_Hant": "玩家被擊敗"},
 	"log.enemy_summoned": {"en": "{name} summoned reinforcements", "zh_Hant": "{name} 召喚了援軍"},
+	"log.enemy_stunned": {"en": "{name} is stunned", "zh_Hant": "{name} 被暈眩"},
+	"log.potion_used": {"en": "Potion used — turn ended", "zh_Hant": "使用了藥水 — 結束回合"},
 	"fx.miss": {"en": "MISS", "zh_Hant": "未命中"},
 	"fx.dodge": {"en": "DODGE", "zh_Hant": "閃避"},
 	"fx.block": {"en": "BLOCK", "zh_Hant": "格擋"},
 	"fx.critical": {"en": "CRIT", "zh_Hant": "暴擊"},
+	"fx.stun": {"en": "STUNNED", "zh_Hant": "暈眩"},
 }
 
 ## Localized display names for the enemy resources shipped with the project.

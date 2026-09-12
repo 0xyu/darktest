@@ -10,6 +10,9 @@ const StageProgressSaveScript = preload("res://scripts/progress/stage_progress_s
 ## The battlefield spans the full screen width up to this cap (the base 720px
 ## design width), so it stays a sane size on very wide windows or devices.
 const MAX_GRID_WIDTH: float = 720.0
+## §4: one wording for a refused attack, so the HUD button and a grid click explain
+## the same refusal the same way.
+const ATTACK_REFUSED_REASON: String = "no enemy in attack range"
 
 @onready var grid: GridMap2D = $Grid
 @onready var dungeon_background: Sprite2D = $DungeonBackground
@@ -87,6 +90,9 @@ func _ready() -> void:
 	player.selection_changed.connect(_on_selection_changed)
 	player.equipment_effect_triggered.connect(_on_equipment_effect_triggered)
 	player.sub_hero_slots_changed.connect(_on_sub_hero_slots_changed)
+	# §7: a potion drunk from the bag is a real combat action, and the turn belongs to
+	# this host, so the inventory popup never has to know about the turn manager.
+	player.item_used.connect(_on_player_item_used)
 	# A Sub Hero kill takes the same path as the player's own kill, so it awards
 	# the same EXP, gold and loot.
 	sub_hero_combat_manager.attach_combat_system(combat_system)
@@ -377,7 +383,14 @@ func _get_living_enemy_at(cell: Vector2i) -> EnemyController:
 func _on_hud_attack_requested() -> void:
 	if turn_manager.get_phase() != TurnState.PLAYER_TURN or not player.is_input_enabled():
 		return
-	player.attack_requested.emit(player, player.get_target())
+	var target: Node = player.get_target()
+	# §4: the ATTACK button refuses an impossible attack exactly like a click on a
+	# distant enemy does, so it can never resolve a miss that eats the turn.
+	if target == null or combat_system == null or not combat_system.can_attack(player, target):
+		_last_move_text = "Attack refused: %s" % ATTACK_REFUSED_REASON
+		queue_redraw()
+		return
+	player.attack_requested.emit(player, target)
 
 
 func _on_hud_skill_requested(skill_id: StringName) -> void:
@@ -404,6 +417,28 @@ func _on_hud_item_requested() -> void:
 func _on_hud_end_turn_requested() -> void:
 	if turn_manager.get_phase() == TurnState.PLAYER_TURN:
 		turn_manager.complete_player_turn()
+
+
+## §7: using a potion from the bag costs the action and ends the turn, exactly like
+## the HUD potion button. Outside the player's combat turn (in town, or while an
+## enemy acts) it is a plain heal with no turn to spend.
+func _on_player_item_used(_item: EquipmentInstance, _amount_healed: int) -> void:
+	if turn_manager.get_phase() != TurnState.PLAYER_TURN:
+		return
+	_last_move_text = "Used a potion — turn ended"
+	hud.log_event("log.potion_used", {})
+	turn_manager.complete_player_turn()
+	queue_redraw()
+
+
+## §12 Stun: a stunned enemy loses its turn; say so rather than leaving the player
+## to wonder why nothing happened.
+func _on_enemy_stunned_turn_skipped(enemy: EnemyController) -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		return
+	_last_move_text = "%s is stunned — turn skipped" % enemy.get_display_name()
+	hud.log_event("log.enemy_stunned", {"name": enemy.get_display_name()})
+	queue_redraw()
 
 
 func _on_hud_next_stage_requested() -> void:
@@ -825,6 +860,9 @@ func _register_enemy(enemy: EnemyController) -> void:
 	combat_system.connect_actor(enemy)
 	if enemy.has_signal("moved") and not enemy.moved.is_connected(_on_enemy_moved):
 		enemy.moved.connect(_on_enemy_moved)
+	# §12 Stun: an enemy that loses its turn says so, instead of looking idle.
+	if not enemy.stunned_turn_skipped.is_connected(_on_enemy_stunned_turn_skipped):
+		enemy.stunned_turn_skipped.connect(_on_enemy_stunned_turn_skipped)
 	if enemy.has_signal("attack_requested") and not enemy.attack_requested.is_connected(_on_enemy_attack_requested):
 		enemy.attack_requested.connect(_on_enemy_attack_requested)
 
@@ -909,10 +947,18 @@ func _on_enemy_attack_presentation_changed(active: bool) -> void:
 
 
 func _on_attack_resolved(result: DamageResult) -> void:
-	if result.is_miss:
-		_last_move_text = "Attack missed: target out of range"
+	# §4: refused, §12: dodged, or a real hit. The three must not read the same, or a
+	# refused attack looks like a wasted turn.
+	if result.is_refused:
+		_last_move_text = "Attack refused: %s" % ATTACK_REFUSED_REASON
+	elif result.is_miss:
+		_last_move_text = "Attack dodged"
 	else:
 		_last_move_text = "Critical hit for %d" % result.final_damage if result.is_critical else "Hit for %d" % result.final_damage
+		if result.lifesteal_heal > 0:
+			_last_move_text += "  (+%d HP stolen)" % result.lifesteal_heal
+		if result.applied_status_id == StatusEffectComponent.STUN:
+			_last_move_text += "  — target stunned"
 		if result.is_critical:
 			hud.show_critical_indicator(result.final_damage)
 	queue_redraw()
@@ -956,6 +1002,13 @@ func _on_loot_dropped(_enemy: Node, loot: Array[EquipmentInstance]) -> void:
 		if item == null:
 			continue
 		loot_names.append(item.get_display_name())
+		# §7 potion replenishment: a potion found as loot restocks the potion counter
+		# rather than the bag, because the counter is the store the HUD button and AUTO
+		# drink from — a bag potion beside a counter stuck at 0 would never be used.
+		if item.is_consumable():
+			player.add_healing_items(1)
+			added_count += 1
+			continue
 		var comparison: EquipmentComparison = player.get_inventory().create_comparison(item)
 		var is_upgrade: bool = comparison != null and comparison.is_upgrade()
 		if player.add_equipment(item):

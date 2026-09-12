@@ -18,6 +18,9 @@ signal experience_gained(amount: int, current_experience: int, required_experien
 signal level_up(new_level: int)
 signal equipment_effect_triggered(effect_id: StringName, description: String)
 signal healing_item_used(remaining_items: int, amount_healed: int)
+## The potion counter changed without a potion being drunk (§7 loot replenishment),
+## so surfaces that display it can refresh without faking a use.
+signal healing_items_changed(remaining_items: int)
 signal item_used(item: EquipmentInstance, amount_healed: int)
 ## The player gave an item up for good (discarded from the bag or the warehouse).
 ## Emitted by the two paths that end ownership, so a listener can keep a record of
@@ -230,6 +233,18 @@ func use_healing_item() -> bool:
 	healing_item_used.emit(healing_item_count, player_stats.current_hp - previous_hp)
 	queue_redraw()
 	return true
+
+
+## §7 potion replenishment: a potion found as loot restocks the counter that the HUD
+## button, `use_healing_item()` and AUTO all read. Capped like the exported counter
+## itself, so a full stock is not silently swallowed.
+func add_healing_items(count: int = 1) -> int:
+	if count <= 0:
+		return get_healing_item_count()
+	healing_item_count = clampi(healing_item_count + count, 0, 99)
+	healing_items_changed.emit(get_healing_item_count())
+	queue_redraw()
+	return get_healing_item_count()
 
 
 ## Uses a consumable item from the bag: heals by its heal_ratio, then removes
@@ -706,6 +721,11 @@ func _adjust_stats(bonuses: Dictionary, direction: float) -> void:
 	player_stats.movement_points += roundi(float(bonuses.get(&"movement", 0.0)) * direction)
 	player_stats.attack_range += roundi(float(bonuses.get(&"attack_range", 0.0)) * direction)
 	player_stats.life_steal += float(bonuses.get(&"life_steal", 0.0)) * direction
+	# §12 affixes that must reach combat: without these three the affixes would be
+	# rolled, displayed and score-counted yet never read (see implementation-status §3.2).
+	player_stats.damage_vs_elite += float(bonuses.get(&"damage_vs_elite", 0.0)) * direction
+	player_stats.damage_vs_boss += float(bonuses.get(&"damage_vs_boss", 0.0)) * direction
+	player_stats.stun_chance += float(bonuses.get(&"stun_chance", 0.0)) * direction
 
 
 func get_level() -> int:

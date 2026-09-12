@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="Registry" format=3 uid="uid://c8iaop345bpi2"]
+
+[ext_resource type="Script" path="res://addons/yard/registry.gd" id="1_0oclm"]
+
+[resource]
+script = ExtResource("1_0oclm")
+_version = 2
+_scan_rulesets = Array[Dictionary]([{
+&"allowed_file_extensions": Array[String]([]),
+&"class_restrictions": Array[StringName]([&"EquipmentDefinition"]),
+&"recursive_scan": true,
+&"scan_directories": Array[String](["res://resources/items"]),
+&"scan_regex_exclude": "",
+&"scan_regex_include": ""
+}])
+_uids_to_string_ids = Dictionary[StringName, StringName]({
+&"uid://bwcv13owe8qs8": &"stun_hammer",
+&"uid://dwq6ycpojoi14": &"beginner_sword"
+})
+_string_ids_to_uids = Dictionary[StringName, StringName]({
+&"beginner_sword": &"uid://dwq6ycpojoi14",
+&"stun_hammer": &"uid://bwcv13owe8qs8"
+})
+_property_index = Dictionary[StringName, Dictionary]({
+&"is_consumable": {
+false: {
+&"beginner_sword": true,
+&"stun_hammer": true
+}
+},
+&"item_level": {
+10: {
+&"beginner_sword": true,
+&"stun_hammer": true
+}
+},
+&"rarity": {
+0: {
+&"beginner_sword": true,
+&"stun_hammer": true
+}
+},
+&"slot": {
+0: {
+&"beginner_sword": true,
+&"stun_hammer": true
+}
+}
+})

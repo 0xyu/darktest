@@ -14,6 +14,9 @@ enum Type {
 	LIFE_STEAL,
 	DAMAGE_VS_ELITE,
 	DAMAGE_VS_BOSS,
+	## §12 Stun affix: chance per landed hit to stun the target, which then loses
+	## `StatusEffectComponent.STUN_TURNS` turn.
+	STUN_CHANCE,
 }
 
 ## §12's affix roll band. `roll_ratio` is a factor inside it, normalized to 0..1.
@@ -21,6 +24,8 @@ const ROLL_MIN: float = 0.80
 const ROLL_MAX: float = 1.20
 
 @export var stat_id: StringName = &"attack"
+## Authored values may be negative — a cursed `HP -10` affix is a valid §12 item —
+## so nothing here clamps the sign. Only rolled affixes are generated positive.
 @export var value: float = 0.0
 ## Where this roll landed inside the affix's valid range, normalized to 0..1
 ## (gameplay-spec §19). Rolled affixes set it from the §12 roll factor; authored affixes
@@ -28,7 +33,31 @@ const ROLL_MAX: float = 1.20
 ## ratio cannot be recovered from it afterwards.
 @export_range(0.0, 1.0, 0.01) var roll_ratio: float = 0.5
 @export var is_percentage: bool = false
-@export var display_name: String = "Attack"
+## Optional. An authored affix may leave it empty and inherit the catalogue name of
+## its `stat_id` instead (see `get_label()`), so a new affix cannot ship as the
+## misleading default "Attack".
+@export var display_name: String = ""
+
+
+## The label to show for this affix: the authored name when there is one, otherwise
+## the catalogue name for its stat.
+func get_label() -> String:
+	return display_name if not display_name.is_empty() else get_display_name_for_stat(stat_id)
+
+
+## Whether `stat_id` is an affix the game knows how to apply. An id outside this
+## catalogue would be rolled, displayed and score-counted while never reaching
+## combat, so authoring tools reject it.
+static func is_known_stat(stat_id: StringName) -> bool:
+	return stat_id in get_stat_ids()
+
+
+## The one place an affix value becomes text, so a negative value reads correctly
+## everywhere it is displayed (§12).
+static func format_value(value: float, is_percentage: bool) -> String:
+	if is_percentage:
+		return "%+.0f%%" % (value * 100.0)
+	return "%+d" % roundi(value)
 
 
 static func get_stat_ids() -> Array[StringName]:
@@ -44,6 +73,7 @@ static func get_stat_ids() -> Array[StringName]:
 		&"life_steal",
 		&"damage_vs_elite",
 		&"damage_vs_boss",
+		&"stun_chance",
 	]
 
 
@@ -71,6 +101,8 @@ static func get_display_name_for_stat(stat_id: StringName) -> String:
 			return "Damage vs Elite"
 		&"damage_vs_boss":
 			return "Damage vs Boss"
+		&"stun_chance":
+			return "Stun Chance"
 		_:
 			return "Unknown Affix"
 
@@ -83,6 +115,7 @@ static func is_percentage_stat(stat_id: StringName) -> bool:
 		&"life_steal",
 		&"damage_vs_elite",
 		&"damage_vs_boss",
+		&"stun_chance",
 	]
 
 
@@ -108,6 +141,8 @@ static func get_weight(stat_id: StringName) -> float:
 			return 0.55
 		&"damage_vs_boss":
 			return 0.45
+		&"stun_chance":
+			return 0.35
 		_:
 			return 0.0
 
@@ -139,6 +174,8 @@ static func get_economic_weight(stat_id: StringName) -> float:
 			return 1.5
 		&"damage_vs_boss":
 			return 1.8
+		&"stun_chance":
+			return 2.2
 		_:
 			return 0.0
 
@@ -177,6 +214,8 @@ static func get_base_value(stat_id: StringName) -> float:
 			return 0.03
 		&"damage_vs_elite", &"damage_vs_boss":
 			return 0.05
+		&"stun_chance":
+			return 0.03
 		_:
 			return 0.0
 

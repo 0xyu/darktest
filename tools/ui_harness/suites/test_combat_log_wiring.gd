@@ -60,6 +60,11 @@ func test_kill_logs_event_end_to_end() -> void:
 	grid.call("set_occupied", player.get("grid_position"), player.get("player_id"))
 	player.set("global_position", grid.call("grid_to_world", player.get("grid_position")))
 
+	# §2: `resolve_attack` spends the player's action, so only a lethal opening strike
+	# can finish an enemy inside one turn. Drop the enemy to 1 HP first — the same
+	# pattern subhero_kill_reward_smoke_test.gd uses — because this suite is about the
+	# kill event reaching the combat log, not about damage pacing.
+	enemy.call("set_current_hp", 1)
 	var hits: int = 0
 	while not bool(enemy.call("is_defeated")) and hits < 60:
 		combat.call("resolve_attack", player, enemy)

@@ -84,7 +84,7 @@ func get_rarity_mean_multiplier() -> float:
 	return total
 
 
-## `E[affix multiplier]` over the calibration distribution — 1.183 with the defaults.
+## `E[affix multiplier]` over the calibration distribution — 1.190 with the defaults.
 ## Rarity decides how many affixes an item rolls (`EquipmentRarity.affix_count`), so this
 ## is derived from that table rather than assumed.
 func get_affix_mean_multiplier() -> float:

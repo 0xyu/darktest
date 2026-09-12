@@ -111,7 +111,7 @@ critical = max(1, round(modified × critical_damage))
 | Potion effect | Heals **35 %** of max HP (tunable) |
 | Potions held at start | **3** |
 | Using a potion in combat | Consumes the Action and ends the turn |
-| Potion replenishment | Must have a source; potions are also found as loot |
+| Potion replenishment | **Potions are found as loot** (15 % of drops) and a looted potion restocks the potion counter; the counter is the one potion store the HUD and AUTO read. A consumable used from the bag also costs the Action |
 
 ## 8. Enemy AI
 
@@ -255,6 +255,7 @@ Weapon, Helmet, Armor, Gloves, Boots, Ring, Amulet. Consumables are slot-less.
 | Movement | 1 | 0.45 |
 | Damage vs Boss | 5 % | 0.45 |
 | Attack Range | 1 | 0.25 |
+| Stun Chance | 3 % | 0.35 |
 
 ```text
 affix value = base × (1 + (item_level - 1) × 0.08)
@@ -264,6 +265,14 @@ affix value = base × (1 + (item_level - 1) × 0.08)
 
 - A stat appears at most once per item.
 - **Every listed affix must affect combat.** Affixes that only display are a defect.
+  The catalogue and the combat reads are kept in lockstep by
+  `EquipmentAffix.get_stat_ids()`; an authored `stat_id` outside it is rejected at
+  authoring time (`tools/generate_item_registry.gd`).
+- **Authored affixes are configurable and may be negative.** `.tres` item definitions set
+  `value` freely, so a cursed `HP -10` is a valid affix; it lowers `max_hp` like any other
+  bonus. Rolled affixes stay positive.
+- Stun Chance is the chance per landed hit to stun the target for **1 turn**, during which
+  it loses its turn entirely. Duration lives in `StatusEffectComponent.STUN_TURNS`.
 
 ### Unique Effects
 
@@ -587,7 +596,7 @@ RawSellPrice = EconomicValue × VendorSellMultiplier       # 0.25
 StageExpectedSell(stage) = BaseItemValue
                          × 1.18^(stage - 1)
                          × RarityMeanMultiplier          # 1.705
-                         × AffixMeanMultiplier           # 1.183
+                         × AffixMeanMultiplier           # 1.190
                          × VendorSellMultiplier
 
 WindfallCap(stage) = k × StageExpectedSell(stage)          # k = 50
@@ -602,9 +611,13 @@ RarityMeanMultiplier = 0.60×1.0 + 0.25×1.5 + 0.10×3.0 + 0.04×7.0 + 0.01×15.
                      = 1.705                                                  # Mythic is 0 there
 
 AffixMeanMultiplier  = 1 + 0.15 × mean_affix_count × mean_economic_weight × 0.5
-                     = 1 + 0.15 × 1.61 × 1.518 × 0.5
-                     = 1.183      # §12 affix counts per rarity, mean ratio 0.5
+                     = 1 + 0.15 × 1.61 × 1.575 × 0.5
+                     = 1.190      # §12 affix counts per rarity, mean ratio 0.5
 ```
+
+`mean_economic_weight` is the mean of the §19 affix weights over the §12 catalogue
+(`EquipmentAffix.get_economic_weight_mean()`), so adding an affix re-derives both this
+multiplier and `k` below.
 
 #### The cap clips windfalls; it does not control inflation
 
@@ -618,8 +631,8 @@ AffixMeanMultiplier  = 1 + 0.15 × mean_affix_count × mean_economic_weight × 0
   ```text
   k ≥ RarityMultiplier_Mythic × AffixMultiplier_Mythic × 1.18^(max in-band level offset)
       ÷ (RarityMeanMultiplier × AffixMeanMultiplier)
-    = 35 × 1.569 × 1.18^3 ÷ (1.705 × 1.183)
-    ≈ 45                → k = 50
+    = 35 × 1.569 × 1.18^3 ÷ (1.705 × 1.190)
+    ≈ 44                → k = 50
   ```
 
   The max in-band level offset is **+3**: a dropped item's level is

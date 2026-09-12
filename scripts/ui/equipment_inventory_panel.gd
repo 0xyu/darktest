@@ -1047,8 +1047,8 @@ func _format_item_details(item: EquipmentInstance) -> String:
 	for affix in item.affixes:
 		if affix == null:
 			continue
-		var value_text: String = "%+.0f%%" % (affix.value * 100.0) if affix.is_percentage else "%+d" % roundi(affix.value)
-		lines.append("%s  %s" % [affix.display_name, value_text])
+		var value_text: String = EquipmentAffix.format_value(affix.value, affix.is_percentage)
+		lines.append("%s  %s" % [affix.get_label(), value_text])
 	return "\n".join(lines)
 
 

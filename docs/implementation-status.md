@@ -28,6 +28,7 @@ do*. Every entry in §3 is a work item, not a design decision.
 | Character progression (level/EXP/gold/skills) | `scripts/player/player_progression.gd`, `scripts/systems/experience_system.gd`, `gold_system.gd` |
 | Player stats & controller | `scripts/player/player_stats.gd`, `player_controller.gd` |
 | Equipment, affixes, comparison, inventory, storage | `scripts/items/` |
+| Combat statuses (Stun) | `scripts/combat/status_effect_component.gd` |
 | Unique item effects | `scripts/items/effects/` |
 | Loot tables & generation | `scripts/systems/loot_table.gd`, `loot_generator.gd`, `loot_system.gd` |
 | Guaranteed stage drops & Scavenger Shop buyback | `resources/items/beginner_sword.tres`, `scripts/shop/scavenger_shop.gd`, `scripts/ui/scavenger_shop_panel.gd` |
@@ -113,10 +114,6 @@ Closed items are removed from these tables and their number retired, so ids stay
 
 | # | Spec | Current implementation | Impact |
 |---|---|---|---|
-| 4 | §12 every affix affects combat | `dodge`, `life_steal`, `damage_vs_elite`, `damage_vs_boss` roll, display and inflate item score but are never applied (`scripts/player/player_controller.gd` maps 9 of 11 stats) | Four of eleven affixes are decorative; builds cannot use them |
-| 5 | §4 failed attacks must not consume the action | Clicking an out-of-range enemy is refused (no action spent), but the `ATTACK` button resolves a miss and consumes the action (`grid_combat.gd`) | Inconsistent turn waste depending on input path |
-| 6 | §7 using a potion consumes the action | The HUD `POTION` button ends the turn; using a potion from the item popup heals and deletes the item **without** spending the action | Free healing during combat opens from the inventory panel |
-| 7 | §7 potions have a replenishment source | The HUD counter starts at 3 and is only ever decremented; nothing refills it | Potions become unusable after three uses in a session |
 | 8 | §8 mini-boss mechanics | AOE (range 2, ×0.75), Summoner (1 add), Enrager (×1.5 below 50 % HP) are implemented; the 3-boss pool is picked at random | Matches spec; more Mini Bosses need more mechanics |
 
 ### 3.3 AUTO, Farming, Idle
@@ -190,7 +187,8 @@ area_stage_data   player_progress   skill_progression   stage_content
 stage_database    stage_progress_save   stage_router
 subhero_combat    subhero_data   subhero_progression   subhero_runtime
 subhero_summon    enemy_experience_scaling   subhero_kill_reward
-beginner_sword_drop   scavenger_shop
+beginner_sword_drop   scavenger_shop   economy
+combat_affix      item_registry
 ```
 
 Run only the suite covering a change. Never run the full harness unless asked.

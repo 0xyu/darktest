@@ -8,7 +8,19 @@ extends Resource
 @export var raw_damage: int = 0
 @export var final_damage: int = 0
 @export var is_critical: bool = false
+## The strike dealt no damage: either it was refused or the target dodged it.
 @export var is_miss: bool = false
+## §4: the attack never happened at all — no target in range, an invalid target, or
+## no action left. A refused attack must not spend the action and must not be
+## presented as a strike; the input surface reports the reason as text instead.
+@export var is_refused: bool = false
+## §12 Dodge affix: the attack happened but the target evaded it.
+@export var is_dodge: bool = false
+## §12 Life Steal affix: HP actually restored to the attacker by this hit.
+@export var lifesteal_heal: int = 0
+## §12 Stun affix: the status this hit applied to the target, if any.
+@export var applied_status_id: StringName = &""
+@export var applied_status_turns: int = 0
 @export var target_defeated: bool = false
 
 ## Live node references for the presentation layer only (animation targets).

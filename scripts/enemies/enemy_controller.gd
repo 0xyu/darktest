@@ -10,6 +10,9 @@ signal area_attack_requested(enemy: EnemyController, target: Node, attack_range:
 signal summon_requested(enemy: EnemyController, summon_count: int)
 signal enraged(enemy: EnemyController)
 signal defeated
+## A §12 stun cost this enemy its turn. Presentation uses it to explain a turn in
+## which the enemy visibly did nothing.
+signal stunned_turn_skipped(enemy: EnemyController)
 
 @export var grid_path: NodePath
 @export var enemy_id: StringName = &"enemy"
@@ -18,6 +21,9 @@ signal defeated
 @export var enemy_data: EnemyData
 
 var enemy_runtime: EnemyRuntime = EnemyRuntime.new()
+## Timed combat statuses on this enemy (§12 Stun affix). Owned here, read by the
+## enemy turn below.
+var status_effects: StatusEffectComponent = StatusEffectComponent.new()
 
 ## Deprecated compatibility accessor. Use enemy_data.
 var enemy_definition: EnemyData:
@@ -87,6 +93,13 @@ func take_turn(player: Node, turn_manager: TurnManager) -> void:
 	if _grid == null or player == null:
 		turn_manager.complete_enemy_turn(self)
 		return
+	# §12 Stun: a stunned enemy spends the whole turn unable to act. The status is
+	# paid for by the turn it suppressed, so a 1-turn stun costs exactly one turn.
+	if status_effects.is_stunned():
+		status_effects.tick_turn()
+		stunned_turn_skipped.emit(self)
+		turn_manager.complete_enemy_turn(self)
+		return
 
 	_target = player
 	target_selected.emit(_target)
@@ -128,6 +141,30 @@ func set_poisoned(is_poisoned_value: bool = true) -> void:
 
 func is_poisoned() -> bool:
 	return poisoned
+
+
+## §12 Stun affix hook, called by CombatSystem on a hit that rolled the affix.
+## Returns true only for a NEW stun, so a refreshed stun is not announced twice.
+func apply_stun(turns: int = StatusEffectComponent.STUN_TURNS) -> bool:
+	var is_new: bool = status_effects.apply_stun(turns)
+	if is_new:
+		queue_redraw()
+	return is_new
+
+
+func is_stunned() -> bool:
+	return status_effects.is_stunned()
+
+
+## The §8 tier this enemy counts as, so affix targeting (`damage_vs_elite`,
+## `damage_vs_boss`) can tell a mini boss from an ordinary spawn.
+func get_enemy_type() -> int:
+	if is_mini_boss:
+		return EnemyType.MINI_BOSS
+	var definition: EnemyData = enemy_data if enemy_data != null else enemy_definition
+	if definition != null:
+		return definition.enemy_type
+	return EnemyType.NORMAL
 
 
 func is_attacked_from_behind(attacker_cell: Vector2i) -> bool:

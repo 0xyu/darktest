@@ -145,6 +145,8 @@ func _ready() -> void:
 		_player.sub_hero_collection_changed.connect(_on_sub_hero_state_changed)
 	if _player != null and _player.has_signal("sub_hero_slots_changed"):
 		_player.sub_hero_slots_changed.connect(_on_sub_hero_state_changed)
+	if _player != null and _player.has_signal("healing_items_changed"):
+		_player.healing_items_changed.connect(_on_healing_items_changed)
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_refresh_sub_hero_slots()
 	_refresh()
@@ -413,6 +415,14 @@ func _get_target() -> Node:
 		if target != null and is_instance_valid(target) and not bool(target.get("_is_defeated")):
 			return target
 	return null
+
+
+## §7: the potion counter changed without a potion being drunk (a loot restock), so
+## the POTION button needs a refresh that no `healing_item_used` will trigger.
+func _on_healing_items_changed(_remaining_items: int) -> void:
+	if _player == null:
+		return
+	_update_buttons(_player.get("player_stats"))
 
 
 func _update_buttons(player_stats: PlayerStats) -> void:

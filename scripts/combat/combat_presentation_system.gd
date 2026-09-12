@@ -164,6 +164,12 @@ func _on_attack_resolved(result: DamageResult) -> void:
 	if is_enemy_attacker:
 		_begin_enemy_attack_presentation()
 	await _play_attack(result)
+	# §12 Life Steal and Stun: HP the player never sees restored reads as a bug, and a
+	# turn an enemy silently loses needs a reason on screen.
+	if result.lifesteal_heal > 0 and is_instance_valid(result.attacker):
+		_play_heal(result.attacker, result.lifesteal_heal)
+	if not result.applied_status_id.is_empty() and is_instance_valid(result.target):
+		_play_status(result.target, result.applied_status_id, result.applied_status_turns)
 	# The sequence ends with the attacker's recovery step still running; let it
 	# settle so the attacker is back in place before the next beat (the hero's
 	# swing before the enemy turn, the enemy's swing before the hero may walk on).
@@ -230,11 +236,16 @@ func _play_attack(result: DamageResult) -> void:
 	var mult: float = _speed_multiplier
 	var dir: Vector2 = (target as Node2D).global_position - (attacker as Node2D).global_position
 
+	if result.is_refused:
+		# §4: nothing was struck, so there is nothing to animate or to number. The
+		# host reports the refusal as status text instead.
+		return
+
 	if result.is_miss:
 		var dodge_token := _token_for(target)
 		if dodge_token != null and not dodge_token.is_dying():
 			dodge_token.play_dodge(dir)
-		_spawn_number((target as Node2D).global_position, DamageNumber.Kind.MISS, 0, _locale.translate("fx.miss"))
+		_spawn_number((target as Node2D).global_position, DamageNumber.Kind.DODGE, 0, _locale.translate("fx.dodge"))
 		return
 
 	var heavy: bool = result.skill_id == &"execution_strike"
@@ -442,6 +453,21 @@ func _on_healing_item_used(_remaining_items: int, amount_healed: int) -> void:
 
 func _on_item_used(_item: EquipmentInstance, amount_healed: int) -> void:
 	_play_heal(_player, amount_healed)
+
+
+## Lifts a status label clear of the damage number spawned on the same hit.
+const STATUS_LABEL_OFFSET := Vector2(0.0, -36.0)
+
+
+## Floating label for a status a hit applied (the §12 Stun affix). Rides the neutral
+## MISS kind so a status needs no new presentation tuning values.
+func _play_status(unit: Node, status_id: StringName, turns: int) -> void:
+	if not _is_presentable(unit):
+		return
+	var label: String = _locale.translate("fx.%s" % status_id)
+	if turns > 1:
+		label = "%s %d" % [label, turns]
+	_spawn_number((unit as Node2D).global_position + STATUS_LABEL_OFFSET, DamageNumber.Kind.MISS, 0, label)
 
 
 func _play_heal(unit: Node, amount: int) -> void:

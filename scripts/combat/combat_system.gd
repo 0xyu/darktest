@@ -71,7 +71,10 @@ func _resolve_attack(
 	result.attacker = attacker
 	result.target = target
 	if not _is_actor_authorized(attacker) or not _is_valid_attack(attacker, target, attack_range_override):
+		# §4: a refused attack never happened — no action is spent, and the input
+		# surface reports the reason as text instead of a strike animation.
 		result.is_miss = true
+		result.is_refused = true
 		attack_resolved.emit(result)
 		return result
 
@@ -83,11 +86,25 @@ func _resolve_attack(
 	var equipment_multiplier: float = 1.0
 	if attacker.has_method("get_equipment_damage_multiplier"):
 		equipment_multiplier = maxf(float(attacker.get_equipment_damage_multiplier(target, attack_context)), 0.0)
-	var attack_power: int = maxi(int(attacker_stats.get("attack")), 0)
-	var defense: int = maxi(int(target_stats.get("defense")), 0)
+	var attack_power: int = maxi(int(_get_stat_float(attacker_stats, &"attack")), 0)
+	var defense: int = maxi(int(_get_stat_float(target_stats, &"defense")), 0)
 	result.raw_damage = maxi(1, attack_power - defense)
 	var modified_damage: float = float(result.raw_damage) * maxf(damage_multiplier, 0.0) * equipment_multiplier
+	# §12 `damage_vs_elite` / `damage_vs_boss`: one more multiplier, applied after
+	# the defense subtraction like every other multiplier (§5).
+	modified_damage *= _get_enemy_tier_multiplier(attacker_stats, target)
 	result.final_damage = maxi(1, roundi(modified_damage))
+
+	# §12 Dodge: the target evades the strike entirely. Attacking a dodging enemy is
+	# still a real action, so it spends the action — only a refused attack does not.
+	var dodge: float = _get_stat_ratio(target_stats, &"dodge")
+	if dodge > 0.0 and _random_number_generator.randf() < dodge:
+		result.is_miss = true
+		result.is_dodge = true
+		result.final_damage = 0
+		_consume_player_action(attacker, consume_player_action)
+		attack_resolved.emit(result)
+		return result
 
 	var critical_chance: float = 0.0
 	var critical_damage: float = 1.0
@@ -100,11 +117,13 @@ func _resolve_attack(
 
 	var remaining_hp: int = maxi(_get_current_hp(target, target_stats) - result.final_damage, 0)
 	_set_current_hp(target, target_stats, remaining_hp)
-	if consume_player_action and attacker == _player_actor and _turn_manager != null:
-		_turn_manager.consume_player_action(attacker)
+	_consume_player_action(attacker, consume_player_action)
 	result.target_defeated = remaining_hp <= 0
 	if target.has_method("clamp_current_hp"):
 		target.clamp_current_hp()
+	# §12 Life Steal and Stun, both driven by the affixes on the attacker.
+	_apply_life_steal(attacker, attacker_stats, result)
+	_apply_stun(attacker_stats, target, result)
 	if attacker.has_method("apply_equipment_attack_effects"):
 		attacker.apply_equipment_attack_effects(target, result, attack_context)
 	if result.target_defeated:
@@ -130,8 +149,11 @@ func resolve_defeat(target: Node) -> void:
 
 
 func _on_attack_requested(attacker: Node, target: Node) -> void:
-	resolve_attack(attacker, target)
+	var result := resolve_attack(attacker, target)
 	if _turn_manager == null or attacker != _player_actor:
+		return
+	# A refused attack (§4) leaves the action and the turn untouched.
+	if result != null and result.is_refused:
 		return
 	if _turn_manager.is_player_turn():
 		_turn_manager.complete_player_turn()
@@ -192,11 +214,11 @@ func resolve_skill(attacker: Node, skill_id: StringName, selected_target: Node =
 		for combat_target in targets:
 			if _is_valid_attack(attacker, combat_target, skill.range_cells):
 				var area_result := _resolve_attack(attacker, combat_target, skill_damage_multiplier, skill.range_cells, skill.skill_id, false)
-				if not area_result.is_miss:
+				if not area_result.is_refused:
 					hit_count += 1
 	else:
 		var result := _resolve_attack(attacker, selected_target, skill_damage_multiplier, skill.range_cells, skill.skill_id, false)
-		if not result.is_miss:
+		if not result.is_refused:
 			hit_count = 1
 	if hit_count > 0 and attacker == _player_actor and _turn_manager != null:
 		_turn_manager.consume_player_action(attacker)
@@ -272,6 +294,92 @@ func _set_current_hp(actor: Node, stats: Resource, value: int) -> void:
 		return
 	if stats != null:
 		stats.set("current_hp", value)
+
+
+## Spends the player's action for one resolved attack. Refused attacks return
+## before this point, so reaching here means a real strike happened.
+func _consume_player_action(attacker: Node, consume: bool) -> void:
+	if not consume or _turn_manager == null:
+		return
+	if attacker != _player_actor:
+		return
+	_turn_manager.consume_player_action(attacker)
+
+
+## A stats value as a float. Stats are duck-typed (`PlayerStats` / `EnemyStats`),
+## so a statistic a given actor does not define reads as `fallback` instead of
+## failing the call — an enemy simply has no `damage_vs_elite`.
+func _get_stat_float(stats: Resource, stat_id: StringName, fallback: float = 0.0) -> float:
+	if stats == null:
+		return fallback
+	var value: Variant = stats.get(stat_id)
+	if value == null:
+		return fallback
+	return float(value)
+
+
+## A statistic that is a 0..1 fraction (dodge, stun chance), clamped so an authored
+## affix can never exceed certainty.
+func _get_stat_ratio(stats: Resource, stat_id: StringName) -> float:
+	return clampf(_get_stat_float(stats, stat_id), 0.0, 1.0)
+
+
+## §12 `damage_vs_elite` / `damage_vs_boss`. The bonus only applies to the tier it
+## names, so a boss affix never inflates damage against normal spawns.
+func _get_enemy_tier_multiplier(attacker_stats: Resource, target: Node) -> float:
+	if attacker_stats == null or target == null or not is_instance_valid(target):
+		return 1.0
+	if not target.has_method("get_enemy_type"):
+		return 1.0
+	var enemy_type: int = int(target.get_enemy_type())
+	var stat_id: StringName = &""
+	if enemy_type == EnemyType.MINI_BOSS:
+		stat_id = &"damage_vs_boss"
+	elif enemy_type == EnemyType.ELITE:
+		stat_id = &"damage_vs_elite"
+	if stat_id.is_empty():
+		return 1.0
+	return 1.0 + maxf(_get_stat_float(attacker_stats, stat_id), 0.0)
+
+
+## §12 Life Steal: a fraction of the damage actually dealt comes back as HP, capped
+## at the attacker's maximum. The amount that landed is reported on the result so
+## the presentation layer can show it.
+func _apply_life_steal(attacker: Node, attacker_stats: Resource, result: DamageResult) -> void:
+	if result.final_damage <= 0:
+		return
+	var life_steal: float = maxf(_get_stat_float(attacker_stats, &"life_steal"), 0.0)
+	if life_steal <= 0.0:
+		return
+	var requested: int = roundi(float(result.final_damage) * life_steal)
+	if requested <= 0:
+		return
+	var max_hp: int = maxi(int(_get_stat_float(attacker_stats, &"max_hp")), 0)
+	var current_hp: int = _get_current_hp(attacker, attacker_stats)
+	var healed: int = mini(requested, maxi(max_hp - current_hp, 0))
+	if healed <= 0:
+		return
+	_set_current_hp(attacker, attacker_stats, current_hp + healed)
+	if attacker.has_method("clamp_current_hp"):
+		attacker.clamp_current_hp()
+	result.lifesteal_heal = healed
+
+
+## §12 Stun: a landed hit may stun its target, which then loses a turn
+## (`StatusEffectComponent`). Only an enemy can be stunned, and only by an actor
+## whose stats carry a stun chance — a target that is already stunned is refreshed
+## without being announced again.
+func _apply_stun(attacker_stats: Resource, target: Node, result: DamageResult) -> void:
+	if result.target_defeated or target == null or not is_instance_valid(target):
+		return
+	if not target.has_method("apply_stun"):
+		return
+	var stun_chance: float = _get_stat_ratio(attacker_stats, &"stun_chance")
+	if stun_chance <= 0.0 or _random_number_generator.randf() >= stun_chance:
+		return
+	if bool(target.apply_stun(StatusEffectComponent.STUN_TURNS)):
+		result.applied_status_id = StatusEffectComponent.STUN
+		result.applied_status_turns = StatusEffectComponent.STUN_TURNS
 
 
 func _get_grid_position(actor: Node) -> Vector2i:

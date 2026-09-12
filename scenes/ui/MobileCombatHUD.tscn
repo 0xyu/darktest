@@ -412,7 +412,7 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 1
 
-[node name="ScavengerShopPanel" parent="Root" instance=ExtResource("29_scavenger")]
+[node name="ScavengerShopPanel" parent="Root" unique_id=1164550200 instance=ExtResource("29_scavenger")]
 unique_name_in_owner = true
 layout_mode = 1
 

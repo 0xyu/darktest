@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3 uid="uid://bwcv13owe8qs8"]
+
+[ext_resource type="Script" path="res://scripts/items/equipment_definition.gd" id="1_definition"]
+[ext_resource type="Script" path="res://scripts/items/equipment_affix.gd" id="2_affix"]
+
+[sub_resource type="Resource" id="EquipmentAffix_attack"]
+script = ExtResource("2_affix")
+stat_id = &"attack"
+value = 20.0
+roll_ratio = 0.5
+is_percentage = false
+display_name = "Attack"
+
+[sub_resource type="Resource" id="EquipmentAffix_hp"]
+script = ExtResource("2_affix")
+stat_id = &"hp"
+value = -5.0
+roll_ratio = 0.5
+is_percentage = false
+display_name = "HP"
+
+[sub_resource type="Resource" id="EquipmentAffix_stun_chance"]
+script = ExtResource("2_affix")
+stat_id = &"stun_chance"
+value = 0.5
+roll_ratio = 0.5
+is_percentage = true
+display_name = "Stun Chance"
+
+[resource]
+script = ExtResource("1_definition")
+definition_id = &"stun_hammer"
+display_name = "Stun Hammer"
+slot = 0
+rarity = 0
+item_level = 10
+can_buy_back = true
+base_affixes = Array[ExtResource("2_affix")]([SubResource("EquipmentAffix_attack"), SubResource("EquipmentAffix_hp"), SubResource("EquipmentAffix_stun_chance")])
+description = "A slab of black iron on a splintered haft. It swings slow and it drinks from the wielder as readily as the foe — but nothing that takes the blow is standing up again in a hurry. Half the time, it simply does not get to answer."
