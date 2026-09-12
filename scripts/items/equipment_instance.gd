@@ -8,6 +8,22 @@ extends Resource
 @export var is_equipped: bool = false
 
 
+## A FIXED item: the definition's authored affixes are copied as they are, so the
+## instance carries no rolled values and every copy of the definition is identical.
+## The instance id is the definition id, which is what makes such an item
+## recognisable as the one-of-a-kind it is (see StageDefinition.guaranteed_loot).
+static func create_from_definition(definition: EquipmentDefinition) -> EquipmentInstance:
+	var instance := EquipmentInstance.new()
+	if definition == null:
+		return instance
+	instance.definition = definition
+	instance.instance_id = definition.definition_id
+	for affix in definition.base_affixes:
+		if affix != null:
+			instance.affixes.append(affix.duplicate(true) as EquipmentAffix)
+	return instance
+
+
 func get_rarity() -> int:
 	if definition == null:
 		return EquipmentRarity.COMMON

@@ -181,6 +181,9 @@ var _details_toggle: TextureButton
 
 # Item popup (modal dialog shown on item click)
 var _item_popup: Control
+## Whether the popup may offer SELL. Selling is a TOWN action (gameplay-spec §19): the
+## warehouse view enables it, the in-combat inventory does not.
+var _sell_enabled: bool = false
 
 
 func _ready() -> void:
@@ -213,6 +216,7 @@ func set_player(player: PlayerController) -> void:
 
 
 func show_inventory() -> void:
+	_sell_enabled = false
 	visible = true
 	_request_refresh()
 
@@ -232,6 +236,7 @@ func toggle_inventory() -> void:
 ## Town warehouse entry: shows the panel on the Items tab, where the bag and the
 ## separate 仓库 (storage) block live, and reveals the storage grid.
 func show_warehouse() -> void:
+	_sell_enabled = true
 	visible = true
 	_set_tab(Tab.ITEMS)
 	_request_refresh()
@@ -996,7 +1001,7 @@ func _on_storage_changed() -> void:
 func _open_item_popup(item: EquipmentInstance, from_storage: bool = false) -> void:
 	if item == null or _player == null or _item_popup == null:
 		return
-	_item_popup.call("open_for", _player, item, from_storage)
+	_item_popup.call("open_for", _player, item, from_storage, _sell_enabled)
 
 
 func _toggle_detailed_stats() -> void:

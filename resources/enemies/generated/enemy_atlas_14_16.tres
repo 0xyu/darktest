@@ -1,14 +1,14 @@
 [gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://bovm1tcouuymu"]
 
-[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_wrht5"]
-[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="2_fk02q"]
+[ext_resource type="Script" uid="uid://0ad10tse1g6d" path="res://scripts/enemies/enemy_stats.gd" id="1_wrht5"]
+[ext_resource type="Script" uid="uid://byavggucn2ddr" path="res://scripts/enemies/enemy_data.gd" id="2_fk02q"]
 
 [sub_resource type="Resource" id="Resource_agbj2"]
 script = ExtResource("1_wrht5")
 max_hp = 83
 attack = 24
 defense = 1
-movement_points = 2
+movement_points = 1
 gold_reward = 40
 
 [resource]

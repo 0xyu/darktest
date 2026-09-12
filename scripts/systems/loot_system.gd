@@ -9,6 +9,9 @@ signal loot_dropped(enemy: Node, loot: Array[EquipmentInstance])
 var _loot_generator: LootGenerator
 var _combat_system: CombatSystem
 var _stage_manager: StageManager
+## Which guaranteed drops this save has already granted. The same store the save
+## persists, so a stage's fixed reward is one-per-save rather than one-per-kill.
+var _content_state: AuthoredContentState
 
 
 func _ready() -> void:
@@ -29,6 +32,12 @@ func attach_stage_manager(stage_manager: StageManager) -> void:
 	_stage_manager = stage_manager
 
 
+## Wires the one-shot store the guaranteed-drop rule records into. Optional: with no
+## store the fixed drops still happen, they just cannot be recorded as granted.
+func attach_content_state(content_state: AuthoredContentState) -> void:
+	_content_state = content_state
+
+
 func get_loot_generator() -> LootGenerator:
 	if _loot_generator == null:
 		_loot_generator = LootGenerator.new(random_seed)
@@ -36,7 +45,59 @@ func get_loot_generator() -> LootGenerator:
 
 
 func generate_loot_for_enemy(enemy: EnemyController, stage_number: int = 1) -> Array[EquipmentInstance]:
-	return get_loot_generator().generate_loot(enemy, stage_number)
+	var loot: Array[EquipmentInstance] = get_loot_generator().generate_loot(enemy, stage_number)
+	# The stage's authored fixed drops ride on top of the rolled loot, and only off
+	# the boss: the stage grants them, the boss is what has to fall for them.
+	if _is_boss(enemy):
+		_append_stage_guarantees(loot)
+	return loot
+
+
+## Appends every entry of `guaranteed` that `stage_key` has not granted yet, and
+## records each grant. Split out from the defeat path so the rule can be exercised
+## without an enemy node.
+func grant_guaranteed_drops(
+	loot: Array[EquipmentInstance],
+	guaranteed: Array[EquipmentDefinition],
+	stage_key: String
+) -> void:
+	for definition in guaranteed:
+		if definition == null:
+			continue
+		if _content_state != null and _content_state.is_consumed(stage_key, definition.definition_id):
+			continue
+		loot.append(EquipmentInstance.create_from_definition(definition))
+		if _content_state != null:
+			_content_state.consume(stage_key, definition.definition_id)
+
+
+## Appends the live stage's authored fixed drops. The one-shot key is scoped to the
+## DEFINITION's own stage number, so the stage that authors a reward is the stage
+## that pays it — not whichever number a caller happened to pass in.
+func _append_stage_guarantees(loot: Array[EquipmentInstance]) -> void:
+	var definition: StageDefinition = null
+	if _stage_manager != null:
+		definition = _stage_manager.current_definition
+	if definition == null or definition.guaranteed_loot.is_empty():
+		return
+	grant_guaranteed_drops(loot, definition.guaranteed_loot, _stage_key_for(definition.stage_number))
+
+
+func _is_boss(enemy: EnemyController) -> bool:
+	if enemy == null or not is_instance_valid(enemy):
+		return false
+	var enemy_data: EnemyData = enemy.enemy_data
+	return enemy_data != null and EnemyType.is_boss(enemy_data.enemy_type)
+
+
+## The canonical stage id a one-shot key is scoped to, e.g. "forest_010". A stage
+## past every authored area has no StageData, so its global number names it instead.
+func _stage_key_for(stage_number: int) -> String:
+	var safe_number: int = maxi(stage_number, 1)
+	var stage = StageDatabase.lookup(safe_number)
+	if stage == null or String(stage.id).is_empty():
+		return "stage_%d" % safe_number
+	return String(stage.id)
 
 
 func _on_actor_died(actor: Node) -> void:

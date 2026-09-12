@@ -43,8 +43,12 @@ var _use_button: Button
 var _equip_button: Button
 var _store_button: Button
 var _withdraw_button: Button
+var _sell_button: Button
 var _discard_button: Button
 var _close_button: Button
+## Whether this popup may offer the SELL action. The host panel decides: selling is a TOWN
+## action (gameplay-spec §19), so the in-combat inventory never offers it.
+var _sell_enabled: bool = false
 
 
 func _ready() -> void:
@@ -64,10 +68,18 @@ func _ready() -> void:
 ## discard/storage actions; the dialog refreshes itself after each action.
 ## `from_storage` marks items clicked inside the warehouse, which swap the
 ## Equip/Store actions for a single Withdraw action.
-func open_for(player: PlayerController, item: EquipmentInstance, from_storage: bool = false) -> void:
+## `sell_enabled` offers the SELL action at the item's §19 price. Only the town surfaces
+## set it, so an item can never be sold mid-combat.
+func open_for(
+	player: PlayerController,
+	item: EquipmentInstance,
+	from_storage: bool = false,
+	sell_enabled: bool = false
+) -> void:
 	_player = player
 	_item = item
 	_from_storage = from_storage
+	_sell_enabled = sell_enabled
 	_refresh()
 	visible = true
 
@@ -175,6 +187,10 @@ func _build_ui() -> void:
 	_withdraw_button.pressed.connect(_on_withdraw_pressed)
 	button_row.add_child(_withdraw_button)
 
+	_sell_button = _make_action_button("出售", true)
+	_sell_button.pressed.connect(_on_sell_pressed)
+	button_row.add_child(_sell_button)
+
 	_discard_button = _make_action_button("丢弃", false)
 	_discard_button.pressed.connect(_on_discard_pressed)
 	button_row.add_child(_discard_button)
@@ -199,9 +215,28 @@ func _make_action_button(text: String, gold: bool) -> Button:
 # Refresh
 # ---------------------------------------------------------------------------
 
+## The SELL action is a town action (gameplay-spec §19): the popup offers it only when its
+## host says so, which is the town/warehouse view — never the in-combat inventory. The
+## label carries the price so the player never sells blind.
+func _refresh_sell_button() -> void:
+	if _sell_button == null:
+		return
+	var sellable: bool = _sell_enabled and _player != null and _item != null and not _item.is_equipped
+	_sell_button.visible = sellable
+	if sellable:
+		_sell_button.text = "出售 %s" % ItemEconomy.format_gold(_sell_price())
+
+
+func _sell_price() -> int:
+	if _player == null:
+		return 0
+	return ItemEconomy.get_sell_price(_item, _player.current_stage_number)
+
+
 func _refresh() -> void:
 	if _item == null:
 		return
+	_refresh_sell_button()
 	var rarity: int = _item.get_rarity()
 	_name_label.text = _item.get_display_name()
 	_name_label.modulate = _get_rarity_color(rarity)
@@ -357,6 +392,30 @@ func _on_discard_pressed() -> void:
 	var discarded: bool = _player.discard_storage_item(_item) if _from_storage else _player.discard_item(_item)
 	if discarded:
 		close()
+
+
+## Selling pays the item's §19 price and stocks it in the shared buyback book, so the
+## player can undo the sale for exactly what it paid.
+func _on_sell_pressed() -> void:
+	if _player == null:
+		return
+	var result: Dictionary = _player.sell_item(_item, _from_storage)
+	if bool(result.get("success", false)):
+		close()
+		return
+	_comparison_label.text = _sell_failure_text(str(result.get("reason", "")))
+	_comparison_label.modulate = COLOR_RED
+	_comparison_label.visible = true
+
+
+func _sell_failure_text(reason: String) -> String:
+	match reason:
+		"ITEM_EQUIPPED":
+			return "先卸下才能出售"
+		"ITEM_NOT_OWNED":
+			return "物品已不在你的背包中"
+		_:
+			return "无法出售"
 
 
 func _on_backdrop_input(event: InputEvent) -> void:

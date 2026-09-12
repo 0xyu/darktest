@@ -57,6 +57,7 @@ signal battlefield_clicked(screen_position: Vector2)
 @onready var _combat_log: CombatLogPanel = %CombatLogPanel
 @onready var _combat_section: Control = %CombatSection
 @onready var _shop_panel: SubHeroShopPanel = %SubHeroShopPanel
+@onready var _scavenger_shop_panel: ScavengerShopPanel = %ScavengerShopPanel
 # Keep this reference as Control so a cold headless harness does not depend on
 # the newly-added panel class being present in Godot's global class cache.
 @onready var _assignment_panel: Control = %SubHeroAssignmentPanel
@@ -105,6 +106,8 @@ func _ready() -> void:
 	_skill_panel.set_player(_player)
 	_shop_panel.set_player(_player)
 	_shop_panel.data_changed.connect(_on_shop_data_changed)
+	_scavenger_shop_panel.set_player(_player)
+	_scavenger_shop_panel.data_changed.connect(_on_scavenger_shop_data_changed)
 	_assignment_panel.set_player(_player)
 	_assignment_panel.data_changed.connect(_on_assignment_data_changed)
 	# Phase 5: DEV town entry / AREA STAGES entry, and TownView facility wiring.
@@ -127,6 +130,8 @@ func _ready() -> void:
 			_town_view.connect("warehouse_requested", _on_town_warehouse_requested)
 		if _town_view.has_signal("skills_requested"):
 			_town_view.connect("skills_requested", _on_town_skills_requested)
+		if _town_view.has_signal("scavenger_shop_requested"):
+			_town_view.connect("scavenger_shop_requested", _on_town_scavenger_shop_requested)
 	if _sub_hero_row.has_signal("slot_selected"):
 		_sub_hero_row.slot_selected.connect(_on_sub_hero_slot_selected)
 	_inventory_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
@@ -134,6 +139,7 @@ func _ready() -> void:
 	_development_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_skill_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_shop_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
+	_scavenger_shop_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_assignment_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	if _player != null and _player.has_signal("sub_hero_collection_changed"):
 		_player.sub_hero_collection_changed.connect(_on_sub_hero_state_changed)
@@ -187,6 +193,7 @@ func _on_dev_area_stage_enter_requested(stage_number: int) -> void:
 
 
 func _on_town_warehouse_requested() -> void:
+	_sync_economy_stage()
 	if _inventory_panel != null:
 		_inventory_panel.show_warehouse()
 
@@ -196,10 +203,30 @@ func _on_town_skills_requested() -> void:
 		_skill_panel.show_panel()
 
 
+func _on_town_scavenger_shop_requested() -> void:
+	_sync_economy_stage()
+	_scavenger_shop_panel.show_panel()
+
+
+## The item economy prices a sale against the stage the player reached (gameplay-spec §19):
+## the windfall cap is measured against that stage's expected income, so a stale stage would
+## mis-price every sale. The town surfaces are told the live stage before they open.
+func _sync_economy_stage() -> void:
+	if _player == null or not is_instance_valid(_player) or not _player.has_method("set_current_stage_number"):
+		return
+	if _stage_manager == null or not is_instance_valid(_stage_manager):
+		return
+	var stage_state: StageState = _stage_manager.get("stage_state") as StageState
+	if stage_state == null:
+		return
+	_player.call("set_current_stage_number", stage_state.stage_number)
+
+
 ## Switches the main ViewContainer view over to the town hub (TownView). Used by
 ## the DEV town entry and by StageRouter TOWN entries; the battlefield keeps its
 ## state behind the HUD.
 func show_town() -> void:
+	_sync_economy_stage()
 	if _town_view != null:
 		_town_view.visible = true
 	if _world_map_view != null:
@@ -267,6 +294,7 @@ func _is_overlay_open() -> bool:
 		_development_panel,
 		_skill_panel,
 		_shop_panel,
+		_scavenger_shop_panel,
 		_assignment_panel,
 	]:
 		if panel != null and is_instance_valid(panel) and panel.visible:
@@ -283,6 +311,7 @@ func _on_overlay_panel_visibility_changed() -> void:
 	_combat_log.visible = not (
 	_inventory_panel.visible or _development_panel.visible
 		or _skill_panel.visible or _shop_panel.visible or _assignment_panel.visible
+		or _scavenger_shop_panel.visible
 	)
 
 
@@ -292,12 +321,17 @@ func _on_dev_data_changed() -> void:
 	_inventory_panel.set_player(_player)
 	_skill_panel.set_player(_player)
 	_shop_panel.set_player(_player)
+	_scavenger_shop_panel.set_player(_player)
 	_assignment_panel.set_player(_player)
 	_refresh()
 
 
 func _on_shop_data_changed() -> void:
 	_refresh_sub_hero_slots()
+	_refresh()
+
+
+func _on_scavenger_shop_data_changed() -> void:
 	_refresh()
 
 

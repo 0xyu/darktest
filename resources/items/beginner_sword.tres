@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/items/equipment_definition.gd" id="1_definition"]
+[ext_resource type="Script" path="res://scripts/items/equipment_affix.gd" id="2_affix"]
+
+[sub_resource type="Resource" id="EquipmentAffix_attack"]
+script = ExtResource("2_affix")
+stat_id = &"attack"
+value = 10.0
+is_percentage = false
+display_name = "Attack"
+
+[resource]
+script = ExtResource("1_definition")
+definition_id = &"beginner_sword"
+display_name = "Beginner Sword"
+slot = 0
+rarity = 0
+item_level = 10
+can_buy_back = true
+base_affixes = Array[ExtResource("2_affix")]([SubResource("EquipmentAffix_attack")])
+description = "A plain, well-worn blade. Nothing about it is rolled, nothing about it is luck — the Ashen Oracle left it behind, and only ever once."

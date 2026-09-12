@@ -30,6 +30,7 @@ do*. Every entry in §3 is a work item, not a design decision.
 | Equipment, affixes, comparison, inventory, storage | `scripts/items/` |
 | Unique item effects | `scripts/items/effects/` |
 | Loot tables & generation | `scripts/systems/loot_table.gd`, `loot_generator.gd`, `loot_system.gd` |
+| Guaranteed stage drops & Scavenger Shop buyback | `resources/items/beginner_sword.tres`, `scripts/shop/scavenger_shop.gd`, `scripts/ui/scavenger_shop_panel.gd` |
 | Sub Heroes (data, catalog, summon, progression, combat) | `scripts/sub_hero/`, `resources/sub_heroes/` |
 | UI (combat HUD, town, world map, inventory, item popup, skill panel, shop, assignment, bestiary, dev panel) | `scripts/ui/`, `scenes/ui/` |
 | Localization (en / zh_Hant) | `scripts/systems/game_locale.gd` |
@@ -73,6 +74,12 @@ Verified equal to `gameplay-spec.md`, so no action needed:
   their multipliers, item level `max(enemy level, stage)`, item score formula.
 - Loot tables and drop chances (25 / 50 / 75 / 100 %), Mini Boss guaranteed drop,
   15 % consumable substitution.
+- Stage 10 (`forest_010`, the Ashen Oracle) grants the fixed **Beginner Sword** — Weapon,
+  Common, item level 10, Attack +10 — once per save, recorded in the save's
+  consumed-content store; replaying the stage grants nothing further.
+- Town **Scavenger Shop** with a BUYBACK tab: a discarded or sold item is stocked at its
+  Power Score and can be bought back into the bag (or the warehouse when the bag is full).
+  Buying back writes nothing to the one-shot store, so it cannot re-arm a stage drop.
 - Bag 10 slots, storage effectively unbounded, discard is free, equip is manual only.
 - Sub Heroes: 3 slots, 250 gold summon, quality weights 70/25/5, 3 duplicates → +1 level,
   real-time attack interval, damage formula and quality multipliers, enemies never target
@@ -128,17 +135,18 @@ Closed items are removed from these tables and their number retired, so ids stay
 
 | # | Spec | Current implementation | Impact |
 |---|---|---|---|
-| 17 | §13/§14 item actions Equip / Keep / Sell / Discard | `Equip` and `Discard` exist; `Store`/`Withdraw` (warehouse) approximates `Keep`; **`Sell` does not exist** and there is no per-item gold value | No way to convert unwanted loot into gold. Blocked on the TBD price model (§4) |
+| 17 | §13/§14 item actions Equip / Keep / Sell / Discard | `Equip`, `Discard` and **`Sell`** all exist; `Store`/`Withdraw` (warehouse) approximates `Keep`. Sell is offered by the town surfaces only — the Scavenger Shop's SELL tab and the item popup from the warehouse — and pays the §19 price | Closed for the town surfaces; the in-combat inventory deliberately offers no Sell |
 | 18 | §14 comparison during loot presentation | The drop popup only reveals the item; comparison lives in the inventory item popup | Loot decisions require opening the inventory |
 | 19 | §13 rarity as a build lever | Rarity biases value via a multiplier, but no rarity-exclusive affix or effect exists beyond the unique-effect chance | Higher rarity is mostly a numbers upgrade |
+| 26 | §13/§14 buyback | The buyback book is **session-scoped**: it holds the items the player gave up this session and is emptied by a restart | Consequence of row 3 — the bag is not persisted either, so a surviving book would hold an item nobody owns. The once-per-save drop record itself IS persisted |
 
 ### 3.5 World, Town, Content
 
 | # | Spec / GDD | Current implementation | Impact |
 |---|---|---|---|
 | 20 | GDD §4.1 regions continue global numbering | Only Forest 1–10 is authored; stage 11+ is area-less endless content | The world map shows one area; more regions are needed for the designed progression |
-| 21 | GDD §13.1 town for equipment, storage, skills, Sub Heroes, progression | Town has exactly 2 facilities: warehouse and skill mentor | Town is a shell of the designed management area |
-| 22 | GDD §13.2 gold for summons, Sub Hero progression, town services | Gold is spent only on Sub Hero summons; no equipment shop, no upgrades | Gold has a single sink |
+| 21 | GDD §13.1 town for equipment, storage, skills, Sub Heroes, progression | Town has exactly 3 facilities: warehouse, skill mentor and scavenger shop | Town is still a shell of the designed management area |
+| 22 | GDD §13.2 gold for summons, Sub Hero progression, town services | Gold is spent on Sub Hero summons and scavenger-shop buybacks; no equipment shop, no upgrades | Gold has two sinks |
 | 23 | GDD §4.3 stage states Locked / Ready / Current / Completed | Implemented as `LOCKED` / `READY` / `DONE` / `HERE`; unlock rule = previous stage cleared or `stage ≤ highest_stage_reached` | Naming differs; behavior matches |
 | 24 | — | The bestiary is a character-sprite atlas browser, not an enemy stat codex (`enemy_bestiary_panel.gd`) | Not a spec conflict, but the label overstates it |
 | 25 | §11 special-encounter rolls | Fixed-`LevelConfig` stages (1, 2, 10, 100) skip the roll entirely and do not advance pity | Authored stages are exempt from the pity model |
@@ -148,11 +156,11 @@ Closed items are removed from these tables and their number retired, so ids stay
 ## 4. Blocked On Design Decisions
 
 These cannot be closed by implementation alone — they need an answer first
-(`docs/gameplay-spec.md` §19).
+(`docs/gameplay-spec.md` §20).
 
 | Item | What is needed |
 |---|---|
-| Sell action | Item gold value / price model. `Equip`, `Discard` and warehouse `Store`/`Withdraw` all work; `Sell` does not exist |
+| Equipment vendor stock | A forward vendor — one that sells gear TO the player — does not exist. Its stock policy (item level, stock size, restock cadence, affix rolling) must be decided before one ships; the §19 buy price is already specified |
 | Inventory capacity | A capacity rule. The build uses a 10-item bag plus effectively unbounded storage; the spec leaves capacity TBD |
 | Idle Power / Idle Capability / Idle AI tiers | Scheduling, plus a defined player-facing output (where Stable Farming Stage, Maximum Push Stage and the recommended farming stage are shown) |
 | Assist Sub Heroes | Buff / utility role design — all 8 Sub Heroes are pure damage today |
@@ -182,6 +190,7 @@ area_stage_data   player_progress   skill_progression   stage_content
 stage_database    stage_progress_save   stage_router
 subhero_combat    subhero_data   subhero_progression   subhero_runtime
 subhero_summon    enemy_experience_scaling   subhero_kill_reward
+beginner_sword_drop   scavenger_shop
 ```
 
 Run only the suite covering a change. Never run the full harness unless asked.

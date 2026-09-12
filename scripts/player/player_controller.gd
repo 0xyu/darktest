@@ -19,6 +19,11 @@ signal level_up(new_level: int)
 signal equipment_effect_triggered(effect_id: StringName, description: String)
 signal healing_item_used(remaining_items: int, amount_healed: int)
 signal item_used(item: EquipmentInstance, amount_healed: int)
+## The player gave an item up for good (discarded from the bag or the warehouse).
+## Emitted by the two paths that end ownership, so a listener can keep a record of
+## what left the player's hands without either path knowing about it — the
+## Scavenger Shop's buyback book is the listener today.
+signal equipment_discarded(item: EquipmentInstance)
 signal sub_hero_collection_changed
 signal sub_hero_slots_changed
 
@@ -29,6 +34,14 @@ signal sub_hero_slots_changed
 @export var player_progression: PlayerProgression = PlayerProgression.new()
 @export var equipment_inventory: EquipmentInventory
 @export var storage_inventory: StorageInventory
+## The buyback book the town's sell surfaces share (gameplay-spec §19). It lives on
+## the player, not on a panel, because both the Scavenger Shop and the warehouse stock it:
+## an item sold or discarded in either place must be recoverable in the same book.
+@export var scavenger_shop: ScavengerShop
+## The stage the player is on. The item economy needs it to price a sale: the §19 windfall
+## cap is measured against the stage's expected income. The host keeps it in sync through
+## `set_current_stage_number()`.
+@export_range(1, 999999, 1) var current_stage_number: int = 1
 @export var sub_hero_progression: SubHeroProgressionService
 @export var is_selected: bool = true
 @export var target_path: NodePath
@@ -171,7 +184,10 @@ func move_to_bag(item: EquipmentInstance) -> bool:
 
 
 func discard_storage_item(item: EquipmentInstance) -> bool:
-	return get_storage().remove_item(item)
+	var discarded: bool = get_storage().remove_item(item)
+	if discarded:
+		equipment_discarded.emit(item)
+	return discarded
 
 
 func equip_item(item: EquipmentInstance) -> bool:
@@ -235,7 +251,66 @@ func use_item(item: EquipmentInstance) -> bool:
 
 
 func discard_item(item: EquipmentInstance) -> bool:
-	return get_inventory().discard_item(item)
+	var discarded: bool = get_inventory().discard_item(item)
+	if discarded:
+		equipment_discarded.emit(item)
+	return discarded
+
+
+## The shared buyback book, created on first use so a headless caller (a test, a tool)
+## never has to build the UI to sell something.
+func get_scavenger_shop() -> ScavengerShop:
+	if scavenger_shop == null:
+		scavenger_shop = ScavengerShop.new()
+	return scavenger_shop
+
+
+## The stage every price is measured against. Called by the host when the stage advances.
+func set_current_stage_number(stage_number: int) -> void:
+	current_stage_number = maxi(stage_number, 1)
+
+
+## Sells one owned item for gold at its §19 `SellPrice`. The item leaves the bag or the
+## warehouse, and is stocked in the shared buyback book at the price it was sold for, so a
+## sale can be undone for exactly what it paid.
+##
+## Result keys are UI-friendly and contain no Control objects:
+## {success, reason, price, item}.
+func sell_item(item: EquipmentInstance, from_storage: bool = false) -> Dictionary:
+	if item == null:
+		return _sell_failure("ITEM_UNAVAILABLE", item)
+	if item.is_equipped:
+		return _sell_failure("ITEM_EQUIPPED", item)
+	var owns_item: bool = get_storage().has_item(item) if from_storage else get_inventory().has_item(item)
+	if not owns_item:
+		return _sell_failure("ITEM_NOT_OWNED", item)
+
+	var price: int = ItemEconomy.get_sell_price(item, current_stage_number)
+	# Removal goes through the discard paths so the bag/storage signals fire exactly once
+	# and every panel refreshes; the sale's own record follows below.
+	var removed: bool = discard_storage_item(item) if from_storage else discard_item(item)
+	if not removed:
+		return _sell_failure("ITEM_NOT_OWNED", item)
+	if player_progression != null:
+		player_progression.add_gold(price)
+	# Stocked here rather than only by the shop panel's listener: a sale that paid gold must
+	# stay recoverable even when no shop UI is listening.
+	get_scavenger_shop().record(item, current_stage_number)
+	return {
+		"success": true,
+		"reason": "",
+		"price": price,
+		"item": item,
+	}
+
+
+func _sell_failure(reason: String, item: EquipmentInstance) -> Dictionary:
+	return {
+		"success": false,
+		"reason": reason,
+		"price": 0,
+		"item": item,
+	}
 
 
 func compare_equipment(item: EquipmentInstance) -> Dictionary:

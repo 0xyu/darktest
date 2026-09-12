@@ -3,9 +3,9 @@ extends "res://tools/ui_harness/ui_harness_suite.gd"
 ## Headless integration suite for the town hub flow on the combat HUD.
 ##
 ## Mounts the real game scene (res://scenes/world/Main.tscn) and drives the
-## DEV panel town entry -> TownView -> facility (warehouse / skill mentor)
-## navigation, asserting the HUD toggles CombatView/TownView and routes each
-## facility to the correct existing panel.
+## DEV panel town entry -> TownView -> facility (warehouse / skill mentor /
+## scavenger shop) navigation, asserting the HUD toggles CombatView/TownView and
+## routes each facility to the correct existing panel.
 
 const MAIN_SCENE := preload("res://scenes/world/Main.tscn")
 
@@ -87,3 +87,53 @@ func test_town_facilities_open_correct_panels() -> void:
 	skill.call("hide_panel")
 	await flush_frames(1)
 	expect(bool(town.get("visible")), "skill panel closes back to the town view")
+
+
+func test_town_scavenger_shop_opens_buyback() -> void:
+	await _mount_game()
+	var hud: Node = _hud()
+	if hud == null:
+		return
+	var town: Node = hud.get_node("%TownView")
+	var shop: Node = hud.get_node("%ScavengerShopPanel")
+	if town == null or shop == null:
+		expect(false, "town/scavenger shop nodes present")
+		return
+
+	town.call("show")
+	expect(not bool(shop.get("visible")), "scavenger shop hidden before entry")
+	town.emit_signal("scavenger_shop_requested")
+	await flush_frames(2)
+	expect(bool(shop.get("visible")), "the scavenger shop facility opens the buyback panel")
+	shop.call("hide_panel")
+	await flush_frames(1)
+	expect(not bool(shop.get("visible")), "the buyback panel closes")
+	expect(bool(town.get("visible")), "closing buyback returns to the town view")
+
+
+## The Beginner Sword is a one-per-save drop, so the discard path is the only way
+## back to it: discarding it must stock the shop's buyback book.
+func test_discarded_sword_reaches_buyback() -> void:
+	await _mount_game()
+	var hud: Node = _hud()
+	var player: Node = _grid_test.find_child("Player", true, false)
+	if hud == null or player == null:
+		expect(false, "hud/player present")
+		return
+	var shop: Node = hud.get_node("%ScavengerShopPanel")
+	if shop == null:
+		expect(false, "scavenger shop panel present")
+		return
+	var book = shop.get("shop")
+	if book == null:
+		expect(false, "the panel owns a buyback book")
+		return
+
+	var sword: EquipmentInstance = EquipmentInstance.create_from_definition(
+		load("res://resources/items/beginner_sword.tres")
+	)
+	expect(player.call("add_equipment", sword), "the sword is in the bag")
+	expect(player.call("discard_item", sword), "the sword leaves the bag")
+	await flush_frames(2)
+	expect(bool(book.call("has_entry", sword)), "a discarded sword is stocked in buyback")
+	expect(int(book.call("get_entry_count")) == 1, "buyback holds exactly that one item")

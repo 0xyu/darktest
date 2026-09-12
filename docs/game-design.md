@@ -530,13 +530,20 @@ AI Tier is one component of Idle Power and must not completely determine Idle Ca
 
 ## 13.1 Town
 
-Town is a safe management area for equipment, storage, skills, Sub Heroes and other
-progression systems.
+Town is a safe management area for equipment, storage, skills, Sub Heroes, a scavenger
+shop (buyback for what the player gave up) and other progression systems.
 
 ## 13.2 Gold
 
 Gold is a progression currency used for Sub Hero summons, Sub Hero progression, town
 services and other progression systems.
+
+Gold is a **secondary** progression resource, and selling unwanted equipment is
+**secondary** income: it makes loot decisions meaningful and funds the town, but it must
+never replace combat loot as the primary progression source. Selling belongs to the town —
+inside combat the player fights, and decides what to keep later. The exact model — item
+economic value, vendor buy and sell prices, buyback and the calibration targets — lives in
+`docs/gameplay-spec.md` §19.
 
 ## 13.3 Persistent Progression
 

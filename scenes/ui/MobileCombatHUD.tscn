@@ -20,6 +20,7 @@
 [ext_resource type="PackedScene" uid="uid://phebfkgyuq0m" path="res://scenes/ui/combat_actions.tscn" id="26_actions"]
 [ext_resource type="PackedScene" path="res://scenes/ui/TownView.tscn" id="27_town"]
 [ext_resource type="PackedScene" path="res://scenes/ui/WorldMapView.tscn" id="28_worldmap"]
+[ext_resource type="PackedScene" path="res://scenes/ui/ScavengerShopPanel.tscn" id="29_scavenger"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.0706, 0.0627, 0.102, 0.97)
@@ -124,7 +125,7 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 1
 
-[node name="WorldMapView" parent="Root/SafeArea/MainContent/ViewContainer" instance=ExtResource("28_worldmap")]
+[node name="WorldMapView" parent="Root/SafeArea/MainContent/ViewContainer" unique_id=1852520611 instance=ExtResource("28_worldmap")]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
@@ -277,7 +278,7 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "DEV"
 
-[node name="MapButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow"]
+[node name="MapButton" type="Button" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/BottomPanel/Margin/Content/UtilityRow" unique_id=340830012]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(72, 38)
 layout_mode = 2
@@ -408,6 +409,10 @@ unique_name_in_owner = true
 layout_mode = 2
 
 [node name="SubHeroShopPanel" parent="Root" unique_id=1524388934 instance=ExtResource("24_shop")]
+unique_name_in_owner = true
+layout_mode = 1
+
+[node name="ScavengerShopPanel" parent="Root" instance=ExtResource("29_scavenger")]
 unique_name_in_owner = true
 layout_mode = 1
 

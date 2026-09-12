@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="LevelConfig" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="LevelConfig" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/level_config.gd" id="1_config"]
 [ext_resource type="Resource" path="res://resources/enemies/AshenOracle.tres" id="2_boss"]
+[ext_resource type="Resource" path="res://resources/items/beginner_sword.tres" id="3_guaranteed"]
 
 [resource]
 script = ExtResource("1_config")
@@ -11,3 +12,4 @@ difficulty_multiplier = 1.0
 enemy_entries = []
 spawn_rules = [&"random"]
 boss = ExtResource("2_boss")
+guaranteed_loot = Array[ExtResource("3_guaranteed")]([ExtResource("3_guaranteed")])

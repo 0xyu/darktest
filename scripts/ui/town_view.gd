@@ -10,6 +10,7 @@ extends Control
 signal close_requested
 signal warehouse_requested
 signal skills_requested
+signal scavenger_shop_requested
 
 const COLOR_GOLD := Color("e8c465")
 const COLOR_GOLD_BRIGHT := Color("f4d28b")
@@ -74,6 +75,7 @@ func _build_ui() -> void:
 
 	list.add_child(_make_facility_card("仓库", "存放与取回装备 · 背包满时自动存入", COLOR_GOLD, _on_warehouse_pressed))
 	list.add_child(_make_facility_card("技能导师", "消耗技能点学习与升级技能", COLOR_BLUE, _on_skills_pressed))
+	list.add_child(_make_facility_card("拾荒商店", "买回你丢弃的装备 · 回收站", COLOR_GOLD, _on_scavenger_shop_pressed))
 
 
 func _build_header() -> HBoxContainer:
@@ -153,6 +155,10 @@ func _on_warehouse_pressed() -> void:
 
 func _on_skills_pressed() -> void:
 	skills_requested.emit()
+
+
+func _on_scavenger_shop_pressed() -> void:
+	scavenger_shop_requested.emit()
 
 
 func _make_style(background: Color, border: Color, border_width: int, radius: int) -> StyleBoxFlat:

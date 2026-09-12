@@ -291,13 +291,32 @@ Multipliers from all equipped items multiply together.
 - Rarity weights are stage-independent; item level scales with stage.
 - Authored stage content (chests, springs, caches) may also grant gold, healing or items.
 
+### Guaranteed stage drops
+
+A level config may author fixed items (`LevelConfig.guaranteed_loot`) that the stage's
+**boss** grants on top of its rolled loot. Such a drop is granted **once per save**: the
+grant is recorded in the consumed-content store the save persists, keyed
+`<stage_id>:<definition_id>`, so replaying the stage (FARMING, a map re-entry) grants
+nothing further. A fresh save grants it again. Authored fixed items are never re-rolled —
+two instances of the same definition are identical.
+
 | Rule | Value |
 |---|---|
-| Bag capacity | **TBD** — not yet a design commitment (see §19) |
+| Stage 10 (`forest_010`) guaranteed drop | **Beginner Sword** — Weapon, Common, item level 10, one fixed affix: Attack **+10** |
+| Grant condition | Defeating the stage's Mini Boss; a non-boss kill on the same stage grants nothing |
+| Grant scope | Once per save, recorded as `<stage_id>:<definition_id>` |
+| Recovery | Discarding a guaranteed item stocks the Scavenger Shop buyback (below) |
+
+A stage that authors no guaranteed loot (every generated stage in the endless tail) pays
+none.
+
+| Rule | Value |
+|---|---|
+| Bag capacity | **TBD** — not yet a design commitment (see §20) |
 | Overflow | Bag → storage → drop lost (report it to the player) |
 | Storage | Long-term, effectively unbounded |
 | Discard | Free, no gold return |
-| Sell | Required action: sells an item for gold. Price model **TBD** (see §19) |
+| Sell | Required action: sells an item for gold at its §19 `SellPrice` |
 | Auto-equip | Never automatic; equipping is a player decision |
 
 ## 14. Loot Presentation & Comparison
@@ -311,7 +330,12 @@ enemy dies → item rolls → added to bag (or storage)
 - The reveal must not block or pause combat.
 - Comparison shows the equipped item and the new item side by side with per-stat deltas
   and a score delta. Power Score alone must not decide.
-- Item actions: **Equip, Keep, Sell, Discard.** (Sell's price model is still TBD.)
+- Item actions: **Equip, Keep, Sell, Discard.** Sell pays the item's §19 `SellPrice`.
+- The town's **Scavenger Shop** has a buyback tab: an item the player discards is stocked
+  there and can be bought back. Buyback price = the `SellPrice` it was given up at (§19) —
+  never the Power Score, so one item never carries two prices.
+- Buying an item back only returns ownership. It never grants, resets or re-arms the
+  one-per-save drop an item came from.
 
 ## 15. Sub Heroes
 
@@ -424,24 +448,284 @@ Farming Efficiency = Success Rate × Reward / Time
 | 4 | Resource management, automatic healing, advanced decisions |
 | 5 | Complete Idle AI: efficient rotation, enemy-aware decisions |
 
-## 19. Open Questions
+## 19. Economy
+
+Design intent is in `docs/game-design.md` §13.2: gold is a **secondary** progression
+resource and selling unwanted equipment is **secondary** income. This section is the exact
+model, and it is the only source of item gold values.
+
+Tuning lives in `EconomyConfig` (`scripts/economy/economy_config.gd`) and the model lives in
+`ItemEconomy` (`scripts/economy/item_economy.gd`). No other file may compute a price.
+`tests/economy_smoke_test.gd` asserts the contract at the end of this section.
+
+**One item, one price.** `EconomicValue` is separate from the Power Score
+(`EquipmentInstance.get_equipment_score()`), which stays a *comparison* signal only. No
+vendor price may be computed from the Power Score.
+
+### Gold income (reference)
+
+Unchanged by this section, and the curve everything below is calibrated against:
+
+```text
+ClearGold(stage) = stage gold + Σ enemy gold                    # §10
+                 = (base_stage_gold + base_gold × EnemyCount(stage)) × 1.18^(stage - 1)
+                 = (50 + 10 × EnemyCount(stage)) × 1.18^(stage - 1)
+```
+
+| Stage | `EnemyCount` (§9) | `ClearGold ÷ 1.18^(stage-1)` |
+|---|---|---|
+| 1–3 | 1 | 60 |
+| 4–6 | 2 | 70 |
+| 7–9 | 3 | 80 |
+| 10+ | 4 | 90 |
+
+### Item Economic Value
+
+```text
+LevelMultiplier = 1.18^(item_level - 1)
+
+AffixMultiplier = clamp(
+    1 + 0.15 × Σ(AffixRollRatio × AffixEconomicWeight),
+    1.0,
+    3.0
+)
+
+EconomicValue = BaseItemValue
+              × LevelMultiplier
+              × RarityMultiplier
+              × SlotValueWeight
+              × AffixMultiplier
+```
+
+`AffixRollRatio` is §12's roll factor normalized to `0..1`, measured against the range
+valid **at the item's own level *and* rarity** (both feed `roll_value`):
+
+```text
+AffixRollRatio = (roll - 0.80) / 0.40      # roll = §12's random(0.80 .. 1.20)
+```
+
+| Rule | Value |
+|---|---|
+| `AffixRollRatio` must be **persisted** | `EquipmentAffix` gains `roll_ratio`, set in `create_rolled()` |
+| Why | `value` is rounded (`roundi`; 2 decimals for percentages) and floored at 1.0, so the ratio cannot be recovered from it — `Movement` / `Attack Range` store the same integer at any low item level |
+| Authored / fixed affixes (never rolled) | `roll_ratio = 0.5` (neutral) |
+| Percentage vs flat affixes | No special case: the ratio is normalized per affix, so one weight scale covers both |
+
+Rarity multipliers — **economic only; never combat multipliers**:
+
+| Rarity | Multiplier |
+|---|---|
+| Common | 1.0 |
+| Uncommon | 1.5 |
+| Rare | 3.0 |
+| Epic | 7.0 |
+| Legendary | 15.0 |
+| Mythic | 35.0 |
+
+Affix economic weights — data on the affix, never a table inside vendor code. They
+deliberately do not match §12's combat roll weights: a rare, build-defining affix is worth
+more than a common one.
+
+| Affix | Economic weight |
+|---|---|
+| Attack | 1.0 |
+| Defense | 0.9 |
+| HP | 0.8 |
+| Critical Chance | 1.5 |
+| Critical Damage | 1.4 |
+| Dodge | 1.3 |
+| Movement | 2.5 |
+| Attack Range | 2.0 |
+| Life Steal | 2.0 |
+| Damage vs Elite | 1.5 |
+| Damage vs Boss | 1.8 |
+
+| Rule | Value |
+|---|---|
+| `SlotValueWeight` | All 7 slots **1.0** in v1 — the table exists so slots can diverge without changing the formula |
+| Unique effects | **Excluded** from `EconomicValue`: a build-defining effect must never be the reason an item is worth vendoring |
+| Sell confirmation | Must name the unique effect (or the Power Score gain) before an item carrying one is sold |
+| Persistence | `EconomicValue` is recomputed at price time and never stored in the save; only `roll_ratio` (item data, not a price) is persisted, so retuning weights cannot leave stale prices behind |
+
+### Consumable pricing
+
+Potions are **15 %** of successful drops (§13) and carry no affixes, so they reuse the value
+formula with their own base:
+
+```text
+ConsumableValue = BasePotionValue
+                × LevelMultiplier
+                × RarityMultiplier        # the rarity the drop rolled
+                × 1.0                     # an affix-less item sits on the AffixMultiplier floor
+
+BasePotionValue = 25
+```
+
+A potion is a usable combat resource, so the same roll is worth **less** than the equipment
+branch — at the same level and rarity a potion is **≈ 70 %** of a common item — but never
+nothing. The rolled rarity still counts, so a Legendary roll pays like a Legendary roll;
+only the affix term is absent.
+
+### Vendor buy price
+
+```text
+BuyPrice = EconomicValue × VendorBuyMultiplier        # 4.0
+```
+
+| Rule | Value |
+|---|---|
+| Role | Convenience / fallback equipment — never the default best upgrade path |
+| Never stocked | Items carrying a unique effect |
+| Stock policy | §20 — item level policy, stock size, restock cadence, whether stock rolls affixes |
+| Affordability | Stock item level must be checked against the buy-price affordability target (§20) |
+
+### Vendor sell price
+
+```text
+RawSellPrice = EconomicValue × VendorSellMultiplier       # 0.25
+
+StageExpectedSell(stage) = BaseItemValue
+                         × 1.18^(stage - 1)
+                         × RarityMeanMultiplier          # 1.705
+                         × AffixMeanMultiplier           # 1.183
+                         × VendorSellMultiplier
+
+WindfallCap(stage) = k × StageExpectedSell(stage)          # k = 50
+
+SellPrice = maxi(1, floori(min(RawSellPrice, WindfallCap(stage))))
+```
+
+Both means are derived, not authored:
+
+```text
+RarityMeanMultiplier = 0.60×1.0 + 0.25×1.5 + 0.10×3.0 + 0.04×7.0 + 0.01×15.0   # §13 normal-enemy weights
+                     = 1.705                                                  # Mythic is 0 there
+
+AffixMeanMultiplier  = 1 + 0.15 × mean_affix_count × mean_economic_weight × 0.5
+                     = 1 + 0.15 × 1.61 × 1.518 × 0.5
+                     = 1.183      # §12 affix counts per rarity, mean ratio 0.5
+```
+
+#### The cap clips windfalls; it does not control inflation
+
+- Both sides already grow as `1.18^(stage-1)`, so selling's share of gold income is
+  structurally **stage-flat** — there is no drift for a slower cap curve (e.g. `1.12`) to
+  correct. A stage-only decay instead clips the top of the rarity table: with
+  `min(RawSell, BaseVendorSellCap × 1.12^(stage-1))` a Legendary/Mythic is clipped from
+  **stage 1**, contradicting `RarityMultiplier = 35`.
+- `k` is **derived, not chosen**: the highest in-band item must never be clipped, so
+
+  ```text
+  k ≥ RarityMultiplier_Mythic × AffixMultiplier_Mythic × 1.18^(max in-band level offset)
+      ÷ (RarityMeanMultiplier × AffixMeanMultiplier)
+    = 35 × 1.569 × 1.18^3 ÷ (1.705 × 1.183)
+    ≈ 45                → k = 50
+  ```
+
+  The max in-band level offset is **+3**: a dropped item's level is
+  `max(enemy_level, stage)` and enemy level is `stage ± 3` (§9). Requirement: **no item
+  whose `item_level ≤ stage + 3` is ever clipped.**
+- Aggregate gold injection is a function of **volume**, not of a per-item ceiling: 1000
+  clipped commons inject as much gold as one unclipped Legendary. The volume levers are
+  §13's drop chance, `VendorSellMultiplier` and clears per hour — which is why idle farming,
+  not rarity, is what can break the economy.
+- No arbitrage, by construction:
+  `SellPrice ≤ RawSellPrice = 0.25 × EconomicValue < 4.0 × EconomicValue = BuyPrice`,
+  for every item and every cap value. This is an assertion, not a tuning accident.
+
+### `BaseItemValue` is derived, not authored
+
+```text
+EquipmentDropsPerClear(stage) = EnemyCount(stage) × 0.25 × 0.85    # §13 drop chance, 15 % potion share
+
+BaseItemValue = TargetSellShare × ClearGold(stage*)
+              ÷ (EquipmentDropsPerClear(stage*) × VendorSellMultiplier
+                 × RarityMeanMultiplier × AffixMeanMultiplier)
+```
+
+`stage*` is the **calibration stage**. Drops per clear are a step function of `EnemyCount`
+(1 → 4 by stage 10) while `ClearGold` grows only ~1.5× over the same range, so the
+calibration point decides the shape of the whole economy:
+
+| `stage*` | `BaseItemValue` | Sell share, stage 1–3 | Sell share, stage 10+ |
+|---|---|---|---|
+| 1 | 84 | 15 % | **40 %** |
+| 10 (steady state) | **32** | 6 % | 15 % |
+
+Calibrating at stage 1 makes selling the *larger* share of gold income from stage 10 on —
+the opposite of "secondary income". **Recommended: `stage* = 10`, `BaseItemValue = 32`,
+target band 5–17 %.**
+
+### Calibration table
+
+At `BaseItemValue = 32`, with `L = 1.18^(stage - 1)`:
+
+| Stage | `EnemyCount` | `ClearGold ÷ L` | Drops per clear | Sell income ÷ L | Sell share |
+|---|---|---|---|---|---|
+| 1–3 | 1 | 60 | 0.21 | 3.4 | 5.7 % |
+| 4–6 | 2 | 70 | 0.43 | 6.9 | 9.8 % |
+| 7–9 | 3 | 80 | 0.64 | 10.3 | 12.9 % |
+| 10+ | 4 | 90 | 0.85 | 13.7 | 15.2 % |
+
+The share ramps with encounter size and is then **flat forever** — no stage-dependent decay
+is needed anywhere. Two refinements any calibration must account for:
+
+- A dropped item's expected level is `stage + 0.5`, not `stage` (the §9 offset band clamped
+  by `max(enemy_level, stage)`): ≈ +8.6 %, so the steady-state share is ≈ **16.6 %**.
+- Rarity weights are stage-independent (§13), so `RarityMeanMultiplier` is a constant and
+  the share cannot drift with rarity supply.
+
+### Sell action rules
+
+| Rule | Value |
+|---|---|
+| Rounding | `floori`, then `maxi(1, …)` — every sellable item is worth at least 1 gold |
+| Sell location | **Town only**, at two surfaces: the Scavenger Shop's **SELL** tab and the item popup opened from the **Warehouse**. The in-combat inventory never offers Sell |
+| Potions / consumables | Sellable, priced by the consumable model above |
+| Buyback | A given-up item is stocked in `PlayerController.get_scavenger_shop()` at the exact `SellPrice` it was given up for. `ScavengerShop.get_price()` returns that recorded price and never the Power Score |
+| What may be stocked | Only AUTHORED definitions (a `.tres`, so `resource_path` is set) that opt in with `EquipmentDefinition.can_buy_back`. Generated loot sells for gold but is not recoverable |
+| Guaranteed drops | Selling never re-arms or resets a one-per-save grant (§13) |
+| Numeric range | Gold is an `int`: single awards stop being integer-exact at `2^53` (≈ stage 200 on the §10 curve) and saturate int64 at ≈ stage 240 — a ledger/notation decision is required before those stages ship (§20) |
+
+### Test contract
+
+`tests/economy_smoke_test.gd` — headless, pure data, no scene tree:
+
+1. `SellPrice` is monotonic in item level, rarity and `AffixRollRatio`.
+2. No arbitrage: `SellPrice < BuyPrice` across a full rarity × level × ratio sample.
+3. No in-band clipping: `item_level ≤ stage + 3 ⇒ SellPrice == RawSellPrice`.
+4. The calibration table above, within the target band.
+5. `SellPrice ≥ 1` for every sellable item.
+
+The file ships **with** the implementation, not before it: a test written first would have
+to restate every constant, creating the second source of truth this project forbids.
+
+## 20. Open Questions
 
 **Resolved and now part of this spec:**
 
 - EXP stage growth (§10) — `StageFactor = 1.15^(stage - 1)`.
 - Farming × AUTO behavior (§16) — the four-mode matrix, already implemented.
+- Buyback pricing (§14) — buying an item back from the Scavenger Shop charges the
+  `SellPrice` it was given up at (§19). The Power Score is no longer a price, and the
+  Scavenger Shop migrates to the §19 model.
 
 **Still open:**
 
-1. **Sell price model** — Sell is a required item action (§14), but an item's gold value is
-   TBD, so it cannot be implemented yet. Needs: the value formula, which item properties
-   drive it (rarity, item level, affix count, unique effect), and whether selling is
-   available from combat or only in town.
-2. **Inventory capacity** — TBD. The shipped build uses a small bag plus effectively
+1. **Vendor (forward) economy** — a vendor that SELLS equipment to the player does not exist
+   yet. Before one ships, needed: its stock policy (item level relative to the player/stage,
+   stock size, restock cadence, whether stock rolls affixes), what it may never stock
+   (items with unique effects), and its affordability target. `BuyPrice` is specified (§19);
+   the shop around it is not.
+2. **Gold's numeric range** — gold is an `int`, and the §10 curve stops being integer-exact
+   around stage 200 (int64 saturates near stage 240). A ledger/notation decision is required
+   before those stages ship.
+3. **Inventory capacity** — TBD. The shipped build uses a small bag plus effectively
    unbounded storage; capacity must be decided before it is treated as a rule.
-3. **Enemy level's effect on stats** — the per-spawn level offset is rolled today; confirm
+4. **Enemy level's effect on stats** — the per-spawn level offset is rolled today; confirm
    how strongly it should move HP / attack / defense on top of stage-based scaling (§9).
-4. **Assist Sub Heroes and Idle AI tiers** — designed (§15, §18) but unscheduled; confirm
+5. **Assist Sub Heroes and Idle AI tiers** — designed (§15, §18) but unscheduled; confirm
    they are Tier 2 scope before implementation.
-5. **Potion replenishment** — potions must come from somewhere beyond the starting stock
-   and loot drops (§7): confirm town purchase, stage resupply, or loot only.
+6. **Potion replenishment** — potions must come from somewhere beyond the starting stock
+   and loot drops (§7): confirm town purchase, stage resupply, or loot only. Their sell price
+   is now specified (§19).

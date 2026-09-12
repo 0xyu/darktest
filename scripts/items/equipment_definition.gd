@@ -14,6 +14,11 @@ extends Resource
 ## `slot` should stay invalid (-1) so they can never be equipped or filtered.
 @export var is_consumable: bool = false
 @export_range(0.0, 1.0, 0.01) var heal_ratio: float = 0.0
+## Whether the Scavenger Shop's buyback book may stock this definition (gameplay-spec §19).
+## Only authored, `.tres`-backed definitions can opt in: a runtime-generated definition
+## (`EquipmentDefinition.new()`) has no resource path and is never stockable. Default
+## false, so a new definition is never buybackable by accident.
+@export var can_buy_back: bool = false
 
 
 func get_slot_name() -> String:

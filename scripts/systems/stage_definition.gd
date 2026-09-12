@@ -10,6 +10,10 @@ extends Resource
 @export var enemy_entries: Array[StageEnemyEntry] = []
 @export var spawn_rules: Array[StringName] = [&"random"]
 @export var boss: EnemyData
+## Fixed items the boss of this stage grants once per save, in addition to its loot
+## table. The grant is recorded in the one-shot content store, so replaying the
+## stage (FARMING, a map re-entry) cannot hand the same item out twice.
+@export var guaranteed_loot: Array[EquipmentDefinition] = []
 @export var special_rules: Dictionary = {}
 @export var is_mini_boss_stage: bool = false
 @export var is_special_encounter: bool = false
