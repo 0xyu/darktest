@@ -6,9 +6,9 @@
 [sub_resource type="Resource" id="Resource_m801p"]
 script = ExtResource("1_dyfxb")
 level = 2
-max_hp = 71
-attack = 11
-defense = 7
+max_hp = 137
+attack = 20
+defense = 4
 movement_points = 2
 experience_reward = 54
 gold_reward = 22

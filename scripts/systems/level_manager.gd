@@ -47,13 +47,7 @@ func get_exp_growth_rate() -> float:
 	return _provider.get_exp_growth_rate() if _provider != null else 1.15
 
 
-func get_hp_growth_rate() -> float:
-	return _provider.get_hp_growth_rate() if _provider != null else 1.20
-
-
-func get_attack_growth_rate() -> float:
-	return _provider.get_attack_growth_rate() if _provider != null else 1.16
-
-
-func get_defense_growth_rate() -> float:
-	return _provider.get_defense_growth_rate() if _provider != null else 1.15
+## §7: the provider owns the balance profile, and the systems this manager already configures
+## (the stage manager above all) read it through here instead of loading a second copy.
+func get_balance_profile() -> BalanceProfile:
+	return _provider.get_balance_profile() if _provider != null else BalanceProfile.get_default()

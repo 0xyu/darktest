@@ -88,6 +88,14 @@ func _ready() -> void:
 	# a fresh stage. The level is written straight into the progression object the save
 	# adopted (no signal), so the hero rebuilds its stats here, once the save has
 	# landed: the boot numbers are the numbers that level and that gear produce.
+	#
+	# §7: the provider owns the balance profile and the stage manager already resolves that
+	# one instance, so the hero and the damage entry are handed IT — no second copy of the
+	# numbers is loaded anywhere, and a scene-level override reaches every consumer at once.
+	# Injection happens BEFORE the first rebuild, so the hero boots with the profile the world
+	# actually plays with.
+	player.balance_profile = stage_manager.get_balance_profile()
+	combat_system.balance_profile = player.balance_profile
 	player.recompute_stats_from_level_and_equipment()
 	grid.queue_redraw()
 	player.reset_movement_points()

@@ -6,8 +6,8 @@
 [sub_resource type="Resource" id="Resource_gtcff"]
 script = ExtResource("1_jhccy")
 level = 3
-max_hp = 114
-attack = 24
+max_hp = 145
+attack = 23
 defense = 4
 movement_points = 2
 experience_reward = 73

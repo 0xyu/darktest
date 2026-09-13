@@ -19,9 +19,10 @@ enum Type {
 	STUN_CHANCE,
 }
 
-## §12's affix roll band. `roll_ratio` is a factor inside it, normalized to 0..1.
-const ROLL_MIN: float = 0.80
-const ROLL_MAX: float = 1.20
+## §12 / §3.2's roll band lives in the balance profile ([member BalanceProfile.affix_roll_min] /
+## [member BalanceProfile.affix_roll_max]) so the band has ONE owner; every entry point below
+## takes the profile it should roll under and falls back to the shipped default when a caller
+## (headless tooling, a fixture) has none to inject.
 
 @export var stat_id: StringName = &"attack"
 ## Authored values may be negative — a cursed `HP -10` affix is a valid §12 item —
@@ -238,14 +239,16 @@ static func get_economic_weight_mean() -> float:
 	return total / float(stat_ids.size())
 
 
-static func get_base_value(stat_id: StringName) -> float:
+## The affix base of a stat (§3.2). The three core stats take 10 % of their OWN `b_X`
+## (12.12 / 5.18 / 0.50) from the profile, so one HP affix is worth the same budget as one
+## attack affix; the utility bases are catalogue constants and never scale with `G`.
+static func get_base_value(stat_id: StringName, profile: BalanceProfile = null) -> float:
+	var active_profile: BalanceProfile = profile if profile != null else BalanceProfile.get_default()
+	if stat_id in BalanceProfile.STAT_IDS:
+		if active_profile == null:
+			return 0.0
+		return active_profile.get_base_stat(stat_id) * active_profile.affix_core_base_share
 	match stat_id:
-		&"attack":
-			return 5.0
-		&"defense":
-			return 4.0
-		&"hp":
-			return 20.0
 		&"critical_chance":
 			return 0.03
 		&"critical_damage":
@@ -269,40 +272,57 @@ static func get_base_value(stat_id: StringName) -> float:
 ## The affix value for a known roll factor. Split out of `roll_value()` so that
 ## `create_rolled()` can keep the factor it drew — the ratio is derived from that factor
 ## and must not be re-rolled to recover it.
+##
+## §3.2: a CORE affix value already carries `item_scale(il)` and the aggregation adds it as a
+## flat number exactly once; a utility affix never carries it, so no probability grows with the
+## item level.
 static func compute_value(
 	stat_id: StringName,
 	item_level: int,
 	rarity: int,
-	roll: float
+	roll: float,
+	profile: BalanceProfile = null
 ) -> float:
-	var safe_level: int = maxi(item_level, 1)
-	var safe_rarity: int = clampi(rarity, EquipmentRarity.COMMON, EquipmentRarity.MYTHIC)
-	var level_multiplier: float = 1.0 + float(safe_level - 1) * 0.08
-	var rarity_multiplier: float = 1.0 + float(safe_rarity) * 0.35
-	var rolled_value: float = get_base_value(stat_id) * level_multiplier * rarity_multiplier * roll
-	if is_percentage_stat(stat_id):
-		return maxf(roundf(rolled_value * 100.0) / 100.0, 0.01)
-	return maxf(float(roundi(rolled_value)), 1.0)
+	var active_profile: BalanceProfile = profile if profile != null else BalanceProfile.get_default()
+	if active_profile == null:
+		return 0.0
+	return BalanceFormulas.affix_value(
+		active_profile,
+		get_base_value(stat_id, active_profile),
+		item_level,
+		rarity,
+		roll,
+		BalanceFormulas.is_core_stat(stat_id)
+	)
 
 
-## The roll factor normalized to 0..1. The range is the one valid at the item's own level
-## and rarity, because both feed `compute_value()` — so the ratio stays comparable across
-## rarities instead of tracking the rarity multiplier a second time.
-static func get_roll_ratio(roll: float) -> float:
-	return clampf((roll - ROLL_MIN) / (ROLL_MAX - ROLL_MIN), 0.0, 1.0)
+## The roll factor normalized to 0..1 inside the profile's band.
+static func get_roll_ratio(roll: float, profile: BalanceProfile = null) -> float:
+	var active_profile: BalanceProfile = profile if profile != null else BalanceProfile.get_default()
+	if active_profile == null:
+		return 0.5
+	var span: float = active_profile.affix_roll_max - active_profile.affix_roll_min
+	if is_zero_approx(span):
+		return 0.5
+	return clampf((roll - active_profile.affix_roll_min) / span, 0.0, 1.0)
 
 
 static func roll_value(
 	stat_id: StringName,
 	item_level: int,
 	rarity: int,
-	random_number_generator: RandomNumberGenerator
+	random_number_generator: RandomNumberGenerator,
+	profile: BalanceProfile = null
 ) -> float:
+	var active_profile: BalanceProfile = profile if profile != null else BalanceProfile.get_default()
+	if active_profile == null:
+		return 0.0
 	return compute_value(
 		stat_id,
 		item_level,
 		rarity,
-		random_number_generator.randf_range(ROLL_MIN, ROLL_MAX)
+		random_number_generator.randf_range(active_profile.affix_roll_min, active_profile.affix_roll_max),
+		active_profile
 	)
 
 
@@ -310,13 +330,17 @@ static func create_rolled(
 	stat_id: StringName,
 	item_level: int,
 	rarity: int,
-	random_number_generator: RandomNumberGenerator
+	random_number_generator: RandomNumberGenerator,
+	profile: BalanceProfile = null
 ) -> EquipmentAffix:
-	var roll: float = random_number_generator.randf_range(ROLL_MIN, ROLL_MAX)
+	var active_profile: BalanceProfile = profile if profile != null else BalanceProfile.get_default()
+	if active_profile == null:
+		return null
+	var roll: float = random_number_generator.randf_range(active_profile.affix_roll_min, active_profile.affix_roll_max)
 	var affix := EquipmentAffix.new()
 	affix.stat_id = stat_id
-	affix.value = compute_value(stat_id, item_level, rarity, roll)
-	affix.roll_ratio = get_roll_ratio(roll)
+	affix.value = compute_value(stat_id, item_level, rarity, roll, active_profile)
+	affix.roll_ratio = get_roll_ratio(roll, active_profile)
 	affix.is_percentage = is_percentage_stat(stat_id)
 	affix.display_name = get_display_name_for_stat(stat_id)
 	return affix

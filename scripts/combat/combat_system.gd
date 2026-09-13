@@ -7,6 +7,9 @@ signal skill_resolved(skill_id: StringName, hit_count: int)
 signal skill_failed(skill_id: StringName, reason: String)
 
 var _random_number_generator := RandomNumberGenerator.new()
+## §7: the profile that owns the armor formula and the damage bound. Injected by the host that
+## owns the provider; a combat system booted without one falls back to the shipped default.
+@export var balance_profile: BalanceProfile
 var _turn_manager: TurnManager
 var _player_actor: Node
 var _combat_targets: Array[Node] = []
@@ -31,7 +34,13 @@ func set_combat_targets(targets: Array[Node]) -> void:
 ## The battlefield's enemy list, as last published by the host. Read by the Magic
 ## Tome to pick a target without keeping a second copy of the enemy list.
 func get_combat_targets() -> Array[Node]:
-	return _combat_targets.duplicate()
+	return _combat_targets
+
+
+## The profile the damage entry reads: the injected one, or the shipped default so a headless
+## boot (tooling, smoke tests) resolves damage with real numbers instead of zeros.
+func get_balance_profile() -> BalanceProfile:
+	return balance_profile if balance_profile != null else BalanceProfile.get_default().duplicate()
 
 
 ## Whether an actor can still be struck. Public so the Magic Tome can choose its own
@@ -117,14 +126,23 @@ func _resolve_attack(
 	var equipment_multiplier: float = 1.0
 	if attacker.has_method("get_equipment_damage_multiplier"):
 		equipment_multiplier = maxf(float(attacker.get_equipment_damage_multiplier(target, attack_context)), 0.0)
-	var attack_power: int = maxi(int(_get_stat_float(attacker_stats, &"attack")), 0)
-	var defense: int = maxi(int(_get_stat_float(target_stats, &"defense")), 0)
-	result.raw_damage = maxi(1, attack_power - defense)
-	var modified_damage: float = float(result.raw_damage) * maxf(damage_multiplier, 0.0) * equipment_multiplier
-	# §12 `damage_vs_elite` / `damage_vs_boss`: one more multiplier, applied after
-	# the defense subtraction like every other multiplier (§5).
-	modified_damage *= _get_enemy_tier_multiplier(attacker_stats, target)
-	result.final_damage = maxi(1, roundi(modified_damage))
+	# §4.1: ONE armor entry for every damage source in the game — `raw = A / (1 + D/A)`, one final
+	# rounding and a floor of 1 damage. The old `max(1, ATK - DEF)` subtraction is gone with the
+	# v4 scale: defense is a smooth ratio, not a threshold, so a weak attacker chips instead of
+	# hitting a hard wall, and no integer `A²` can overflow.
+	var attack_power: float = maxf(_get_stat_float(attacker_stats, &"attack"), 0.0)
+	var defense: float = maxf(_get_stat_float(target_stats, &"defense"), 0.0)
+	# §12 `damage_vs_elite` / `damage_vs_boss` is one more multiplier, applied to the armor result
+	# like every other multiplier (§5) rather than to a subtracted difference.
+	var damage_modifiers: float = equipment_multiplier * _get_enemy_tier_multiplier(attacker_stats, target)
+	result.raw_damage = BalanceFormulas.resolve_damage(
+		get_balance_profile(),
+		attack_power,
+		defense,
+		damage_multiplier,
+		damage_modifiers
+	)
+	result.final_damage = result.raw_damage
 
 	# §12 Dodge: the target evades the strike entirely. Attacking a dodging enemy is
 	# still a real action, so it spends the action — only a refused attack does not.
@@ -144,7 +162,17 @@ func _resolve_attack(
 		critical_damage = maxf(attacker_stats.critical_damage, 1.0)
 	if critical_chance > 0.0 and _random_number_generator.randf() < critical_chance:
 		result.is_critical = true
-		result.final_damage = maxi(1, roundi(modified_damage * critical_damage))
+		# §4.1: the critical factor rides the SAME single-rounding entry, so a crit can never be
+		# rounded twice or escape the damage floor.
+		result.final_damage = BalanceFormulas.resolve_damage(
+			get_balance_profile(),
+			attack_power,
+			defense,
+			damage_multiplier,
+			damage_modifiers,
+			true,
+			critical_damage
+		)
 
 	var remaining_hp: int = maxi(_get_current_hp(target, target_stats) - result.final_damage, 0)
 	_set_current_hp(target, target_stats, remaining_hp)

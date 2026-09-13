@@ -8,25 +8,11 @@ const SubHeroProgressionServiceResource = preload("res://scripts/sub_hero/sub_he
 const PLAYER_SPRITE: Texture2D = preload("res://assets/characters/player.png")
 const SPRITE_RECT: Rect2 = Rect2(-24.25, -34.0, 48.5, 60.0)
 
-## Every PlayerStats field that a level growth or an equipment affix can move,
-## mapped to the bonus key that carries it. ONE table, read by _adjust_stats: an
-## affix whose key is missing here would be rolled, displayed and score-counted yet
-## never reach combat (see implementation-status §3.2).
-const STAT_BONUS_KEYS: Dictionary = {
-	&"max_hp": &"hp",
-	&"attack": &"attack",
-	&"defense": &"defense",
-	&"critical_chance": &"critical_chance",
-	&"critical_damage": &"critical_damage",
-	&"dodge": &"dodge",
-	&"movement_points": &"movement",
-	&"attack_range": &"attack_range",
-	&"life_steal": &"life_steal",
-	&"damage_vs_elite": &"damage_vs_elite",
-	&"damage_vs_boss": &"damage_vs_boss",
-	&"stun_chance": &"stun_chance",
-}
-
+## Every [PlayerStats] field a level growth or an equipment affix can move is written by the
+## aggregated stat block of [EquipmentStatBlock], whose field list comes from the ONE mapping
+## table in [BalanceFormulas] ([constant BalanceFormulas.PLAYER_STAT_FIELDS]): an affix whose
+## id is missing there would be rolled, displayed and priced yet never reach combat
+## (implementation-status §3.2).
 signal moved(from_cell: Vector2i, to_cell: Vector2i, movement_points_remaining: int)
 signal selection_changed(is_selected: bool)
 signal action_completed
@@ -56,6 +42,10 @@ signal sub_hero_slots_changed
 @export var player_progression: PlayerProgression = PlayerProgression.new()
 @export var equipment_inventory: EquipmentInventory
 @export var storage_inventory: StorageInventory
+## §7: the balance profile the hero rebuilds its derived stats from. The host that owns the
+## provider hands it in; a hero booted without one falls back to the shipped default instead of
+## restating a single balance number.
+@export var balance_profile: BalanceProfile
 ## The buyback book the town's sell surfaces share (gameplay-spec §19). It lives on
 ## the player, not on a panel, because both the Scavenger Shop and the warehouse stock it:
 ## an item sold or discarded in either place must be recoverable in the same book.
@@ -89,6 +79,10 @@ var _target: Node
 ## The hero's own numbers at level 1, captured before the first rebuild adds anything
 ## to them: they are the base every rebuild starts from.
 var _base_stats: Dictionary = {}
+## What the LAST rebuild changed, per [PlayerStats] field. A level-up reports its gain from
+## here, so the number in the level-up message and the number the hero actually got cannot
+## disagree.
+var _last_rebuild_growth: Dictionary = {}
 var _attack_count: int = 0
 var _cells_moved_since_attack: int = 0
 var _sub_hero_signals_bound: bool = false
@@ -233,11 +227,67 @@ func discard_storage_item(item: EquipmentInstance) -> bool:
 
 
 func equip_item(item: EquipmentInstance) -> bool:
+	if item == null or not can_change_equipment(item.get_slot(), item):
+		return false
 	return get_inventory().equip_item(item)
 
 
 func unequip_item(slot: int) -> EquipmentInstance:
+	if not can_change_equipment(slot, null):
+		return null
 	return get_inventory().unequip_item(slot)
+
+
+## §3.3: a loadout change that would project a LIVING hero below 1 HP is refused — "restore your
+## health first" — instead of being healed back up with `max(1)`, and a swap may never heal
+## either. A dead hero may change gear freely (they stay dead either way), and a preview that
+## cannot be built (unknown slot, no profile) is not this guard's business.
+func can_change_equipment(slot: int, item: EquipmentInstance) -> bool:
+	if player_stats == null or player_stats.current_hp <= 0 or not EquipmentSlot.is_valid(slot):
+		return true
+	var block: Dictionary = _preview_block(slot, item)
+	if block.is_empty():
+		return true
+	var projected: int = BalanceFormulas.project_current_hp(
+		player_stats.max_hp,
+		player_stats.current_hp,
+		int(block[&"max_hp"])
+	)
+	if projected >= 1:
+		return true
+	push_warning(
+		"Refusing an equipment change that would leave the hero at %d/%d HP: restore health first."
+		% [projected, int(block[&"max_hp"])]
+	)
+	return false
+
+
+## §3.2's compare payload for a candidate: the hero's block as it is now, the block with `item`
+## in its slot (null previews taking the item off), and the per-field delta. Computed by the SAME
+## aggregation the real rebuild uses, so a comparison card and the hero cannot disagree. A pure
+## preview — nothing here touches the hero or the inventory.
+func preview_equipment_block(item: EquipmentInstance, slot: int = -1) -> Dictionary:
+	var target_slot: int = slot if item == null else item.get_slot()
+	if not EquipmentSlot.is_valid(target_slot):
+		return {}
+	var current: Dictionary = get_stat_block()
+	var candidate: Dictionary = _preview_block(target_slot, item)
+	var deltas: Dictionary = {}
+	for field in candidate:
+		deltas[field] = float(candidate[field]) - float(current.get(field, 0.0))
+	return {"current": current, "candidate": candidate, "deltas": deltas}
+
+
+func _preview_block(slot: int, item: EquipmentInstance) -> Dictionary:
+	_ensure_base_stats()
+	return EquipmentStatBlock.preview(
+		get_balance_profile(),
+		get_level(),
+		EquipmentStatBlock.slots_from_inventory(equipment_inventory),
+		_base_stats,
+		slot,
+		item
+	)
 
 
 func get_equipped_item(slot: int) -> EquipmentInstance:
@@ -750,101 +800,107 @@ func _release_sub_hero_signals() -> void:
 ## character's LEVEL and the items the hero has EQUIPPED. Every path that can change
 ## either one goes through here — a fresh boot, a level-up, an equip, a remove, and
 ## the load that restores a save — so a restored session fights with the numbers its
-## level and its gear produce instead of with the level-1 numbers the scene was
-## authored with (the save stores level and gear, never the derived stats).
+## level and its gear produce instead of with the numbers the scene was authored with
+## (the save stores level and gear, never the derived stats).
 ##
-## IDEMPOTENT by construction: the numbers are rebuilt from the level-1 base every
-## time, never adjusted by a remembered delta ("subtract what was added last time"),
-## so calling it twice with the same level and the same gear changes nothing.
+## IDEMPOTENT by construction: the whole block is aggregated by [EquipmentStatBlock] from the
+## level, the equipped items and the hero's authored base stats — never by applying a
+## remembered delta ("subtract what was added last time"). §3.1 `effective_X =
+## round(level_scale(L) * (b_X * M_X + Flat_X))` sums every slot's OWN factor, so the ORDER in
+## which the items were equipped cannot move a single number.
 ##
-## HP: a rebuild that does not move the maximum leaves the current HP exactly where
-## it was — that is what makes a repeated call a no-op; one that does move it keeps
-## the same FRACTION of the new maximum, so a session that boots at full HP boots at
-## full HP of the restored maximum, and a wounded hero stays exactly as wounded as
-## they were. A dead hero stays dead, and no projection may kill a living one.
+## HP: [method BalanceFormulas.project_current_hp]. A rebuild that does not move the maximum
+## leaves the current HP exactly where it was — that is what makes a repeated call a no-op — and
+## one that does move it keeps the same FRACTION of the new maximum, so a session that boots at
+## full HP boots at full HP of the restored maximum and a wounded hero stays exactly as wounded.
+## A dead hero stays dead; a projection that would floor a LIVING hero to 0 is refused before the
+## loadout changes ([method can_change_equipment]) instead of being patched up with `max(1)`.
 ##
-## `keep_current_hp` is the level-up policy: a level-up has always left the current
-## HP alone (a bigger maximum, not a heal).
+## `keep_current_hp` is the level-up policy: a level-up has always left the current HP alone (a
+## bigger maximum, not a heal).
 func recompute_stats_from_level_and_equipment(keep_current_hp: bool = false) -> void:
 	if player_stats == null:
 		return
-	if _base_stats.is_empty():
-		_capture_base_stats()
+	_ensure_base_stats()
 	var previous_max_hp: int = player_stats.max_hp
 	var previous_current_hp: int = player_stats.current_hp
-	# 1. The level-1 numbers, exactly as they were authored.
-	for field in STAT_BONUS_KEYS:
-		player_stats.set(field, _base_stats[field])
-	# 2. The growth the character's level carries, then 3. the gear. Both are additive
-	# on top of that base, and neither is ever applied twice.
-	_adjust_stats(_level_growth_totals(), 1.0)
-	if equipment_inventory != null:
-		_adjust_stats(equipment_inventory.get_equipped_stat_totals(), 1.0)
+	var block: Dictionary = get_stat_block()
+	if block.is_empty():
+		return
+	_last_rebuild_growth.clear()
+	for field in block:
+		_last_rebuild_growth[field] = float(block[field]) - float(player_stats.get(field))
+		player_stats.set(field, block[field])
 	_apply_projected_current_hp(previous_max_hp, previous_current_hp, keep_current_hp)
 	if movement_points_remaining > 0:
 		movement_points_remaining = mini(movement_points_remaining, maxi(player_stats.movement_points, 0))
 	queue_redraw()
 
 
-## What ONE level adds to the three core numbers, keyed like the equipment totals so a
-## level-up can report what it granted without holding a second copy of the numbers.
+## The aggregated stat block the hero's CURRENT level and loadout produce, from the same
+## function the rebuild above uses — the numbers a panel reads are the numbers the hero fights
+## with (§3.2 "同源").
+func get_stat_block() -> Dictionary:
+	_ensure_base_stats()
+	return EquipmentStatBlock.compute(
+		get_balance_profile(),
+		get_level(),
+		EquipmentStatBlock.slots_from_inventory(equipment_inventory),
+		_base_stats
+	)
+
+
+## What the LAST rebuild changed, keyed the way the level-up message reads it (`hp`, `attack`,
+## `defense`). The level-up report therefore states the gain the hero actually received, taken
+## from the block the rebuild just wrote, instead of a second copy of the growth numbers.
 func get_level_growth() -> Dictionary:
-	if player_stats == null:
-		return {}
 	return {
-		&"hp": maxi(player_stats.max_hp_per_level, 0),
-		&"attack": maxi(player_stats.attack_per_level, 0),
-		&"defense": maxi(player_stats.defense_per_level, 0),
+		&"hp": int(_last_rebuild_growth.get(&"max_hp", 0.0)),
+		&"attack": int(_last_rebuild_growth.get(&"attack", 0.0)),
+		&"defense": int(_last_rebuild_growth.get(&"defense", 0.0)),
 	}
 
 
-## The growth the character's whole level carries, as a bonus dictionary _adjust_stats
-## reads (empty at level 1, where the base IS the answer).
-func _level_growth_totals() -> Dictionary:
-	var levels: int = maxi(get_level(), 1) - 1
-	if levels <= 0:
-		return {}
-	var growth: Dictionary = get_level_growth()
-	var totals: Dictionary = {}
-	for key in growth:
-		totals[key] = float(growth[key]) * float(levels)
-	return totals
+## The profile the hero aggregates with: the injected one, or the shipped default so a headless
+## boot (tooling, smoke tests) still produces real numbers instead of zeros.
+func get_balance_profile() -> BalanceProfile:
+	return balance_profile if balance_profile != null else BalanceProfile.get_default()
 
 
-## The level-1 numbers the hero was authored with, captured ONCE — before the first
-## rebuild adds anything to them — because every later rebuild starts from them. A
-## hero that is not in the tree yet captures them on its first rebuild, so a host (or
-## a test) that tunes player_stats before adding the hero keeps its tuning.
+## Captures the authored base block on first use, so a preview taken before the first rebuild
+## describes the same hero the rebuild is about to produce.
+func _ensure_base_stats() -> void:
+	if _base_stats.is_empty():
+		_capture_base_stats()
+
+
+## The level-1 numbers the hero was authored with, captured ONCE — before the first rebuild
+## overwrites the derived fields — because every later rebuild reads them as the base of the
+## stats that are gameplay rules rather than balance numbers (movement 3, attack range 1) and as
+## the base the §3.2 utility caps stack on. A hero that is not in the tree yet captures them on
+## its first rebuild, so a host (or a test) that tunes player_stats before adding the hero keeps
+## its tuning. The three core stats are NOT read from here: their scale is `b_X` from the profile.
 func _capture_base_stats() -> void:
 	_base_stats.clear()
-	for field in STAT_BONUS_KEYS:
+	if player_stats == null:
+		return
+	for field in BalanceFormulas.PLAYER_STAT_FIELDS.values():
 		_base_stats[field] = player_stats.get(field)
 
 
+## §3.3's HP projection across a rebuild, with the level-up policy on top: a level-up keeps the
+## current HP untouched (a bigger maximum, not a heal), a dead hero stays at 0, and every other
+## rebuild keeps the same fraction of the new maximum.
 func _apply_projected_current_hp(previous_max_hp: int, previous_current_hp: int, keep_current_hp: bool) -> void:
-	if keep_current_hp or player_stats.max_hp == previous_max_hp or previous_current_hp <= 0:
+	if keep_current_hp:
 		player_stats.current_hp = previous_current_hp
-	elif previous_max_hp > 0:
-		player_stats.current_hp = maxi(
-			floori(float(previous_current_hp) * float(player_stats.max_hp) / float(previous_max_hp)), 1
+	else:
+		player_stats.current_hp = BalanceFormulas.project_current_hp(
+			previous_max_hp,
+			previous_current_hp,
+			player_stats.max_hp
 		)
 	player_stats.clamp_current_hp()
-
-
-## Adds a bonus dictionary — the equipment affix totals, or the growth a level carries
-## — to the stats. ONE mapping table decides which stat a key moves, and integer stats
-## take the rounded amount so a recompute from the base lands on the same integer a
-## level-up used to add.
-func _adjust_stats(bonuses: Dictionary, direction: float) -> void:
-	if player_stats == null:
-		return
-	for field in STAT_BONUS_KEYS:
-		var amount: float = float(bonuses.get(STAT_BONUS_KEYS[field], 0.0)) * direction
-		var current: Variant = player_stats.get(field)
-		if current is int:
-			player_stats.set(field, int(current) + roundi(amount))
-		else:
-			player_stats.set(field, float(current) + amount)
 
 
 func get_level() -> int:

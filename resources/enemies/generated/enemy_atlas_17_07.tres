@@ -5,9 +5,9 @@
 
 [sub_resource type="Resource" id="Resource_mghfu"]
 script = ExtResource("1_1rww5")
-max_hp = 107
+max_hp = 144
 attack = 22
-defense = 8
+defense = 4
 movement_points = 2
 experience_reward = 35
 gold_reward = 31

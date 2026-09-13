@@ -4,9 +4,15 @@ extends RefCounted
 ## Creates concrete equipment data without applying loot-table rules.
 var _random_number_generator := RandomNumberGenerator.new()
 var _next_instance_id: int = 1
+## §7 injection point: whoever configures the generator hands the balance profile in, and a
+## generator that was never configured falls back to the shipped default instead of restating
+## the affix constants. Rolled values are the ONLY thing that reads it — the roll itself, the
+## affix stat and the rarity stay what the loot rules asked for.
+var balance_profile: BalanceProfile
 
 
-func _init(random_seed: int = 0) -> void:
+func _init(random_seed: int = 0, profile: BalanceProfile = null) -> void:
+	balance_profile = profile if profile != null else BalanceProfile.get_default()
 	if random_seed == 0:
 		_random_number_generator.randomize()
 	else:
@@ -93,7 +99,13 @@ func roll_affixes(definition: EquipmentDefinition, requested_count: int = -1) ->
 		var selected_stat: StringName = _roll_available_stat(occupied_stats)
 		if selected_stat == &"":
 			break
-		result.append(EquipmentAffix.create_rolled(selected_stat, definition.item_level, definition.rarity, _random_number_generator))
+		result.append(EquipmentAffix.create_rolled(
+			selected_stat,
+			definition.item_level,
+			definition.rarity,
+			_random_number_generator,
+			balance_profile
+		))
 		occupied_stats[selected_stat] = true
 	return result
 

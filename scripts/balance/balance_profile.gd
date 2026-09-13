@@ -9,10 +9,11 @@ extends Resource
 ## helpers take it as an argument. No gameplay code restates a default and nothing reads
 ## these numbers from a global — there is no autoload (contract §7).
 ##
-## Scope: this class carries exactly the parameters R0 reads — the shared scale, the
-## difficulty ramp, the armor/damage bounds, the reference enemies and the equipment
-## weights. The EXP, Gold, item-economy and Sub Hero parameters join this same class when
-## their consumers switch over in R2, so the profile never holds a value nothing reads yet.
+## Scope: this class carries exactly the parameters R0/R1 read — the shared scale, the
+## difficulty ramp, the armor/damage bounds, the reference enemies, the equipment weights,
+## the affix generation constants and the effective utility caps. The EXP, Gold,
+## item-economy and Sub Hero parameters join this same class when their consumers switch
+## over in R2, so the profile never holds a value nothing reads yet.
 
 ## Canonical balance stat ids. The affix catalogue uses the same three ids;
 ## [code]player_controller.gd[/code] maps its stat-block key [code]&"max_hp"[/code] onto
@@ -24,6 +25,21 @@ const STAT_IDS: Array[StringName] = [STAT_HP, STAT_ATTACK, STAT_DEFENSE]
 
 ## One weight entry per slot of [EquipmentSlot] (Weapon … Amulet).
 const SLOT_COUNT: int = 7
+
+## The shipped parameter set. Consumers are handed a profile by [LevelProvider]; this is the
+## ONE fallback for the ones that boot without a provider (headless smoke tests, tooling), so
+## no consumer ever restates a balance default of its own.
+const DEFAULT_PROFILE_PATH: String = "res://resources/balance/balance_profile_default.tres"
+
+static var _default_profile: BalanceProfile
+
+
+## The default parameter set, loaded once. Never call this from a system that can be handed a
+## profile instead — injection is the contract (§7); this keeps a headless entry point honest.
+static func get_default() -> BalanceProfile:
+	if _default_profile == null:
+		_default_profile = load(DEFAULT_PROFILE_PATH) as BalanceProfile
+	return _default_profile
 
 @export_group("Release bounds")
 ## Last authored stage. The release range is 1..max_stage; the stage 1000 clear allows
@@ -86,6 +102,33 @@ const SLOT_COUNT: int = 7
 @export var slot_hp_weights: Array[float] = [0.00, 0.15, 0.40, 0.10, 0.20, 0.05, 0.10]
 @export var slot_attack_weights: Array[float] = [0.60, 0.00, 0.00, 0.15, 0.00, 0.15, 0.10]
 @export var slot_defense_weights: Array[float] = [0.00, 0.25, 0.45, 0.00, 0.20, 0.05, 0.05]
+
+@export_group("Affix generation")
+## §3.2: an HP/ATK/DEF affix base is this share of its OWN `b_X` (10 % → 12.12 / 5.18 /
+## 0.50), which is what keeps one HP affix worth the same budget as one attack affix.
+@export_range(0.0, 1.0, 0.01) var affix_core_base_share: float = 0.10
+## `affix.value = affix_base * (1 + step * rarity) * roll * item_scale(il)` — the rarity
+## strength, the §3.2 roll band and the item scale of a CORE affix. Utility affixes use the
+## same product without the item scale.
+@export_range(0.0, 2.0, 0.01) var affix_rarity_step: float = 0.35
+@export_range(0.1, 2.0, 0.01) var affix_roll_min: float = 0.80
+@export_range(0.1, 2.0, 0.01) var affix_roll_max: float = 1.20
+
+@export_group("Effective utility caps")
+## §3.2: the caps apply to the FINAL aggregated value (base + every affix + unique effects),
+## never silently to the stored roll. Critical damage is the only one with a floor above 0.
+@export_range(0.0, 1.0, 0.01) var critical_chance_cap: float = 0.50
+@export_range(1.0, 5.0, 0.05) var critical_damage_min: float = 1.00
+@export_range(1.0, 5.0, 0.05) var critical_damage_max: float = 2.50
+@export_range(0.0, 1.0, 0.01) var dodge_cap: float = 0.35
+@export_range(0.0, 1.0, 0.01) var life_steal_cap: float = 0.10
+@export_range(0.0, 1.0, 0.01) var stun_chance_cap: float = 0.15
+## `damage_vs_elite` / `damage_vs_boss` each add up to this, separately (§3.2).
+@export_range(0.0, 2.0, 0.01) var tier_damage_cap: float = 0.50
+## Equipment may raise movement and attack range by at most this much in total; the base
+## movement of 3 and range of 1 are combat rules, not balance parameters (AGENTS.md).
+@export_range(0, 8, 1) var movement_bonus_cap: int = 2
+@export_range(0, 8, 1) var attack_range_bonus_cap: int = 2
 
 @export_group("Player baseline criticals")
 ## Used by the analytic work metric. Crit ROLLS stay in [CombatSystem]; these are the

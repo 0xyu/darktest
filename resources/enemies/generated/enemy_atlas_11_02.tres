@@ -6,9 +6,9 @@
 [sub_resource type="Resource" id="Resource_dneqc"]
 script = ExtResource("1_4tryg")
 level = 11
-max_hp = 125
-attack = 27
-defense = 7
+max_hp = 147
+attack = 23
+defense = 4
 movement_points = 2
 experience_reward = 217
 gold_reward = 69

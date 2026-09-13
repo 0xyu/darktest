@@ -116,7 +116,9 @@ func _test_tome_rules() -> void:
 	# (5) A spell is pure damage: no weapon rider rides along with it.
 	var caster_hp: int = caster.player_stats.current_hp
 	var spell_result: DamageResult = combat.resolve_magic_strike(caster, enemy, 1.0, MagicTomeCatalog.MAGIC_MISSILE)
-	_expect_eq(spell_result.final_damage, 40, "spell damage is attack minus defense")
+	# R1 moved every damage source onto the ONE §4.1 armor entry: `A / (1 + D/A)` with a single
+	# final rounding is 50 / (1 + 10/50) = 41.67 → 42, not the old `ATK - DEF` subtraction.
+	_expect_eq(spell_result.final_damage, 42, "spell damage uses the shared armor entry (50 vs 10 DEF)")
 	_expect_eq(spell_result.lifesteal_heal, 0, "a spell steals no life")
 	_expect_eq(caster.player_stats.current_hp, caster_hp, "a spell heals nothing")
 

@@ -16,6 +16,23 @@ extends RefCounted
 ## An empty slot contributes a constant 1 to `M_X` (§3.1).
 const EMPTY_SLOT_FACTOR: float = 1.0
 
+## The [PlayerStats] field each balance stat id lands in. ONE table: an affix whose id is
+## missing here would be rolled, displayed and priced yet never reach combat.
+const PLAYER_STAT_FIELDS: Dictionary = {
+	BalanceProfile.STAT_HP: &"max_hp",
+	BalanceProfile.STAT_ATTACK: &"attack",
+	BalanceProfile.STAT_DEFENSE: &"defense",
+	&"critical_chance": &"critical_chance",
+	&"critical_damage": &"critical_damage",
+	&"dodge": &"dodge",
+	&"movement": &"movement_points",
+	&"attack_range": &"attack_range",
+	&"life_steal": &"life_steal",
+	&"damage_vs_elite": &"damage_vs_elite",
+	&"damage_vs_boss": &"damage_vs_boss",
+	&"stun_chance": &"stun_chance",
+}
+
 
 ## `G(x) = ((max(x, 1) + 20) / 21)^4` — real coordinates allowed; only stage, character
 ## level and item level are integers (§2). Non-finite input is rejected: NaN falls back to
@@ -294,3 +311,149 @@ static func _enemy_stat(
 	if not is_finite(value):
 		return profile.max_combat_value
 	return maxf(value, 0.0)
+
+
+## Whether a stat id is one of the three core stats, whose affix carries `item_scale` (§3.2).
+static func is_core_stat(stat_id: StringName) -> bool:
+	return stat_id in BalanceProfile.STAT_IDS
+
+
+## §3.2 `affix.value = affix_base * (1 + rarity_step * r) * roll * item_scale(il)` for a CORE
+## affix, and the same product WITHOUT the item scale for every utility affix: a probability or
+## an extra movement point must not grow with the item level. `affix_base` comes from the affix
+## catalogue, so this function owns the scaling while the catalogue owns the weights.
+static func affix_value(
+	profile: BalanceProfile,
+	affix_base: float,
+	item_level: int,
+	rarity: int,
+	roll: float,
+	is_core: bool
+) -> float:
+	if profile == null:
+		return 0.0
+	var value: float = affix_base * (1.0 + profile.affix_rarity_step * float(maxi(rarity, 0)))
+	value *= roll
+	if is_core:
+		value *= item_scale(profile, item_level)
+	return maxf(value, 0.0)
+
+
+## The hero's whole aggregated stat block (§3.1, §3.2), keyed by the [PlayerStats] field each
+## stat id lands in ([constant PLAYER_STAT_FIELDS]).
+##
+## `slot_factors` carries one entry per [EquipmentSlot] — `rarity_core(r) * item_scale(il)` for
+## an equipped item and [constant EMPTY_SLOT_FACTOR] for an empty one — and `flat_totals`
+## carries the affix sums keyed by balance stat id, already scaled by `item_scale` at roll time.
+## Every slot contributes its OWN item level; a single average item level is never substituted
+## (§3.1). `base_stats` is the hero's authored stat block and supplies the base of the utility
+## stats that are gameplay rules rather than balance numbers (movement 3, attack range 1).
+##
+## Core stats round exactly once, at the end, with the floors of §2 (HP/ATK ≥ 1, DEF ≥ 0). The
+## §3.2 caps are applied HERE and only here — to the effective value, never to a stored roll.
+static func stat_block(
+	profile: BalanceProfile,
+	level: int,
+	slot_factors: Array[float],
+	flat_totals: Dictionary = {},
+	base_stats: Dictionary = {}
+) -> Dictionary:
+	if profile == null:
+		return {}
+	var hp: float = player_stat_value(
+		profile,
+		BalanceProfile.STAT_HP,
+		level,
+		equipment_multiplier(profile, BalanceProfile.STAT_HP, slot_factors),
+		float(flat_totals.get(BalanceProfile.STAT_HP, 0.0))
+	)
+	var attack: float = player_stat_value(
+		profile,
+		BalanceProfile.STAT_ATTACK,
+		level,
+		equipment_multiplier(profile, BalanceProfile.STAT_ATTACK, slot_factors),
+		float(flat_totals.get(BalanceProfile.STAT_ATTACK, 0.0))
+	)
+	var defense: float = player_stat_value(
+		profile,
+		BalanceProfile.STAT_DEFENSE,
+		level,
+		equipment_multiplier(profile, BalanceProfile.STAT_DEFENSE, slot_factors),
+		float(flat_totals.get(BalanceProfile.STAT_DEFENSE, 0.0))
+	)
+	return {
+		&"max_hp": round_stat(profile, hp, 1),
+		&"attack": round_stat(profile, attack, 1),
+		&"defense": round_stat(profile, defense, 0),
+		# Critical chance and damage stack on the §3.2 baseline of the profile; every other
+		# utility stat stacks on the base the hero was authored with.
+		&"critical_chance": clampf(
+			profile.base_critical_chance + float(flat_totals.get(&"critical_chance", 0.0)),
+			0.0,
+			profile.critical_chance_cap
+		),
+		&"critical_damage": clampf(
+			profile.base_critical_damage + float(flat_totals.get(&"critical_damage", 0.0)),
+			profile.critical_damage_min,
+			profile.critical_damage_max
+		),
+		&"dodge": clampf(
+			_base_stat(base_stats, &"dodge") + float(flat_totals.get(&"dodge", 0.0)),
+			0.0,
+			profile.dodge_cap
+		),
+		&"life_steal": clampf(
+			_base_stat(base_stats, &"life_steal") + float(flat_totals.get(&"life_steal", 0.0)),
+			0.0,
+			profile.life_steal_cap
+		),
+		&"damage_vs_elite": clampf(
+			_base_stat(base_stats, &"damage_vs_elite") + float(flat_totals.get(&"damage_vs_elite", 0.0)),
+			0.0,
+			profile.tier_damage_cap
+		),
+		&"damage_vs_boss": clampf(
+			_base_stat(base_stats, &"damage_vs_boss") + float(flat_totals.get(&"damage_vs_boss", 0.0)),
+			0.0,
+			profile.tier_damage_cap
+		),
+		&"stun_chance": clampf(
+			_base_stat(base_stats, &"stun_chance") + float(flat_totals.get(&"stun_chance", 0.0)),
+			0.0,
+			profile.stun_chance_cap
+		),
+		# Movement and attack range are integers: the equipment INCREMENT is capped, the base is
+		# a combat rule, and the §3.2 floors are applied after the addition.
+		&"movement_points": maxi(
+			roundi(_base_stat(base_stats, &"movement_points"))
+			+ mini(roundi(float(flat_totals.get(&"movement", 0.0))), profile.movement_bonus_cap),
+			0
+		),
+		&"attack_range": maxi(
+			roundi(_base_stat(base_stats, &"attack_range"))
+			+ mini(roundi(float(flat_totals.get(&"attack_range", 0.0))), profile.attack_range_bonus_cap),
+			1
+		),
+	}
+
+
+## §3.3 HP projection across a rebuild. An unchanged maximum keeps the current HP exactly where
+## it was — that is what makes a repeated recompute a no-op — and a moved maximum keeps the same
+## FRACTION of it, floored, never above the new maximum. A dead hero stays dead.
+##
+## The result may be 0 for a living hero whose maximum shrank far enough (the fraction floors
+## away): the caller must REFUSE that change instead of healing or killing the hero, which is
+## why nothing here patches the value up to 1.
+static func project_current_hp(previous_max_hp: int, previous_current_hp: int, new_max_hp: int) -> int:
+	if previous_current_hp <= 0:
+		return 0
+	if previous_max_hp <= 0 or new_max_hp == previous_max_hp:
+		return previous_current_hp
+	var projected: float = float(previous_current_hp) * float(new_max_hp) / float(previous_max_hp)
+	if not is_finite(projected):
+		return 0
+	return clampi(floori(projected), 0, maxi(new_max_hp, 0))
+
+
+static func _base_stat(base_stats: Dictionary, field: StringName) -> float:
+	return float(base_stats.get(field, 0.0))

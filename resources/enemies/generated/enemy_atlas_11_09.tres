@@ -6,8 +6,8 @@
 [sub_resource type="Resource" id="Resource_qkksr"]
 script = ExtResource("1_hli2i")
 level = 5
-max_hp = 154
-attack = 31
+max_hp = 152
+attack = 24
 defense = 4
 movement_points = 2
 experience_reward = 95

@@ -209,13 +209,6 @@ func get_equipped_items() -> Array[EquipmentInstance]:
 	return result
 
 
-func get_equipped_stat_totals() -> Dictionary:
-	var totals: Dictionary = {}
-	for item in get_equipped_items():
-		_merge_item_stats(totals, item)
-	return totals
-
-
 func get_equipped_effects() -> Array[EquipmentEffect]:
 	var result: Array[EquipmentEffect] = []
 	for item in get_equipped_items():
@@ -269,17 +262,3 @@ func _find_item_index(item: EquipmentInstance) -> int:
 		if candidate == item or (candidate != null and candidate.instance_id != &"" and candidate.instance_id == item.instance_id):
 			return index
 	return -1
-
-
-func _merge_item_stats(totals: Dictionary, item: EquipmentInstance) -> void:
-	for stat_id in EquipmentAffix.get_stat_ids():
-		var value: float = item.get_affix_value(stat_id)
-		if not is_zero_approx(value):
-			totals[stat_id] = float(totals.get(stat_id, 0.0)) + value
-
-
-func _get_item_stat_totals(item: EquipmentInstance) -> Dictionary:
-	var totals: Dictionary = {}
-	if item != null:
-		_merge_item_stats(totals, item)
-	return totals

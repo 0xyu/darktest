@@ -5,9 +5,10 @@
 
 [sub_resource type="Resource" id="Resource_4mwv5"]
 script = ExtResource("1_v54cm")
+defense = 4
 level = 10
-max_hp = 185
-attack = 23
+max_hp = 158
+attack = 22
 movement_points = 1
 experience_reward = 199
 gold_reward = 59

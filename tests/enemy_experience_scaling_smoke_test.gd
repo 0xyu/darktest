@@ -69,7 +69,19 @@ func _scale(stage_number: int) -> EnemyStats:
 	base_stats.defense = 5
 	base_stats.gold_reward = BASE_GOLD
 	base_stats.experience_reward = BASE_EXPERIENCE
-	return EnemyScaling.scale_stats(base_stats, stage_number, 1.20, 1.16, 1.15, 1.18, STAGE_FACTOR_RATE)
+	# R1 moved the COMBAT stats onto the v4 formula (§4.2); the reward fields this test is about
+	# still ride the legacy curve, exactly as StageManager applies it after the stat switch.
+	var scaled: EnemyStats = EnemyScaling.build_combat_stats(
+		BalanceProfile.get_default(),
+		base_stats,
+		stage_number,
+		EnemyScaling.Kind.NORMAL,
+		0,
+		1
+	)
+	scaled.gold_reward = EnemyScaling.scale_value(BASE_GOLD, 1.18, stage_number)
+	scaled.experience_reward = EnemyScaling.scale_value(BASE_EXPERIENCE, STAGE_FACTOR_RATE, stage_number)
+	return scaled
 
 
 func _expect(condition: bool, description: String) -> void:

@@ -6,9 +6,9 @@
 [sub_resource type="Resource" id="Resource_infkf"]
 script = ExtResource("1_vpacr")
 level = 5
-max_hp = 93
-attack = 25
-defense = 1
+max_hp = 141
+attack = 23
+defense = 4
 movement_points = 2
 experience_reward = 109
 gold_reward = 37

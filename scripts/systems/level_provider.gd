@@ -25,12 +25,10 @@ const DEFAULT_FIXED_LEVEL_PATHS: Array[String] = [
 ## when assigned; falls back to enemy_pool / TrainingEnemy when absent.
 @export var enemy_registry: Registry
 @export var mini_boss_definitions: Array[MiniBossDefinition] = []
-@export_range(1, 999, 1) var base_enemy_count: int = 1
-@export_range(1, 999, 1) var enemy_count_growth_interval: int = 3
-@export_range(1, 999, 1) var max_enemy_count: int = 4
-@export_range(0.1, 10.0, 0.01) var hp_growth_rate: float = 1.20
-@export_range(0.1, 10.0, 0.01) var attack_growth_rate: float = 1.16
-@export_range(0.1, 10.0, 0.01) var defense_growth_rate: float = 1.15
+## §7: the balance profile this provider owns and hands to every consumer it configures. The
+## generated encounter size, the difficulty a stage carries and the enemy stat formula all read
+## from it, so no other file restates a balance number. Left empty, the shipped default applies.
+@export var balance_profile: BalanceProfile
 @export_range(0.1, 10.0, 0.01) var gold_growth_rate: float = 1.18
 ## StageFactor for enemy EXP (§10): 1.15^(stage - 1) tracks the level-requirement
 ## curve, so kills per level stays stable while enemy power compounds.
@@ -57,9 +55,24 @@ func _ready() -> void:
 func get_stage_definition(level_id: int, requested_special_encounter_type: int = SpecialEncounterTypeResource.NONE) -> StageDefinition:
 	var safe_level_id: int = maxi(level_id, 1)
 	var fixed_config := _get_fixed_level_config(safe_level_id)
+	var definition: StageDefinition = null
 	if fixed_config != null:
-		return fixed_config.to_stage_definition()
-	return _generate_stage_definition(safe_level_id, requested_special_encounter_type)
+		definition = fixed_config.to_stage_definition()
+	else:
+		definition = _generate_stage_definition(safe_level_id, requested_special_encounter_type)
+	if definition == null:
+		return null
+	# §4.2: StageDefinition.difficulty_multiplier is the ONE carrier of difficulty(S) — fixed
+	# and generated stages both take it from here, so neither the stage manager nor the enemy
+	# formula multiplies a second time. The authored value is a placeholder, not a second knob.
+	definition.difficulty_multiplier = BalanceFormulas.difficulty(get_balance_profile(), safe_level_id)
+	return definition
+
+
+## The profile every consumer reads: the injected one, or the shipped default so a headless boot
+## still produces real numbers instead of zeros.
+func get_balance_profile() -> BalanceProfile:
+	return balance_profile if balance_profile != null else BalanceProfile.get_default()
 
 
 func has_fixed_level(level_id: int) -> bool:
@@ -79,18 +92,6 @@ func get_gold_growth_rate() -> float:
 
 func get_exp_growth_rate() -> float:
 	return exp_growth_rate
-
-
-func get_hp_growth_rate() -> float:
-	return hp_growth_rate
-
-
-func get_attack_growth_rate() -> float:
-	return attack_growth_rate
-
-
-func get_defense_growth_rate() -> float:
-	return defense_growth_rate
 
 
 func get_special_encounter_chance() -> float:
@@ -123,7 +124,6 @@ func _generate_stage_definition(level_id: int, requested_special_encounter_type:
 	definition.level_id = level_id
 	definition.template_id = template.template_id
 	definition.display_name = "Stage %d" % level_id
-	definition.difficulty_multiplier = maxf(template.difficulty_multiplier, 0.1)
 	definition.spawn_rules = template.spawn_rules.duplicate()
 	definition.special_rules = template.special_rules.duplicate(true)
 
@@ -157,9 +157,9 @@ func _get_template(template_id: StringName) -> LevelTemplate:
 	default_template.template_id = template_id
 	for enemy_definition in _get_enemy_pool():
 		default_template.enemy_pool.append(enemy_definition)
-	default_template.base_enemy_count = base_enemy_count
-	default_template.enemy_count_growth_interval = enemy_count_growth_interval
-	default_template.max_enemy_count = max_enemy_count
+	default_template.base_enemy_count = get_balance_profile().base_enemy_count
+	default_template.enemy_count_growth_interval = get_balance_profile().enemy_count_interval
+	default_template.max_enemy_count = get_balance_profile().max_enemy_count
 	default_template.difficulty_multiplier = 1.0
 	return default_template
 

@@ -262,17 +262,11 @@ static func _create_scaled_affix(stat_id: StringName, item_level: int, rarity: i
 	return create_affix(stat_id, _median_affix_value(stat_id, item_level, rarity))
 
 
-## Median of the production `EquipmentAffix.roll_value` curve (random
-## multiplier pinned to 1.0). Mirrors the same rounding rules.
+## Median of the production `EquipmentAffix.roll_value` curve: the production value function at
+## a roll factor of exactly 1.0, so a fixture item is worth what a real median roll is worth and
+## cannot drift away from the balance profile.
 static func _median_affix_value(stat_id: StringName, item_level: int, rarity: int) -> float:
-	var safe_level: int = maxi(item_level, 1)
-	var safe_rarity: int = clampi(rarity, EquipmentRarity.COMMON, EquipmentRarity.MYTHIC)
-	var level_multiplier: float = 1.0 + float(safe_level - 1) * 0.08
-	var rarity_multiplier: float = 1.0 + float(safe_rarity) * 0.35
-	var rolled_value: float = EquipmentAffix.get_base_value(stat_id) * level_multiplier * rarity_multiplier
-	if EquipmentAffix.is_percentage_stat(stat_id):
-		return maxf(roundf(rolled_value * 100.0) / 100.0, 0.01)
-	return maxf(float(roundi(rolled_value)), 1.0)
+	return EquipmentAffix.compute_value(stat_id, item_level, rarity, 1.0)
 
 
 static func _find_item_by_rarity(items: Array[EquipmentInstance], rarity: int) -> EquipmentInstance:

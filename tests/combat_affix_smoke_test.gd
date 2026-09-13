@@ -8,8 +8,8 @@ extends SceneTree
 
 const GameScene = preload("res://scenes/world/grid_combat.tscn")
 
-## Where each §12 affix must land on `PlayerStats`, checked against the controller's
-## own `_adjust_stats()` mapping. A newcomer to the catalogue without an entry here
+## Where each §12 affix must land on `PlayerStats`, checked against the aggregation's
+## own stat-id → field table. A newcomer to the catalogue without an entry there
 ## fails the test rather than shipping as a decorative affix.
 const STAT_FIELDS := {
 	&"attack": "attack",
@@ -125,32 +125,35 @@ func _test_status_component() -> void:
 # ---------------------------------------------------------------------------
 
 
-func _test_stat_mapping(player: PlayerController) -> void:
+func _test_stat_mapping(_player: PlayerController) -> void:
+	# R1 aggregates instead of adjusting: an affix reaches the stats through
+	# [method BalanceFormulas.stat_block], which is the ONE place a stat id becomes a
+	# PlayerStats field. A stat id the mapping table does not know would be rolled, displayed and
+	# priced while never reaching combat, so every id of the catalogue is checked here.
+	var profile: BalanceProfile = BalanceProfile.get_default()
+	var slot_factors: Array[float] = EquipmentStatBlock.slot_factors(profile, EquipmentStatBlock.empty_slots())
+	var base_stats: Dictionary = {
+		&"critical_chance": profile.base_critical_chance,
+		&"critical_damage": profile.base_critical_damage,
+		&"movement_points": 3,
+		&"attack_range": 1,
+	}
+	var plain: Dictionary = BalanceFormulas.stat_block(profile, 1, slot_factors, {}, base_stats)
 	for stat_id in EquipmentAffix.get_stat_ids():
 		var field: String = STAT_FIELDS[stat_id]
-		var before: float = float(player.player_stats.get(field))
-		player._adjust_stats({stat_id: 1.0}, 1.0)
+		var raised: Dictionary = BalanceFormulas.stat_block(profile, 1, slot_factors, {stat_id: 1.0}, base_stats)
 		_expect(
-			float(player.player_stats.get(field)) > before,
-			"affix '%s' must move PlayerStats.%s (the controller does not apply it)" % [stat_id, field],
-		)
-		player._adjust_stats({stat_id: 1.0}, -1.0)
-		_expect(
-			is_equal_approx(float(player.player_stats.get(field)), before),
-			"affix '%s' must be reversible on %s" % [stat_id, field],
+			float(raised[field]) > float(plain[field]),
+			"affix '%s' must move PlayerStats.%s (the aggregation does not apply it)" % [stat_id, field],
 		)
 
-	# §12 negative authored values reach the stats the same way a positive one does.
-	var max_hp_before: int = player.player_stats.max_hp
-	player._adjust_stats({&"hp": -10.0}, 1.0)
-	_expect(
-		player.player_stats.max_hp == max_hp_before - 10,
-		"a cursed 'HP -10' affix must lower max HP (got %d, expected %d)" % [
-			player.player_stats.max_hp, max_hp_before - 10,
-		],
-	)
-	player._adjust_stats({&"hp": -10.0}, -1.0)
-	_expect(player.player_stats.max_hp == max_hp_before, "removing the cursed affix restores max HP")
+	# §12 negative authored values travel the same path as a positive one, and neither may
+	# produce a negative HP, a negative DEF or a healing attack (contract §3.1).
+	var cursed_hp: Dictionary = BalanceFormulas.stat_block(profile, 1, slot_factors, {&"hp": -100000.0}, base_stats)
+	_expect(int(cursed_hp[&"max_hp"]) == 1, "a cursed HP affix floors max HP at 1, got %d" % int(cursed_hp[&"max_hp"]))
+	var cursed_defense: Dictionary = BalanceFormulas.stat_block(profile, 1, slot_factors, {&"defense": -100000.0}, base_stats)
+	_expect(int(cursed_defense[&"defense"]) == 0, "a cursed defense affix floors defense at 0, got %d" % int(cursed_defense[&"defense"]))
+	_expect(int(cursed_defense[&"attack"]) >= 1, "a cursed set must still leave a usable attack")
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +185,11 @@ func _test_affixes_in_combat(
 	stats.damage_vs_elite = 0.0
 	stats.damage_vs_boss = 0.0
 	stats.stun_chance = 0.0
-	enemy.set_current_hp(100000)
+	# A stage-1 enemy is worth a couple of v4 hero hits, and the sequence below attacks it several
+	# times: give it a MAXIMUM that survives the whole run, because `set_current_hp` clamps to the
+	# current maximum (raising only the current HP would be capped back down).
+	enemy.enemy_stats.max_hp = 1000000
+	enemy.set_current_hp(1000000)
 	enemy.grid_position = player.get_grid_position() + Vector2i(1, 0)
 	_expect(enemy.enemy_runtime.current_hp > 0, "the test enemy must be alive")
 

@@ -51,6 +51,45 @@ Not in R0 on purpose: EXP, Gold, price, Sub Hero and persistence parameters join
 profile in R2 with their consumers, and nothing here is wired into `LevelProvider`, combat,
 equipment or the save format yet.
 
+### R1 shipped: hero aggregation, equipment core/affix, enemies/training/Mini Boss (2026-09-13)
+
+R1 of [the final contract](balance-rework-implementation.md) §8 is implemented and verified
+headless. The **combat numbers** now come from the v4 formulas for the hero, for every piece of
+equipment and for every enemy — including training stages and Mini Bosses. Rewards (EXP, Gold,
+prices), Sub Hero damage and the save migration are still on the legacy curves, which is R2, so
+this state is playable but explicitly **not releasable** (contract §8: no half-switched numbers
+reach a player save).
+
+| Delivered | Where |
+|---|---|
+| §3.1 aggregation `effective_X = round(level_scale(L) * (b_X*M_X + Flat_X))` — per-slot factors, the empty-slot constant, no average item level, one final rounding; §3.2 effective utility caps; §3.3 HP projection | `scripts/balance/balance_formulas.gd`, `scripts/balance/equipment_stat_block.gd` |
+| The ONE equipment→stat aggregation, shared by the live rebuild and every preview (compare payload, `PlayerController.preview_equipment_block`) | `scripts/balance/equipment_stat_block.gd` |
+| §3.2 affix values: `base * (1 + 0.35r) * roll * item_scale(il)` for HP/ATK/DEF (bases 12.12 / 5.18 / 0.50) and the same product WITHOUT the item scale for utility affixes; the roll band and the bases come from the profile | `scripts/items/equipment_affix.gd`, `scripts/systems/equipment_generator.gd` |
+| Hero: one idempotent rebuild from level + gear, level-up keeps the current HP, a swap that would floor a living hero below 1 HP is refused instead of patched with `max(1)` | `scripts/player/player_controller.gd`, `scripts/player/player_stats.gd` |
+| §4.2/§4.3 enemies: `G(S)`, the encounter count frozen at stage build, the real level offset, independent per-stat variance, difficulty carried ONCE on the `StageDefinition`; stages 1..2 fixed at 130/12/3; Mini Boss = reference enemy at a frozen c = 4 with ×6 HP / ×1.5 ATK / ×1.25 DEF, offset 0, variance 1 | `scripts/systems/enemy_scaling.gd`, `scripts/systems/level_provider.gd`, `scripts/systems/stage_manager.gd`, `scripts/systems/level_manager.gd` |
+| §4.1 ONE armor entry `raw = A/(1 + D/A)`, one final rounding, floor 1 — player attacks, skills and the Magic Tome all resolve through it, and enemies use the same path | `scripts/combat/combat_system.gd` |
+| §7 injection: the provider owns the profile, the stage manager resolves it, and the world hands that same instance to the hero and the damage entry | `scripts/systems/level_provider.gd`, `scripts/world/grid_combat.gd` |
+| The 24-enemy pool compressed ONCE to the reference band 0.9..1.1, with the old → new record and a guard against a second run | `tools/balance_compress_enemy_pool.gd` → `docs/balance-enemy-pool.md` |
+| Reverse-order equipment, mixed gear, empty slots, both scales moving independently, the caps and the utility rolls | `tests/balance_aggregation_smoke_test.gd` (91 checks) |
+| Normal spawns, the group factor, offsets and per-stat variance, training stages, Mini Bosses and the provider's stage definitions | `tests/enemy_stat_scaling_smoke_test.gd` (73 checks) |
+
+Verified green: `balance_aggregation`, `enemy_stat_scaling`, `balance_formulas`,
+`combat_affix`, `magic_tome`, `stage_progress_save`, `enemy_experience_scaling`,
+`player_progress`, `skill_progression`, `subhero_combat`, `subhero_kill_reward`,
+`stage_content`, `economy`, `scavenger_shop`, `beginner_sword_drop`. The only test expectations
+rewritten were the ones that asserted the REPLACED rules: the spell damage figure (`ATK - DEF`
+→ the armor entry) and the affix→stat mapping test (which now checks the aggregation), plus the
+in-combat affix fixture, whose enemy needed a maximum HP that survives the taller v4 hero hits.
+
+Explicitly NOT in R1 (deliberately still legacy, so no reward is half-switched): enemy EXP and
+Gold scaling, item prices and the economy expectations, Sub Hero damage and investment
+coordinates, the v4 save migration. `EquipmentInstance.get_equipment_score()` remains a display
+value only — it is not a power verdict and must stop feeding AUTO re-equip and pricing in R2.
+The compare CARD still renders the raw affix deltas it always did; the same-source effective
+preview exists as data (`PlayerController.preview_equipment_block`, `EquipmentStatBlock.compare`)
+and gets its UI surface in the R3 acceptance pass. `docs/gameplay-spec.md` still describes the
+legacy numbers; its text is updated with the release pass in R3.
+
 ## 1. Implemented Systems
 
 | System | Location |
@@ -232,12 +271,12 @@ test_subhero_shop          test_town_view            test_world_map
 Headless smoke tests (`res://tests/*_smoke_test.gd`):
 
 ```text
-area_stage_data   balance_formulas   player_progress   skill_progression
-stage_content     stage_database     stage_progress_save   stage_router
-subhero_combat    subhero_data   subhero_progression   subhero_runtime
-subhero_summon    enemy_experience_scaling   subhero_kill_reward
-beginner_sword_drop   scavenger_shop   economy
-combat_affix      item_registry   magic_tome
+area_stage_data   balance_formulas   balance_aggregation   player_progress
+skill_progression stage_content     stage_database     stage_progress_save
+stage_router      subhero_combat    subhero_data   subhero_progression
+subhero_runtime   subhero_summon    enemy_experience_scaling
+enemy_stat_scaling   subhero_kill_reward   beginner_sword_drop
+scavenger_shop    economy   combat_affix      item_registry   magic_tome
 ```
 
 Generated reference table (reads `resources/balance/balance_profile_default.tres` and
@@ -245,6 +284,12 @@ rewrites `docs/balance-reference-table.md`):
 
 ```text
 godot --headless --path . -s res://tools/balance_reference_table.gd
+```
+
+One-time enemy pool compression (contract §4.2 — refuses to run a second time):
+
+```text
+godot --headless --path . -s res://tools/balance_compress_enemy_pool.gd
 ```
 
 Run only the suite covering a change. Never run the full harness unless asked.

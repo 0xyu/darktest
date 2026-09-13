@@ -6,9 +6,9 @@
 [sub_resource type="Resource" id="Resource_rn8w4"]
 script = ExtResource("1_adnj6")
 level = 9
-max_hp = 203
-attack = 32
-defense = 8
+max_hp = 161
+attack = 24
+defense = 4
 movement_points = 2
 experience_reward = 176
 gold_reward = 51

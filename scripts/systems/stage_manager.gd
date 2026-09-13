@@ -28,9 +28,6 @@ enum Arrival {
 @export var level_manager_path: NodePath = NodePath("../LevelManager")
 @export var enemy_scene: PackedScene
 @export_range(1, 999999, 1) var starting_stage: int = 1
-## Random per-spawn stat variance around the scaled base values.
-## 0.15 means stats may vary by up to +/-15 percent.
-@export_range(0.0, 1.0, 0.01) var enemy_stat_variance: float = 0.15
 ## 0-based y row of the arena gate lane: the Stage Starting Point sits on the
 ## left edge of this row and the Next Stage Point / exit on the right edge.
 ## It is also the ONLY row where the grid's two outer columns are usable, so it
@@ -101,6 +98,22 @@ func initialize_stage(new_stage_number: int = -1, requested_special_encounter_ty
 		stage_state.encounter_id = current_definition.special_enemy_definition.id
 	_defeated_enemy_ids.clear()
 
+	# §4.2: the encounter size c is FROZEN here, when the stage is built, from the number of
+	# enemies the stage actually opens with — killing one never re-scales the survivors — and
+	# the rule set (normal / training / Mini Boss) is decided once, at the same moment.
+	var encounter_count: int = 0
+	for entry in current_definition.enemy_entries:
+		if entry != null and entry.enemy_definition != null:
+			encounter_count += maxi(entry.count, 0)
+	var encounter_kind: int = EnemyScalingSystem.Kind.NORMAL
+	if current_definition.boss != null:
+		encounter_kind = EnemyScalingSystem.Kind.MINI_BOSS
+	elif current_definition.is_special_encounter:
+		encounter_count = 1
+	elif BalanceFormulas.is_training_stage(get_balance_profile(), target_stage):
+		encounter_kind = EnemyScalingSystem.Kind.TRAINING
+	encounter_count = maxi(encounter_count, 1)
+
 	var available_cells := _get_available_spawn_cells()
 	var spawned_nodes: Array[Node] = []
 	if current_definition.boss != null:
@@ -108,7 +121,7 @@ func initialize_stage(new_stage_number: int = -1, requested_special_encounter_ty
 		if boss_cells.size() != 1:
 			return _fail_spawn(target_stage, "Not enough walkable cells to spawn the stage boss.")
 		var boss_level: int = target_stage if not current_definition.is_special_encounter else current_definition.special_mini_boss_level
-		var boss := _spawn_enemy(current_definition.boss, target_stage, boss_cells[0], StringName("stage_%d_boss" % target_stage), boss_level)
+		var boss := _spawn_enemy(current_definition.boss, target_stage, boss_cells[0], StringName("stage_%d_boss" % target_stage), boss_level, null, encounter_kind, encounter_count)
 		if boss == null:
 			return false
 		spawned_nodes.append(boss)
@@ -118,7 +131,7 @@ func initialize_stage(new_stage_number: int = -1, requested_special_encounter_ty
 		var special_cells := _take_spawn_cells(available_cells, 1, StageEnemyEntry.SpawnRule.RANDOM)
 		if special_cells.size() != 1:
 			return _fail_spawn(target_stage, "Not enough walkable cells to spawn the special enemy.")
-		var special_enemy := _spawn_enemy(special_definition, target_stage, special_cells[0], StringName("stage_%d_special" % target_stage), special_level)
+		var special_enemy := _spawn_enemy(special_definition, target_stage, special_cells[0], StringName("stage_%d_special" % target_stage), special_level, null, encounter_kind, encounter_count)
 		if special_enemy == null:
 			return false
 		spawned_nodes.append(special_enemy)
@@ -131,7 +144,7 @@ func initialize_stage(new_stage_number: int = -1, requested_special_encounter_ty
 				return _fail_spawn(target_stage, "Not enough walkable cells to spawn the stage enemies.")
 			for cell in entry_cells:
 				var enemy_index: int = stage_state.spawned_enemy_count + 1
-				var enemy := _spawn_enemy(entry.enemy_definition, target_stage, cell, StringName("stage_%d_enemy_%d" % [target_stage, enemy_index]), entry.get_level(target_stage), entry)
+				var enemy := _spawn_enemy(entry.enemy_definition, target_stage, cell, StringName("stage_%d_enemy_%d" % [target_stage, enemy_index]), entry.get_level(target_stage), entry, encounter_kind, encounter_count)
 				if enemy == null:
 					return false
 				spawned_nodes.append(enemy)
@@ -316,51 +329,87 @@ func _get_enemy_grid_path() -> NodePath:
 	return NodePath("../" + parent_grid_path)
 
 
-func _scale_enemy_runtime(enemy: EnemyController, stage_number: int, entry: StageEnemyEntry = null) -> void:
+## §4.2/§4.3: the stats one spawn fights with. The stage manager supplies only the stage-level
+## inputs — the frozen encounter size, the real level offset and the per-stat variance — and
+## [EnemyScaling] owns the formula, so difficulty(S) is applied exactly once (it travels on the
+## StageDefinition) and a per-entry correction is applied once, on the stat it names.
+func _scale_enemy_runtime(
+	enemy: EnemyController,
+	stage_number: int,
+	entry: StageEnemyEntry = null,
+	encounter_kind: int = EnemyScalingSystem.Kind.NORMAL,
+	encounter_count: int = 1
+) -> void:
 	if enemy.enemy_data == null or enemy.enemy_data.base_stats == null:
 		return
-	var scaled_stats: EnemyStats = EnemyScalingSystem.scale_stats(
-		enemy.enemy_data.base_stats,
+	var profile: BalanceProfile = get_balance_profile()
+	var base_stats: EnemyStats = enemy.enemy_data.base_stats
+	# §4.2: `o = enemy_level - S` uses the CLAMPED real offset, so the display level and the
+	# risk multiplier can never disagree. Training stages and Mini Bosses are offset 0.
+	var enemy_offset: int = maxi(enemy.enemy_level, 1) - maxi(stage_number, 1)
+	if encounter_kind != EnemyScalingSystem.Kind.NORMAL:
+		enemy_offset = 0
+	var scaled_stats: EnemyStats = EnemyScalingSystem.build_combat_stats(
+		profile,
+		base_stats,
 		stage_number,
-		_level_manager.get_hp_growth_rate(),
-		_level_manager.get_attack_growth_rate(),
-		_level_manager.get_defense_growth_rate(),
-		_level_manager.get_gold_growth_rate(),
-		_level_manager.get_exp_growth_rate()
+		encounter_kind,
+		enemy_offset,
+		encounter_count,
+		_roll_variance(encounter_kind),
+		_entry_multipliers(entry)
 	)
-	var difficulty_multiplier: float = maxf(current_definition.difficulty_multiplier, 0.1)
-	var hp_multiplier: float = entry.hp_multiplier if entry != null else 1.0
-	var attack_multiplier: float = entry.attack_multiplier if entry != null else 1.0
-	var defense_multiplier: float = entry.defense_multiplier if entry != null else 1.0
-	scaled_stats.max_hp = _multiply_stat(scaled_stats.max_hp, difficulty_multiplier * hp_multiplier)
-	scaled_stats.attack = _multiply_stat(scaled_stats.attack, difficulty_multiplier * attack_multiplier)
-	scaled_stats.defense = _multiply_stat(scaled_stats.defense, difficulty_multiplier * defense_multiplier)
-	_apply_stat_variance(scaled_stats)
-	scaled_stats.current_hp = scaled_stats.max_hp
+	if scaled_stats == null:
+		return
+	# Rewards stay on the legacy `rate^(stage-1)` curve until R2 moves Gold and EXP onto G(S)
+	# (§5, §6): R1 switches the combat stats only, so a stage cannot pay out a half-switched
+	# reward while it fights with the new numbers.
+	if _level_manager != null:
+		scaled_stats.gold_reward = EnemyScalingSystem.scale_value(
+			base_stats.gold_reward,
+			_level_manager.get_gold_growth_rate(),
+			stage_number
+		)
+		scaled_stats.experience_reward = EnemyScalingSystem.scale_value(
+			base_stats.experience_reward,
+			_level_manager.get_exp_growth_rate(),
+			stage_number
+		)
 	enemy.initialize_runtime_from_stats(scaled_stats)
 
 
-func _apply_stat_variance(stats: EnemyStats) -> void:
-	if enemy_stat_variance <= 0.0:
-		return
-	stats.max_hp = _apply_variance_to_value(stats.max_hp)
-	stats.attack = _apply_variance_to_value(stats.attack)
-	stats.defense = _apply_variance_to_value(stats.defense)
+## §4.2: each stat gets its OWN uniform factor from the profile's band. Training stages and Mini
+## Bosses are exact — an authored fight stays the same fight for every player.
+func _roll_variance(encounter_kind: int) -> Array[float]:
+	if encounter_kind != EnemyScalingSystem.Kind.NORMAL:
+		return EnemyScalingSystem.unity_variance()
+	var profile: BalanceProfile = get_balance_profile()
+	var minimum: float = minf(profile.enemy_variance_min, profile.enemy_variance_max)
+	var maximum: float = maxf(profile.enemy_variance_min, profile.enemy_variance_max)
+	return [
+		_random_number_generator.randf_range(minimum, maximum),
+		_random_number_generator.randf_range(minimum, maximum),
+		_random_number_generator.randf_range(minimum, maximum),
+	]
 
 
-func _apply_variance_to_value(value: int) -> int:
-	if value <= 0:
-		return value
-	var variance: float = clampf(enemy_stat_variance, 0.0, 1.0)
-	var multiplier: float = 1.0 + _random_number_generator.randf_range(-variance, variance)
-	return maxi(roundi(float(value) * multiplier), 1)
+## The per-entry corrections of §4.2, in HP / ATK / DEF order, or an empty array for "none".
+func _entry_multipliers(entry: StageEnemyEntry) -> Array[float]:
+	if entry == null:
+		return []
+	return [entry.hp_multiplier, entry.attack_multiplier, entry.defense_multiplier]
 
 
-func _multiply_stat(value: int, multiplier: float) -> int:
-	return maxi(roundi(float(value) * maxf(multiplier, 0.1)), 1)
+## §7: the profile the provider owns. A stage manager configured without a level manager (a
+## headless fixture) still gets the shipped default instead of restating a balance number, and
+## the world hands the SAME instance to the hero and to the damage entry.
+func get_balance_profile() -> BalanceProfile:
+	if _level_manager != null:
+		return _level_manager.get_balance_profile()
+	return BalanceProfile.get_default()
 
 
-func _spawn_enemy(enemy_data: EnemyData, stage_number: int, spawn_cell: Vector2i, generated_id: StringName, level: int, entry: StageEnemyEntry = null) -> EnemyController:
+func _spawn_enemy(enemy_data: EnemyData, stage_number: int, spawn_cell: Vector2i, generated_id: StringName, level: int, entry: StageEnemyEntry = null, encounter_kind: int = EnemyScalingSystem.Kind.NORMAL, encounter_count: int = 1) -> EnemyController:
 	if enemy_data == null:
 		return null
 	var enemy := enemy_scene.instantiate() as EnemyController
@@ -377,7 +426,7 @@ func _spawn_enemy(enemy_data: EnemyData, stage_number: int, spawn_cell: Vector2i
 	enemy.grid_path = _get_enemy_grid_path()
 	enemy.enemy_data = enemy_data
 	_spawn_parent.add_child(enemy)
-	_scale_enemy_runtime(enemy, stage_number, entry)
+	_scale_enemy_runtime(enemy, stage_number, entry, encounter_kind, encounter_count)
 	_spawned_enemies.append(enemy)
 	stage_state.spawned_enemy_count += 1
 	if enemy.has_signal("defeated"):

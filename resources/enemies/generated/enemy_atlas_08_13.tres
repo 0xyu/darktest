@@ -6,8 +6,8 @@
 [sub_resource type="Resource" id="Resource_b7gt4"]
 script = ExtResource("1_dkyks")
 level = 10
-max_hp = 171
-attack = 30
+max_hp = 155
+attack = 24
 defense = 4
 movement_points = 2
 experience_reward = 193
