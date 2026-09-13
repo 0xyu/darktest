@@ -26,6 +26,31 @@ no legacy gap is closed by the document edit.
 | Persistence/boundary | Format 3 and oversized stages → backed-up format 4 migration and validated Stage 1..1000 release |
 | Verification | Document analytic/discrete/EXP-only probes → production M1–M8 still required |
 
+### R0 shipped: profile, pure formulas, analytic fixtures, comparison table (2026-09-13)
+
+R0 of [the final contract](balance-rework-implementation.md) §8 is implemented and verified
+headless. It defines the v4 numbers and the shared math; **no runtime consumer has switched
+over**, so every legacy value in §2 below still drives the game.
+
+| Delivered | Where |
+|---|---|
+| Central v4 parameters: scale, difficulty ramp, encounter exponents, armor/damage bounds, release ranges, player coefficients, slot weights, reference/training enemies, Mini Boss multipliers | `scripts/balance/balance_profile.gd`, `resources/balance/balance_profile_default.tres` |
+| Pure `G`, `level_scale`/`item_scale`, `count`, `difficulty`, armor, damage, rounding and boundary functions — all profile-parameterized, no node and no autoload | `scripts/balance/balance_formulas.gd` |
+| Analytic reference case (L = il = S, seven Common slots, reference / Mini Boss / training variants) plus the M2 band constants | `tests/fixtures/balance_reference_case.gd` |
+| M1 + analytic M2 assertions, read from the profile resource rather than copied numbers | `tests/balance_formulas_smoke_test.gd` |
+| Comparison table generated from the profile | `tools/balance_reference_table.gd` → `docs/balance-reference-table.md` |
+
+Verified: `G(1) = 1`, `G` monotonic over 1..1000, exact `r(S)`, a continuous difficulty ramp,
+float armor homogeneity, the boundary inputs (A = 0, D = 0, huge D, NaN/∞, `MAX_COMBAT_VALUE`
+saturation), unit weight columns, and the S3..1000 bands (work 2.79..5.87, survival
+6.17..7.45, exactly 8 actions from S10, Mini Boss 9..10 actions). `G`, `item_scale`, encounter
+work, static survival, discrete actions and HP remaining match the §7 document model row for
+row on identical inputs.
+
+Not in R0 on purpose: EXP, Gold, price, Sub Hero and persistence parameters join the same
+profile in R2 with their consumers, and nothing here is wired into `LevelProvider`, combat,
+equipment or the save format yet.
+
 ## 1. Implemented Systems
 
 | System | Location |
@@ -207,12 +232,19 @@ test_subhero_shop          test_town_view            test_world_map
 Headless smoke tests (`res://tests/*_smoke_test.gd`):
 
 ```text
-area_stage_data   player_progress   skill_progression   stage_content
-stage_database    stage_progress_save   stage_router
+area_stage_data   balance_formulas   player_progress   skill_progression
+stage_content     stage_database     stage_progress_save   stage_router
 subhero_combat    subhero_data   subhero_progression   subhero_runtime
 subhero_summon    enemy_experience_scaling   subhero_kill_reward
 beginner_sword_drop   scavenger_shop   economy
 combat_affix      item_registry   magic_tome
+```
+
+Generated reference table (reads `resources/balance/balance_profile_default.tres` and
+rewrites `docs/balance-reference-table.md`):
+
+```text
+godot --headless --path . -s res://tools/balance_reference_table.gd
 ```
 
 Run only the suite covering a change. Never run the full harness unless asked.

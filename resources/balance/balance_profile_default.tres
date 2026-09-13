@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="BalanceProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/balance/balance_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+max_stage = 1000
+max_character_level = 1000
+max_item_level = 1003
+max_combat_value = 1000000000000.0
+max_persistent_value = 9000000000000000.0
+growth_exponent = 4
+growth_offset = 20.0
+growth_divisor = 21.0
+equipment_share = 0.6
+difficulty_start = 0.9
+difficulty_mid = 1.0
+difficulty_cap = 1.1
+difficulty_mid_stage = 10
+difficulty_cap_stage = 100
+base_enemy_count = 1
+max_enemy_count = 4
+enemy_count_interval = 3
+enemy_hp_count_exponent = -0.6
+enemy_attack_count_exponent = -0.8
+enemy_offset_step = 0.06
+enemy_variance_min = 0.85
+enemy_variance_max = 1.15
+training_stage_limit = 2
+base_hp = 121.2
+base_attack = 51.8
+base_defense = 5.0
+rarity_core_step = 0.08
+slot_hp_weights = Array[float]([0.0, 0.15, 0.4, 0.1, 0.2, 0.05, 0.1])
+slot_attack_weights = Array[float]([0.6, 0.0, 0.0, 0.15, 0.0, 0.15, 0.1])
+slot_defense_weights = Array[float]([0.0, 0.25, 0.45, 0.0, 0.2, 0.05, 0.05])
+base_critical_chance = 0.05
+base_critical_damage = 1.5
+reference_enemy_hp = 150.0
+reference_enemy_attack = 22.0
+reference_enemy_defense = 4.0
+reference_enemy_exp = 100.0
+training_enemy_hp = 130.0
+training_enemy_attack = 12.0
+training_enemy_defense = 3.0
+training_enemy_exp = 100.0
+boss_interval = 10
+boss_base_enemy_count = 4
+boss_hp_multiplier = 6.0
+boss_attack_multiplier = 1.5
+boss_defense_multiplier = 1.25
