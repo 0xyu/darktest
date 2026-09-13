@@ -326,8 +326,12 @@ func test_items_and_sub_heroes_survive_a_restart() -> void:
 	var player: Node = _player()
 	# One item in each of the three places an owned item can live.
 	var weapon: EquipmentInstance = FixtureScript.create_equipment(EquipmentRarity.RARE, EquipmentSlot.WEAPON, 12, &"every_3rd_attack")
+	# The level-1 numbers, before any gear is worn: the round trip below has to come
+	# back to exactly these.
+	var unequipped_attack: int = int(player.player_stats.attack)
 	expect(bool(player.call("add_equipment", weapon)), "the hero takes the weapon")
 	expect(bool(player.call("equip_item", weapon)), "the weapon is equipped")
+	expect(int(player.player_stats.attack) > unequipped_attack, "equipping the weapon raises attack")
 	var ring: EquipmentInstance = FixtureScript.create_equipment(EquipmentRarity.EPIC, EquipmentSlot.RING, 22)
 	expect(bool(player.call("add_equipment", ring)), "the ring enters the bag")
 	var boots: EquipmentInstance = FixtureScript.create_equipment(EquipmentRarity.COMMON, EquipmentSlot.BOOTS, 4)
@@ -357,6 +361,16 @@ func test_items_and_sub_heroes_survive_a_restart() -> void:
 		expect(restored_weapon.definition.unique_effect_id == &"every_3rd_attack", "its unique effect survived the restart")
 		expect(restored_weapon.affixes.size() == weapon.affixes.size(), "its rolled affixes survived the restart")
 	expect(int(restored_player.player_stats.attack) == equipped_attack_bonus, "the equipped item's stats are applied in the restored session")
+	# A round trip: taking the weapon off and putting it back on returns the SAME
+	# numbers, because the stats are rebuilt from the level and the gear instead of
+	# being adjusted by a remembered delta.
+	expect(
+		restored_player.call("unequip_item", EquipmentSlot.WEAPON) == restored_weapon,
+		"the restored weapon comes off"
+	)
+	expect_eq(int(restored_player.player_stats.attack), unequipped_attack, "removing it returns the numbers the level alone is worth")
+	expect(bool(restored_player.call("equip_item", restored_weapon)), "the weapon goes back on")
+	expect_eq(int(restored_player.player_stats.attack), equipped_attack_bonus, "re-equipping it restores exactly the same attack")
 	expect(restored_player.call("get_inventory").has_item(ring), "the bagged ring is restored")
 	expect(not ring.is_equipped, "a bagged item does not come back equipped")
 	expect(restored_player.call("get_storage").has_item(boots), "the warehouse contents are restored")
@@ -396,10 +410,20 @@ func test_character_progression_survives_a_restart() -> void:
 
 	# The ordinary progression paths: an EXP award that levels the hero, the skill
 	# point it grants, a skill learned with it, and an awarded coin.
-	expect(progression.add_experience(150) == 1, "the awarded EXP levels the hero once")
+	var experience_system: Node = _grid_test.find_child("ExperienceSystem", true, false)
+	expect(experience_system != null, "the scene owns the experience system")
+	expect_eq(int(experience_system.call("grant_experience", 150)), 1, "the awarded EXP levels the hero once")
 	expect(bool(player.call("upgrade_skill", SkillCatalog.WHIRLWIND)), "the level-up's skill point learns a skill")
 	expect(progression.add_gold(275) == 275, "the purse takes the awarded gold")
 	await flush_frames(2)
+
+	# The level is worth numbers, and those numbers are NOT stored: the hero rebuilds
+	# them from the level and the gear it owns, so a session that comes back has to
+	# fight with what its level is worth.
+	var live_max_hp: int = int(player.player_stats.max_hp)
+	var live_attack: int = int(player.player_stats.attack)
+	var live_defense: int = int(player.player_stats.defense)
+	expect(live_max_hp > 100, "a level-up raises max HP above the level-1 base (got %d)" % live_max_hp)
 
 	# Autosave: all of it persisted on its own — no gameplay path and no panel asked
 	# for a save.
@@ -419,6 +443,15 @@ func test_character_progression_survives_a_restart() -> void:
 	# A second session: nothing is carried over in memory, only the save file.
 	await _mount_game()
 	var restored: PlayerProgression = _player().get("player_progression") as PlayerProgression
+	var restored_player: Node = _player()
+	expect_eq(int(restored_player.player_stats.max_hp), live_max_hp, "the restored session rebuilds max HP from its level")
+	expect_eq(int(restored_player.player_stats.attack), live_attack, "the restored session rebuilds attack from its level")
+	expect_eq(int(restored_player.player_stats.defense), live_defense, "the restored session rebuilds defense from its level")
+	expect_eq(
+		int(restored_player.player_stats.current_hp),
+		live_max_hp,
+		"a restored session boots at full HP of the restored maximum"
+	)
 	expect_eq(restored.level, 2, "the restored session keeps the level")
 	expect_eq(restored.experience, 50, "the restored session keeps the EXP inside the level")
 	expect_eq(restored.gold, 275, "the restored session keeps the purse")

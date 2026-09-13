@@ -83,6 +83,12 @@ func _ready() -> void:
 	player.set_equipment_inventory(_stage_save.inventory)
 	player.set_storage(_stage_save.storage)
 	player.set_sub_hero_progression(_stage_save.sub_heroes)
+	# The restored level and the restored gear are the only stored inputs of the hero's
+	# own numbers — HP and the derived stats are NOT stored, because a session starts on
+	# a fresh stage. The level is written straight into the progression object the save
+	# adopted (no signal), so the hero rebuilds its stats here, once the save has
+	# landed: the boot numbers are the numbers that level and that gear produce.
+	player.recompute_stats_from_level_and_equipment()
 	grid.queue_redraw()
 	player.reset_movement_points()
 	player.moved.connect(_on_player_moved)

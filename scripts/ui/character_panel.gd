@@ -50,16 +50,22 @@ func _ready() -> void:
 ## DEV panel can replace the player object while this panel still holds the old one.
 func set_player(player: PlayerController) -> void:
 	if _player != null:
-		if _player.level_up.is_connected(_refresh):
-			_player.level_up.disconnect(_refresh)
+		if _player.level_up.is_connected(_on_player_level_up):
+			_player.level_up.disconnect(_on_player_level_up)
 		if _player.action_completed.is_connected(_refresh):
 			_player.action_completed.disconnect(_refresh)
 	_player = player
 	if _player != null:
-		if not _player.level_up.is_connected(_refresh):
-			_player.level_up.connect(_refresh)
+		if not _player.level_up.is_connected(_on_player_level_up):
+			_player.level_up.connect(_on_player_level_up)
 		if not _player.action_completed.is_connected(_refresh):
 			_player.action_completed.connect(_refresh)
+	_refresh()
+
+
+## `level_up` carries the new level; the panel reads every number off the player it is
+## bound to, so the argument is only there to match the signal's own signature.
+func _on_player_level_up(_new_level: int) -> void:
 	_refresh()
 
 

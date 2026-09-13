@@ -8,6 +8,25 @@ const SubHeroProgressionServiceResource = preload("res://scripts/sub_hero/sub_he
 const PLAYER_SPRITE: Texture2D = preload("res://assets/characters/player.png")
 const SPRITE_RECT: Rect2 = Rect2(-24.25, -34.0, 48.5, 60.0)
 
+## Every PlayerStats field that a level growth or an equipment affix can move,
+## mapped to the bonus key that carries it. ONE table, read by _adjust_stats: an
+## affix whose key is missing here would be rolled, displayed and score-counted yet
+## never reach combat (see implementation-status §3.2).
+const STAT_BONUS_KEYS: Dictionary = {
+	&"max_hp": &"hp",
+	&"attack": &"attack",
+	&"defense": &"defense",
+	&"critical_chance": &"critical_chance",
+	&"critical_damage": &"critical_damage",
+	&"dodge": &"dodge",
+	&"movement_points": &"movement",
+	&"attack_range": &"attack_range",
+	&"life_steal": &"life_steal",
+	&"damage_vs_elite": &"damage_vs_elite",
+	&"damage_vs_boss": &"damage_vs_boss",
+	&"stun_chance": &"stun_chance",
+}
+
 signal moved(from_cell: Vector2i, to_cell: Vector2i, movement_points_remaining: int)
 signal selection_changed(is_selected: bool)
 signal action_completed
@@ -67,7 +86,9 @@ var _free_movement: bool = false
 ## farming never stalls on a presentation.
 var _movement_locked: bool = false
 var _target: Node
-var _applied_equipment_bonuses: Dictionary = {}
+## The hero's own numbers at level 1, captured before the first rebuild adds anything
+## to them: they are the base every rebuild starts from.
+var _base_stats: Dictionary = {}
 var _attack_count: int = 0
 var _cells_moved_since_attack: int = 0
 var _sub_hero_signals_bound: bool = false
@@ -75,7 +96,7 @@ var _sub_hero_signals_bound: bool = false
 
 func _ready() -> void:
 	_ensure_equipment_inventory()
-	_refresh_equipment_stats()
+	recompute_stats_from_level_and_equipment()
 	_grid = get_node_or_null(grid_path) as GridMap2D
 	if _grid == null:
 		push_error("PlayerController requires a GridMap2D assigned through grid_path.")
@@ -103,7 +124,7 @@ func set_equipment_inventory(inventory: EquipmentInventory) -> void:
 		equipment_inventory.equipment_changed.disconnect(_on_equipment_changed)
 	equipment_inventory = inventory
 	_ensure_equipment_inventory()
-	_refresh_equipment_stats()
+	recompute_stats_from_level_and_equipment()
 
 
 ## Injects the Sub Hero progression the host owns (the save's restored collection).
@@ -702,7 +723,7 @@ func _ensure_equipment_inventory() -> void:
 
 
 func _on_equipment_changed(_slot: int, _equipped_item: EquipmentInstance, _previous_item: EquipmentInstance) -> void:
-	_refresh_equipment_stats()
+	recompute_stats_from_level_and_equipment()
 
 
 func _on_sub_hero_collection_changed() -> void:
@@ -725,37 +746,105 @@ func _release_sub_hero_signals() -> void:
 	_sub_hero_signals_bound = false
 
 
-func _refresh_equipment_stats() -> void:
+## Rebuilds the hero's derived stats from the only two inputs that produce them: the
+## character's LEVEL and the items the hero has EQUIPPED. Every path that can change
+## either one goes through here — a fresh boot, a level-up, an equip, a remove, and
+## the load that restores a save — so a restored session fights with the numbers its
+## level and its gear produce instead of with the level-1 numbers the scene was
+## authored with (the save stores level and gear, never the derived stats).
+##
+## IDEMPOTENT by construction: the numbers are rebuilt from the level-1 base every
+## time, never adjusted by a remembered delta ("subtract what was added last time"),
+## so calling it twice with the same level and the same gear changes nothing.
+##
+## HP: a rebuild that does not move the maximum leaves the current HP exactly where
+## it was — that is what makes a repeated call a no-op; one that does move it keeps
+## the same FRACTION of the new maximum, so a session that boots at full HP boots at
+## full HP of the restored maximum, and a wounded hero stays exactly as wounded as
+## they were. A dead hero stays dead, and no projection may kill a living one.
+##
+## `keep_current_hp` is the level-up policy: a level-up has always left the current
+## HP alone (a bigger maximum, not a heal).
+func recompute_stats_from_level_and_equipment(keep_current_hp: bool = false) -> void:
 	if player_stats == null:
 		return
-	if equipment_inventory == null:
-		return
-	_adjust_stats(_applied_equipment_bonuses, -1.0)
-	_applied_equipment_bonuses = equipment_inventory.get_equipped_stat_totals()
-	_adjust_stats(_applied_equipment_bonuses, 1.0)
-	player_stats.clamp_current_hp()
+	if _base_stats.is_empty():
+		_capture_base_stats()
+	var previous_max_hp: int = player_stats.max_hp
+	var previous_current_hp: int = player_stats.current_hp
+	# 1. The level-1 numbers, exactly as they were authored.
+	for field in STAT_BONUS_KEYS:
+		player_stats.set(field, _base_stats[field])
+	# 2. The growth the character's level carries, then 3. the gear. Both are additive
+	# on top of that base, and neither is ever applied twice.
+	_adjust_stats(_level_growth_totals(), 1.0)
+	if equipment_inventory != null:
+		_adjust_stats(equipment_inventory.get_equipped_stat_totals(), 1.0)
+	_apply_projected_current_hp(previous_max_hp, previous_current_hp, keep_current_hp)
 	if movement_points_remaining > 0:
 		movement_points_remaining = mini(movement_points_remaining, maxi(player_stats.movement_points, 0))
 	queue_redraw()
 
 
+## What ONE level adds to the three core numbers, keyed like the equipment totals so a
+## level-up can report what it granted without holding a second copy of the numbers.
+func get_level_growth() -> Dictionary:
+	if player_stats == null:
+		return {}
+	return {
+		&"hp": maxi(player_stats.max_hp_per_level, 0),
+		&"attack": maxi(player_stats.attack_per_level, 0),
+		&"defense": maxi(player_stats.defense_per_level, 0),
+	}
+
+
+## The growth the character's whole level carries, as a bonus dictionary _adjust_stats
+## reads (empty at level 1, where the base IS the answer).
+func _level_growth_totals() -> Dictionary:
+	var levels: int = maxi(get_level(), 1) - 1
+	if levels <= 0:
+		return {}
+	var growth: Dictionary = get_level_growth()
+	var totals: Dictionary = {}
+	for key in growth:
+		totals[key] = float(growth[key]) * float(levels)
+	return totals
+
+
+## The level-1 numbers the hero was authored with, captured ONCE — before the first
+## rebuild adds anything to them — because every later rebuild starts from them. A
+## hero that is not in the tree yet captures them on its first rebuild, so a host (or
+## a test) that tunes player_stats before adding the hero keeps its tuning.
+func _capture_base_stats() -> void:
+	_base_stats.clear()
+	for field in STAT_BONUS_KEYS:
+		_base_stats[field] = player_stats.get(field)
+
+
+func _apply_projected_current_hp(previous_max_hp: int, previous_current_hp: int, keep_current_hp: bool) -> void:
+	if keep_current_hp or player_stats.max_hp == previous_max_hp or previous_current_hp <= 0:
+		player_stats.current_hp = previous_current_hp
+	elif previous_max_hp > 0:
+		player_stats.current_hp = maxi(
+			floori(float(previous_current_hp) * float(player_stats.max_hp) / float(previous_max_hp)), 1
+		)
+	player_stats.clamp_current_hp()
+
+
+## Adds a bonus dictionary — the equipment affix totals, or the growth a level carries
+## — to the stats. ONE mapping table decides which stat a key moves, and integer stats
+## take the rounded amount so a recompute from the base lands on the same integer a
+## level-up used to add.
 func _adjust_stats(bonuses: Dictionary, direction: float) -> void:
 	if player_stats == null:
 		return
-	player_stats.attack += roundi(float(bonuses.get(&"attack", 0.0)) * direction)
-	player_stats.defense += roundi(float(bonuses.get(&"defense", 0.0)) * direction)
-	player_stats.max_hp += roundi(float(bonuses.get(&"hp", 0.0)) * direction)
-	player_stats.critical_chance += float(bonuses.get(&"critical_chance", 0.0)) * direction
-	player_stats.critical_damage += float(bonuses.get(&"critical_damage", 0.0)) * direction
-	player_stats.dodge += float(bonuses.get(&"dodge", 0.0)) * direction
-	player_stats.movement_points += roundi(float(bonuses.get(&"movement", 0.0)) * direction)
-	player_stats.attack_range += roundi(float(bonuses.get(&"attack_range", 0.0)) * direction)
-	player_stats.life_steal += float(bonuses.get(&"life_steal", 0.0)) * direction
-	# §12 affixes that must reach combat: without these three the affixes would be
-	# rolled, displayed and score-counted yet never read (see implementation-status §3.2).
-	player_stats.damage_vs_elite += float(bonuses.get(&"damage_vs_elite", 0.0)) * direction
-	player_stats.damage_vs_boss += float(bonuses.get(&"damage_vs_boss", 0.0)) * direction
-	player_stats.stun_chance += float(bonuses.get(&"stun_chance", 0.0)) * direction
+	for field in STAT_BONUS_KEYS:
+		var amount: float = float(bonuses.get(STAT_BONUS_KEYS[field], 0.0)) * direction
+		var current: Variant = player_stats.get(field)
+		if current is int:
+			player_stats.set(field, int(current) + roundi(amount))
+		else:
+			player_stats.set(field, float(current) + amount)
 
 
 func get_level() -> int:

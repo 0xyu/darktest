@@ -53,7 +53,10 @@ extends RefCounted
 ## One object is shared by both, so an EXP award, a gold award, a purchase, a
 ## level-up and a skill upgrade all write through the object this file is written
 ## from. The hero's derived stats (attack, HP, defense) are deliberately NOT stored
-## — they are recomputed from the level and the equipped items, which are.
+## — they are recomputed from the level and the equipped items, which are: once the
+## load has landed the host calls
+## PlayerController.recompute_stats_from_level_and_equipment(), so a restored session
+## fights with the numbers its level and its gear produce (gameplay-spec §10).
 ##
 ## Deliberately NOT stored:
 ##   * any area field — the area is DERIVED from the position

@@ -21,6 +21,15 @@ extends Resource
 ## to the target. The stun itself lives on the target, not here.
 @export_range(0.0, 1.0, 0.01) var stun_chance: float = 0.0
 
+## What ONE level adds to the three core numbers. They live beside the values they
+## grow, because the hero rebuilds its derived stats from the level every time
+## (PlayerController.recompute_stats_from_level_and_equipment): a level-up applies
+## exactly these numbers and a load reconstructs exactly these numbers, so a restored
+## level cannot be worth less than a played-up one.
+@export_range(0, 999999, 1) var max_hp_per_level: int = 20
+@export_range(0, 999999, 1) var attack_per_level: int = 2
+@export_range(0, 999999, 1) var defense_per_level: int = 1
+
 
 func reset_current_hp() -> void:
 	current_hp = max_hp

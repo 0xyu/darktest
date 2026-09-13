@@ -18,7 +18,7 @@ no legacy gap is closed by the document edit.
 
 | Work item | Shipped behavior → finalized target |
 |---|---|
-| P0 stat reconstruction | Incremental level stats and missing load rebuild → one idempotent rebuild |
+| P0 stat reconstruction | **Shipped** (legacy formulas kept): one idempotent rebuild from level + equipped items (`PlayerController.recompute_stats_from_level_and_equipment`), used by boot, level-up, equip/unequip and load → the finalized level_scale/equipment aggregation |
 | Combat/scaling | Subtractive armor and separate exponentials → shared armor and power-law G |
 | Equipment | Additive old flat/utility scaling → inherent per-slot growth, normalized flat budgets, bounded utilities |
 | EXP/Gold/economy | Legacy exponentials and k50 → shared G, joint expected value, BaseItemValue 30 / k 100 |

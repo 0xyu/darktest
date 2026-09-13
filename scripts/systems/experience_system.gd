@@ -1,13 +1,10 @@
 class_name ExperienceSystem
 extends Node
 
-## Awards enemy experience and applies the player's level-up stat growth.
+## Awards enemy experience and drives the player's level-up stat growth (the hero
+## rebuilds its own numbers from the new level — see PlayerController).
 signal experience_awarded(amount: int, current_experience: int, required_experience: int, source_name: String)
 signal level_up(new_level: int, max_hp_gain: int, attack_gain: int, defense_gain: int)
-
-@export_range(0, 999999, 1) var base_hp_growth: int = 20
-@export_range(0, 999999, 1) var base_attack_growth: int = 2
-@export_range(0, 999999, 1) var base_defense_growth: int = 1
 
 @export_range(0.0, 100.0, 0.1) var normal_experience_multiplier: float = 1.0
 @export_range(0.0, 100.0, 0.1) var elite_experience_multiplier: float = 2.0
@@ -87,15 +84,23 @@ func grant_experience(amount: int, source_name: String = "") -> int:
 	var progression: PlayerProgression = _player.player_progression
 	var level_before: int = maxi(progression.level, 1)
 	var levels_gained: int = progression.add_experience(safe_amount)
-	var stats: PlayerStats = _player.player_stats
+	if levels_gained > 0:
+		# The growth is applied by the hero's OWN rebuild of its derived stats, which
+		# is also what a boot, an equip and a load call: ONE function decides what a
+		# level and a set of gear are worth, instead of a level-up adding increments
+		# that a load could not reproduce. A level-up keeps the current HP where it is.
+		_player.recompute_stats_from_level_and_equipment(true)
+	# What one level granted, read from the stats the hero just rebuilt itself from —
+	# so the reported gain and the applied gain cannot disagree.
+	var growth: Dictionary = _player.get_level_growth()
 	for level_offset in range(levels_gained):
-		if stats != null:
-			stats.max_hp += maxi(base_hp_growth, 0)
-			stats.attack += maxi(base_attack_growth, 0)
-			stats.defense += maxi(base_defense_growth, 0)
-			stats.clamp_current_hp()
 		var reached_level: int = level_before + level_offset + 1
-		level_up.emit(reached_level, maxi(base_hp_growth, 0), maxi(base_attack_growth, 0), maxi(base_defense_growth, 0))
+		level_up.emit(
+			reached_level,
+			int(growth.get(&"hp", 0)),
+			int(growth.get(&"attack", 0)),
+			int(growth.get(&"defense", 0))
+		)
 		_player.notify_level_up(reached_level)
 
 	if safe_amount > 0:
