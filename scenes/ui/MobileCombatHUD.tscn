@@ -109,6 +109,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+metadata/_edit_lock_ = true
 
 [node name="MainContent" type="VBoxContainer" parent="Root/SafeArea" unique_id=120789996]
 layout_mode = 2
@@ -133,6 +134,15 @@ layout_mode = 1
 [node name="CombatView" type="Control" parent="Root/SafeArea/MainContent/ViewContainer" unique_id=795183663]
 unique_name_in_owner = true
 anchors_preset = 0
+
+[node name="Panel" type="ColorRect" parent="Root/SafeArea/MainContent/ViewContainer/CombatView" unique_id=340376909]
+custom_minimum_size = Vector2(-1, 100)
+layout_mode = 0
+offset_left = -1.0
+offset_top = 539.0
+offset_right = 719.0
+offset_bottom = 1283.0
+color = Color(0, 0, 0, 1)
 
 [node name="MainLayout" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView" unique_id=1087228164]
 layout_mode = 0
@@ -336,6 +346,7 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 text = "FASTEST"
 
 [node name="StageControl" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=1428020522 instance=ExtResource("9_eswka")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 98)
 layout_mode = 2
 
@@ -403,6 +414,7 @@ layout_mode = 1
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
+metadata/_edit_lock_ = true
 
 [node name="DevelopmentPanel" parent="Root/SafeArea" unique_id=1999941089 instance=ExtResource("20_dev")]
 unique_name_in_owner = true
