@@ -4,8 +4,24 @@
 [ext_resource type="Texture2D" uid="uid://d1kxmsx2xp7q2" path="res://assets/characters/portraits/Avatar_ref.png" id="2_264be"]
 [ext_resource type="Texture2D" uid="uid://c80gtsswsic5p" path="res://assets/characters/portraits/HP_Portrait_frame.png" id="3_btte7"]
 [ext_resource type="Script" uid="uid://d33cms0qm4511" path="res://scripts/ui/header_row.gd" id="4_header_script"]
+[ext_resource type="Texture2D" uid="uid://cubpxxjiwkgfx" path="res://assets/ui/hud/Hp_frame.png" id="5_i0j6s"]
 [ext_resource type="Texture2D" uid="uid://c73skqhgenfhl" path="res://assets/ui/hud/money-display.png" id="5_money_display"]
 [ext_resource type="Texture2D" uid="uid://bfajkqww6bl4s" path="res://assets/ui/hud/power-level-display.png" id="6_power_level_display"]
+[ext_resource type="Texture2D" uid="uid://qen7qg7wgkcy" path="res://assets/ui/hud/Hp_red.png" id="6_rih5c"]
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_04yov"]
+texture = ExtResource("5_i0j6s")
+texture_margin_left = 6.0
+texture_margin_top = 4.0
+texture_margin_right = 6.0
+texture_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_v1k8s"]
+texture = ExtResource("6_rih5c")
+texture_margin_left = 4.0
+texture_margin_top = 3.0
+texture_margin_right = 4.0
+texture_margin_bottom = 3.0
 
 [node name="HeaderRow" type="Control" unique_id=594259273]
 custom_minimum_size = Vector2(700, 100)
@@ -16,18 +32,41 @@ offset_right = -720.0
 offset_bottom = -93.44001
 script = ExtResource("4_header_script")
 
+[node name="TurnLabel" type="Label" parent="." unique_id=697888687]
+unique_name_in_owner = true
+visible = false
+layout_mode = 0
+offset_left = 103.0
+offset_top = 22.0
+offset_right = 196.0
+offset_bottom = 45.0
+theme_override_colors/font_color = Color(0.847, 0.678, 0.349, 1)
+theme_override_font_sizes/font_size = 16
+text = "YOUR TURN"
+horizontal_alignment = 2
+
 [node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=851469806]
 layout_mode = 0
 offset_right = 700.0
 offset_bottom = 97.0
 
-[node name="AvatarBox" type="Control" parent="HBoxContainer" unique_id=1478029125]
-custom_minimum_size = Vector2(46, 46)
+[node name="HBoxContainer" type="HBoxContainer" parent="HBoxContainer" unique_id=807361997]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HBoxContainer/HBoxContainer" unique_id=361923061]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="HBoxContainer/HBoxContainer/VBoxContainer" unique_id=1921369484]
+layout_mode = 2
+
+[node name="AvatarBox" type="Control" parent="HBoxContainer/HBoxContainer/VBoxContainer/HBoxContainer" unique_id=1478029125]
+custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
 
-[node name="Background" type="TextureRect" parent="HBoxContainer/AvatarBox" unique_id=1011850304]
+[node name="Background" type="TextureRect" parent="HBoxContainer/HBoxContainer/VBoxContainer/HBoxContainer/AvatarBox" unique_id=1011850304]
 visible = false
 layout_mode = 0
 offset_left = 6.0
@@ -38,7 +77,7 @@ mouse_filter = 2
 texture = ExtResource("1_s1h7k")
 expand_mode = 1
 
-[node name="Portrait" type="TextureRect" parent="HBoxContainer/AvatarBox" unique_id=1577112320]
+[node name="Portrait" type="TextureRect" parent="HBoxContainer/HBoxContainer/VBoxContainer/HBoxContainer/AvatarBox" unique_id=1577112320]
 layout_mode = 0
 offset_left = 13.0
 offset_top = 8.0
@@ -48,7 +87,7 @@ mouse_filter = 2
 texture = ExtResource("2_264be")
 expand_mode = 1
 
-[node name="Frame" type="TextureRect" parent="HBoxContainer/AvatarBox" unique_id=102712065]
+[node name="Frame" type="TextureRect" parent="HBoxContainer/HBoxContainer/VBoxContainer/HBoxContainer/AvatarBox" unique_id=102712065]
 visible = false
 layout_mode = 0
 offset_left = 6.0
@@ -58,6 +97,59 @@ offset_bottom = 95.0
 mouse_filter = 2
 texture = ExtResource("3_btte7")
 expand_mode = 1
+
+[node name="HBoxContainer" type="HBoxContainer" parent="HBoxContainer/HBoxContainer/VBoxContainer/HBoxContainer/AvatarBox" unique_id=1194654270]
+layout_mode = 0
+offset_left = 103.0
+offset_top = 53.0
+offset_right = 143.0
+offset_bottom = 93.0
+
+[node name="Label" type="Label" parent="HBoxContainer/HBoxContainer/VBoxContainer/HBoxContainer/AvatarBox/HBoxContainer" unique_id=770951637]
+layout_mode = 2
+text = "LV"
+metadata/_edit_lock_ = true
+
+[node name="LevelLabel" type="Label" parent="HBoxContainer/HBoxContainer/VBoxContainer/HBoxContainer/AvatarBox/HBoxContainer" unique_id=345561565]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 18
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_lock_ = true
+
+[node name="Username" type="Label" parent="HBoxContainer/HBoxContainer/VBoxContainer/HBoxContainer" unique_id=743249250]
+layout_mode = 2
+text = "Username"
+
+[node name="PlayerHPRow" type="HBoxContainer" parent="HBoxContainer/HBoxContainer/VBoxContainer" unique_id=228884593]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PlayerHPBar" type="ProgressBar" parent="HBoxContainer/HBoxContainer/VBoxContainer/PlayerHPRow" unique_id=1952149799]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 16)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/background = SubResource("StyleBoxTexture_04yov")
+theme_override_styles/fill = SubResource("StyleBoxTexture_v1k8s")
+value = 100.0
+show_percentage = false
+
+[node name="PlayerHPValue" type="Label" parent="HBoxContainer/HBoxContainer/VBoxContainer/PlayerHPRow" unique_id=197758960]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(76, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
+theme_override_font_sizes/font_size = 12
+text = "100 / 100"
+horizontal_alignment = 2
+vertical_alignment = 1
 
 [node name="GoldDisplay" type="Control" parent="HBoxContainer" unique_id=847166927]
 custom_minimum_size = Vector2(208, 60)
@@ -80,10 +172,10 @@ stretch_mode = 5
 [node name="GoldLabel" type="Label" parent="HBoxContainer/GoldDisplay" unique_id=847166926]
 unique_name_in_owner = true
 layout_mode = 0
-offset_left = 58.0
-offset_top = 16.0
-offset_right = 174.0
-offset_bottom = 60.0
+offset_left = 63.0
+offset_top = 40.0
+offset_right = 179.0
+offset_bottom = 84.0
 theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
 theme_override_constants/shadow_offset_x = 1
@@ -110,30 +202,3 @@ mouse_filter = 2
 texture = ExtResource("6_power_level_display")
 expand_mode = 1
 stretch_mode = 5
-
-[node name="Label" type="Label" parent="HBoxContainer/PowerLevelDisplay" unique_id=345561565]
-layout_mode = 0
-offset_left = 72.0
-offset_top = 18.0
-offset_right = 202.0
-offset_bottom = 59.0
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
-theme_override_constants/shadow_offset_x = 1
-theme_override_constants/shadow_offset_y = 1
-theme_override_font_sizes/font_size = 18
-text = "0"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="TurnLabel" type="Label" parent="." unique_id=697888687]
-unique_name_in_owner = true
-layout_mode = 0
-offset_left = 103.0
-offset_top = 22.0
-offset_right = 196.0
-offset_bottom = 45.0
-theme_override_colors/font_color = Color(0.847, 0.678, 0.349, 1)
-theme_override_font_sizes/font_size = 16
-text = "YOUR TURN"
-horizontal_alignment = 2

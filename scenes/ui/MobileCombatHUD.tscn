@@ -5,8 +5,6 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/EquipmentInventoryPanel.tscn" id="3_inventory"]
 [ext_resource type="PackedScene" uid="uid://wtidbs6nnroc" path="res://scenes/ui/enemy_summary_panel.tscn" id="3_p0jh1"]
 [ext_resource type="PackedScene" uid="uid://ungtp5l0pt6n" path="res://scenes/ui/header_row.tscn" id="4_r7gtg"]
-[ext_resource type="Texture2D" uid="uid://cubpxxjiwkgfx" path="res://assets/ui/hud/Hp_frame.png" id="7_hp_frame"]
-[ext_resource type="Texture2D" uid="uid://qen7qg7wgkcy" path="res://assets/ui/hud/Hp_red.png" id="8_hp_red"]
 [ext_resource type="Texture2D" uid="uid://oapcws70wxnd" path="res://assets/ui/hud/divider1.png" id="9_divider"]
 [ext_resource type="PackedScene" uid="uid://col7kjth2c4e1" path="res://scenes/ui/stage_control.tscn" id="9_eswka"]
 [ext_resource type="PackedScene" path="res://scenes/ui/EnemyBestiaryPanel.tscn" id="19_bestiary"]
@@ -74,20 +72,6 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[sub_resource type="StyleBoxTexture" id="StyleBarBackground"]
-texture = ExtResource("7_hp_frame")
-texture_margin_left = 6.0
-texture_margin_top = 4.0
-texture_margin_right = 6.0
-texture_margin_bottom = 4.0
-
-[sub_resource type="StyleBoxTexture" id="StyleBarFill"]
-texture = ExtResource("8_hp_red")
-texture_margin_left = 4.0
-texture_margin_top = 3.0
-texture_margin_right = 4.0
-texture_margin_bottom = 3.0
-
 [node name="MobileCombatHUD" type="CanvasLayer" unique_id=2140394397]
 layer = 10
 script = ExtResource("1_hud")
@@ -144,6 +128,13 @@ offset_right = 719.0
 offset_bottom = 1283.0
 color = Color(0, 0, 0, 1)
 
+[node name="Panel2" type="ColorRect" parent="Root/SafeArea/MainContent/ViewContainer/CombatView" unique_id=813217267]
+custom_minimum_size = Vector2(-1, 100)
+layout_mode = 0
+offset_right = 720.0
+offset_bottom = 146.0
+color = Color(0, 0, 0, 1)
+
 [node name="MainLayout" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView" unique_id=1087228164]
 layout_mode = 0
 offset_right = 724.0
@@ -151,7 +142,7 @@ offset_bottom = 1080.0
 size_flags_vertical = 3
 metadata/_edit_lock_ = true
 
-[node name="TopPanel" type="PanelContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=1188517692]
+[node name="TopPanel" type="VBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=425707770]
 layout_mode = 2
 
 [node name="Margin" type="MarginContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/TopPanel" unique_id=2016389163]
@@ -170,7 +161,6 @@ layout_mode = 2
 mouse_filter = 2
 texture = ExtResource("9_divider")
 expand_mode = 1
-stretch_mode = 5
 
 [node name="CombatSection" type="Control" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout" unique_id=1243278984]
 unique_name_in_owner = true
@@ -364,38 +354,6 @@ theme_override_colors/font_color = Color(0.612, 0.569, 0.678, 1)
 theme_override_font_sizes/font_size = 12
 text = "NORMAL ENCOUNTER   •   FOES 0 / 0"
 clip_text = true
-
-[node name="PlayerHPRow" type="HBoxContainer" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/HPBar" unique_id=727602032]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="PlayerLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/HPBar/PlayerHPRow" unique_id=136111178]
-custom_minimum_size = Vector2(72, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.886, 0.788, 0.533, 1)
-theme_override_font_sizes/font_size = 12
-text = "HERO HP"
-vertical_alignment = 1
-
-[node name="PlayerHPBar" type="ProgressBar" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/HPBar/PlayerHPRow" unique_id=1044474573]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(80, 16)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_styles/background = SubResource("StyleBarBackground")
-theme_override_styles/fill = SubResource("StyleBarFill")
-value = 100.0
-show_percentage = false
-
-[node name="PlayerHPValue" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/HPBar/PlayerHPRow" unique_id=1796258548]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(76, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.941, 0.906, 0.82, 1)
-theme_override_font_sizes/font_size = 12
-text = "100 / 100"
-horizontal_alignment = 2
-vertical_alignment = 1
 
 [node name="CombatInfoLabel" type="Label" parent="Root/SafeArea/MainContent/ViewContainer/CombatView/HPBar" unique_id=1731306067]
 unique_name_in_owner = true

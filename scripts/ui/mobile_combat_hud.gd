@@ -36,11 +36,9 @@ signal battlefield_clicked(screen_position: Vector2)
 @onready var _turn_manager: Node = get_parent().get_node_or_null("TurnManager")
 @onready var _player: Node = get_parent().get_node_or_null("Player")
 
-@onready var _header_row: HeaderRow = get_node_or_null("Root/SafeArea/MainContent/Content/MainLayout/TopPanel/Margin/Content/Header") as HeaderRow
+@onready var _header_row: HeaderRow = get_node_or_null("Root/SafeArea/MainContent/ViewContainer/CombatView/MainLayout/TopPanel/Margin/Header") as HeaderRow
 @onready var _encounter_label: Label = %EncounterLabel
 @onready var _sub_hero_row: Control = %SubHeroRow
-@onready var _player_hp_bar: ProgressBar = %PlayerHPBar
-@onready var _player_hp_value: Label = %PlayerHPValue
 @onready var _combat_info_label: Label = %CombatInfoLabel
 @onready var _event_label: Label = %EventLabel
 @onready var _skills_button: Button = %SkillsButton
@@ -383,7 +381,6 @@ func _refresh() -> void:
 		return
 
 	if _header_row != null:
-		_header_row.stage_number = stage_state.stage_number
 		_header_row.turn_phase = _turn_manager.get_phase()
 	_encounter_label.text = _get_encounter_text(stage_state)
 	if _enemy_summary_panel != null:
@@ -400,12 +397,14 @@ func _refresh() -> void:
 	var max_hp: int = player_stats.max_hp if player_stats != null else 0
 	var experience_ratio: float = player_progression.get_experience_ratio() if player_progression != null else 0.0
 	
-	if player_progression != null and _header_row != null:
-		_header_row.gold = player_progression.gold
+	if _header_row != null:
+		if player_progression != null:
+			_header_row.gold = player_progression.gold
+			_header_row.player_level = player_level
+		if player_stats != null:
+			_header_row.max_hp = maxi(player_stats.max_hp, 1)
+			_header_row.current_hp = player_stats.current_hp
 	if player_stats != null:
-		_player_hp_bar.max_value = maxi(player_stats.max_hp, 1)
-		_player_hp_bar.value = clampi(player_stats.current_hp, 0, maxi(player_stats.max_hp, 1))
-		_player_hp_value.text = "%d / %d" % [player_stats.current_hp, player_stats.max_hp]
 		var cell: Vector2i = _player.get("grid_position")
 		var movement_remaining: int = int(_player.get("movement_points_remaining"))
 		_combat_info_label.text = "MP %d / %d   •   CELL %d, %d" % [movement_remaining, player_stats.movement_points, cell.x + 1, cell.y + 1]
