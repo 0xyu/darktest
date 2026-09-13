@@ -80,3 +80,53 @@ func get_equipment_score() -> float:
 		if affix != null:
 			score += absf(affix.value) * (100.0 if affix.is_percentage else 1.0)
 	return score
+
+
+## Plain-Dictionary form of the whole item: its identity, the equipped flag that
+## says where it lives, the definition it was created from and the affixes it
+## actually carries (see StageProgressSave).
+##
+## The equipped flag is part of the item's OWN state (`is_equipped`) rather than a
+## slot table written beside the list, so restoring a collection restores the
+## loadout with it.
+func to_save_data() -> Dictionary:
+	var affix_data: Array[Dictionary] = []
+	for affix in affixes:
+		if affix != null:
+			affix_data.append(affix.to_save_data())
+	return {
+		"instance_id": String(instance_id),
+		"is_equipped": is_equipped,
+		"definition": definition.to_save_data() if definition != null else {},
+		"affixes": affix_data,
+	}
+
+
+## Rebuilds an item from [method to_save_data], or null when the payload carries
+## no usable definition — an item with no identity or stat block cannot be
+## displayed, equipped, priced or scored, so it is dropped rather than restored
+## as a blank "Equipment".
+##
+## An empty instance id falls back to the definition id, which is exactly how a
+## FIXED item is identified (`create_from_definition`).
+static func from_save_data(save_data: Dictionary) -> EquipmentInstance:
+	var raw_definition: Variant = save_data.get("definition", {})
+	if not (raw_definition is Dictionary):
+		return null
+	var definition := EquipmentDefinition.from_save_data(raw_definition as Dictionary)
+	if definition == null:
+		return null
+	var instance := EquipmentInstance.new()
+	instance.definition = definition
+	var saved_instance_id := String(str(save_data.get("instance_id", "")))
+	instance.instance_id = StringName(saved_instance_id) if not saved_instance_id.is_empty() else definition.definition_id
+	instance.is_equipped = bool(save_data.get("is_equipped", false))
+	var raw_affixes: Variant = save_data.get("affixes", [])
+	if raw_affixes is Array:
+		for raw_affix in (raw_affixes as Array):
+			if not (raw_affix is Dictionary):
+				continue
+			var affix := EquipmentAffix.from_save_data(raw_affix as Dictionary)
+			if affix != null:
+				instance.affixes.append(affix)
+	return instance

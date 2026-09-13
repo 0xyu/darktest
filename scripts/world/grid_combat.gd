@@ -57,6 +57,20 @@ var _stage_save: StageProgressSave
 
 
 func _ready() -> void:
+	# Player-side progress save. It is loaded FIRST — before this scene reads,
+	# resets or builds anything from player state — so a restored session starts
+	# from what the player actually had.
+	#
+	# The save OWNS the player-state objects (map progress, consumed content, the
+	# item containers and the Sub Hero progression) and the scene INJECTS them: the
+	# flow gets the progress object, the hero gets the bag, the warehouse and the
+	# Sub Heroes. Nothing here builds a second copy of the player's state, so there
+	# is no path that changes the player's gear without the save being able to see it.
+	_stage_save = StageProgressSaveScript.new()
+	_stage_save.load()
+	player.set_equipment_inventory(_stage_save.inventory)
+	player.set_storage(_stage_save.storage)
+	player.set_sub_hero_progression(_stage_save.sub_heroes)
 	grid.queue_redraw()
 	player.reset_movement_points()
 	player.moved.connect(_on_player_moved)
@@ -120,11 +134,6 @@ func _ready() -> void:
 	magic_tome.skill_cast.connect(_on_magic_skill_cast)
 	magic_tome.skill_refused.connect(_on_magic_skill_refused)
 	hud.magic_requested.connect(_on_hud_magic_requested)
-	# Player-side progress save. Loading happens BEFORE the flow and the content
-	# controller exist, so both are built from the restored state instead of having
-	# to be repaired afterwards. The saved position is resumed at the end of _ready.
-	_stage_save = StageProgressSaveScript.new()
-	_stage_save.load()
 	# A stage's guaranteed boss drop is one-shot content, so it is recorded in the
 	# save's consumed-content store — the store that autosaves when it changes.
 	loot_system.attach_content_state(_stage_save.content_state)
@@ -140,8 +149,9 @@ func _ready() -> void:
 	add_child(_stage_content)
 	_stage_content.configure(grid, player, stage_manager, _flow, gold_system, _stage_save.content_state)
 	_stage_content.content_resolved.connect(_on_stage_content_resolved)
-	# Autosave: the save subscribes to the one writer of progress and to consumed
-	# content, so every path that changes either persists without a save call here.
+	# Autosave: the save subscribes to the one writer of progress, to consumed
+	# content, and to its own item / Sub Hero containers — so every path that changes
+	# any of them persists without a save call here.
 	_stage_save.bind(_flow)
 	hud.area_stage_enter_requested.connect(_on_hud_area_stage_enter_requested)
 	# Battlefield clicks: the HUD owns the GUI pipeline (the grid is drawn behind a

@@ -58,6 +58,22 @@ func remove_item(item: EquipmentInstance) -> bool:
 	return true
 
 
+## Replaces the whole warehouse with a restored one (see StageProgressSave).
+##
+## Storage never equips items, so every restored item lands unequipped whatever
+## the payload claimed, and capacity is not enforced: a restored collection is
+## not a fresh acquisition.
+func restore_items(restored_items: Array[EquipmentInstance]) -> void:
+	items.clear()
+	selected_item = null
+	for item in restored_items:
+		if item == null:
+			continue
+		item.is_equipped = false
+		items.append(item)
+	storage_changed.emit()
+
+
 func select_item(item: EquipmentInstance) -> bool:
 	if item != null and not has_item(item):
 		return false

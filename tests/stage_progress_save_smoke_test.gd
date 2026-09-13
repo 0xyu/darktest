@@ -12,12 +12,19 @@ extends SceneTree
 ##     refused instead of half-read
 ##   * the autosave triggers: the save writes itself when the flow moves the player,
 ##     when the flow records a clear, and when one-shot content is consumed
+##   * the player's OWNED ITEMS (equipped, bagged and stored) and SUB HEROES
+##     round-tripping, their autosave triggers, and the repair rules a damaged
+##     item / Sub Hero payload is held to
 ##
 ## The scratch file lives in the project's generated .godot/ folder, so a test run
 ## never reads or writes a player's real save in user:// and leaves nothing behind.
 
 const SaveScript = preload("res://scripts/progress/stage_progress_save.gd")
 const StageFlowScript = preload("res://scripts/systems/stage_flow.gd")
+const EquipmentInstanceScript = preload("res://scripts/items/equipment_instance.gd")
+const EquipmentDefinitionScript = preload("res://scripts/items/equipment_definition.gd")
+const EquipmentAffixScript = preload("res://scripts/items/equipment_affix.gd")
+const SubHeroInstanceScript = preload("res://scripts/sub_hero/sub_hero_instance.gd")
 
 const SCRATCH_PATH := "res://.godot/ui_harness/stage_progress_smoke.json"
 
@@ -40,6 +47,9 @@ func _run() -> void:
 	_test_disk_round_trip()
 	_test_autosave_follows_the_flow()
 	_test_autosave_follows_consumed_content()
+	_test_player_items_and_sub_heroes_round_trip()
+	_test_damaged_item_and_sub_hero_payloads_are_repaired()
+	_test_autosave_follows_player_items()
 	SaveScript.delete_save_at(SCRATCH_PATH)
 
 	if _failures.is_empty():
@@ -299,6 +309,179 @@ func _test_autosave_follows_consumed_content() -> void:
 	_expect(writes.is_empty(), "re-consuming the same entry changes nothing and writes nothing")
 	_expect(save.content_state.get_consumed_count() == 1, "a repeated consume still records exactly one entry")
 	SaveScript.delete_save_at(SCRATCH_PATH)
+
+
+## The player's belongings are part of the SAME save as the map progress: an
+## equipped item, a bagged item, a stored item and a Sub Hero all have to come
+## back as they were — including the rolled numbers, which exist nowhere else.
+func _test_player_items_and_sub_heroes_round_trip() -> void:
+	var source = SaveScript.new()
+	var weapon := _create_item("smoke_weapon", EquipmentSlot.WEAPON, EquipmentRarity.RARE, 12, &"every_3rd_attack")
+	_expect(source.inventory.add_item(weapon), "the fixture weapon enters the bag")
+	_expect(source.inventory.equip_item(weapon), "the fixture weapon is equipped")
+	var ring := _create_item("smoke_ring", EquipmentSlot.RING, EquipmentRarity.EPIC, 22, &"")
+	_expect(source.inventory.add_item(ring), "the fixture ring stays in the bag")
+	var boots := _create_item("smoke_boots", EquipmentSlot.BOOTS, EquipmentRarity.COMMON, 4, &"")
+	_expect(source.storage.add_item(boots), "the fixture boots go to the warehouse")
+	var potion := _create_potion("smoke_potion", 3)
+	_expect(source.inventory.add_item(potion), "the fixture potion enters the bag")
+	var hero := SubHeroInstanceScript.new(&"skeleton_archer", 3)
+	hero.duplicate_count = 2
+	_expect(bool(source.sub_heroes.add_instance(hero).get("is_new", false)), "the fixture Sub Hero is owned")
+	_expect(source.sub_heroes.assign_active_slot(1, &"skeleton_archer"), "the fixture Sub Hero is assigned")
+
+	var parsed: Variant = JSON.parse_string(JSON.stringify(source.to_save_data(), "\t"))
+	_expect(parsed is Dictionary, "the payload with items survives JSON (the on-disk format)")
+	var restored = SaveScript.new()
+	_expect(restored.load_save_data(parsed as Dictionary), "the payload with items loads")
+
+	_expect(restored.inventory.items.size() == 3, "every owned item is restored (got %d)" % restored.inventory.items.size())
+	var restored_weapon = restored.inventory.get_equipped_item(EquipmentSlot.WEAPON)
+	_expect(restored_weapon != null, "an equipped item comes back EQUIPPED, not dumped into the bag")
+	if restored_weapon != null:
+		_expect(restored_weapon.instance_id == &"smoke_weapon", "the item keeps its instance id")
+		_expect(restored_weapon.definition.definition_id == &"def_smoke_weapon", "the item keeps its definition id")
+		_expect(restored_weapon.get_item_level() == 12, "the item keeps its item level")
+		_expect(restored_weapon.get_rarity() == EquipmentRarity.RARE, "the item keeps its rarity")
+		_expect(restored_weapon.definition.unique_effect_id == &"every_3rd_attack", "the item keeps its unique effect")
+		_expect(restored_weapon.affixes.size() == 1, "the rolled affixes are restored")
+		_expect(is_equal_approx(restored_weapon.get_affix_value(&"attack"), 7.0), "the rolled affix VALUE is restored")
+		_expect(is_equal_approx(restored_weapon.affixes[0].roll_ratio, 0.75), "the roll ratio is restored (it cannot be recomputed)")
+	_expect(restored.inventory.get_bag_items().size() == 2, "bagged items come back in the bag (the equipped one does not count)")
+	_expect(restored.inventory.get_item_count() == 2, "the restored bag occupies two slots")
+	_expect(_has_instance(restored.inventory.items, &"smoke_ring"), "the bagged ring is restored")
+	_expect(_find_item(restored.inventory.items, &"smoke_ring").get_rarity() == EquipmentRarity.EPIC, "the ring keeps its rarity")
+	var restored_potion = _find_item(restored.inventory.items, &"smoke_potion")
+	_expect(restored_potion != null and restored_potion.is_consumable(), "a consumable is restored as a consumable")
+	_expect(restored_potion != null and is_equal_approx(restored_potion.get_heal_ratio(), 0.35), "the consumable keeps its heal ratio")
+	_expect(_has_instance(restored.storage.items, &"smoke_boots"), "the warehouse contents are restored")
+	_expect(restored.storage.get_item_count() == 1, "exactly the stored item is restored")
+
+	var restored_hero = restored.sub_heroes.get_owned_instance(&"skeleton_archer")
+	_expect(restored_hero != null, "the owned Sub Hero is restored")
+	if restored_hero != null:
+		_expect(restored_hero.level == 3, "the Sub Hero keeps its level")
+		_expect(restored_hero.duplicate_count == 2, "the Sub Hero keeps its duplicate progress")
+	_expect(restored.sub_heroes.active_slot_ids[1] == &"skeleton_archer", "the Sub Hero keeps its active slot")
+	_expect(restored.inventory != source.inventory, "a load restores into its own containers")
+
+
+## A damaged payload is repaired, never trusted: the load carries on with what it
+## can use, and the collections it produces obey their own rules (one item per
+## equipped slot, no two items sharing an id).
+func _test_damaged_item_and_sub_hero_payloads_are_repaired() -> void:
+	var equipped_weapon: Dictionary = _create_item("payload_weapon_a", EquipmentSlot.WEAPON, EquipmentRarity.RARE, 5, &"").to_save_data()
+	equipped_weapon["is_equipped"] = true
+	var second_weapon: Dictionary = _create_item("payload_weapon_b", EquipmentSlot.WEAPON, EquipmentRarity.RARE, 5, &"").to_save_data()
+	second_weapon["is_equipped"] = true
+	var duplicate_id: Dictionary = _create_item("payload_weapon_a", EquipmentSlot.RING, EquipmentRarity.COMMON, 5, &"").to_save_data()
+	var equipped_potion: Dictionary = _create_potion("payload_potion", 5).to_save_data()
+	equipped_potion["is_equipped"] = true
+
+	var restored = SaveScript.new()
+	_expect(
+		restored.load_save_data({
+			"version": SaveScript.FORMAT_VERSION,
+			"current_stage_number": 6,
+			"highest_stage_reached": 6,
+			"inventory": [42, {"instance_id": "no_definition"}, equipped_weapon, second_weapon, duplicate_id, equipped_potion],
+			"storage": "not a list",
+			"sub_heroes": {
+				"owned_sub_heroes": [{"hero_id": "not_a_hero"}, {"hero_id": "skeleton_archer", "level": 2}],
+				"active_slot_ids": ["not_a_hero"],
+			},
+		}),
+		"a payload with unusable item and Sub Hero entries still loads"
+	)
+	_expect(restored.inventory.items.size() == 3, "usable entries are restored and the rest are dropped (got %d)" % restored.inventory.items.size())
+	_expect(restored.inventory.get_equipped_items().size() == 1, "only ONE item may come back equipped")
+	_expect(restored.inventory.get_equipped_item(EquipmentSlot.WEAPON).instance_id == &"payload_weapon_a", "the first equipped item of a slot wins")
+	_expect(restored.inventory.get_bag_items().size() == 2, "the displaced and slot-less items are back in the bag")
+	_expect(not _find_item(restored.inventory.items, &"payload_potion").is_equipped, "a consumable can never come back equipped")
+	_expect(restored.storage.get_item_count() == 0, "a non-list storage field restores nothing instead of crashing")
+	_expect(restored.sub_heroes.get_owned_instance(&"not_a_hero") == null, "a Sub Hero this build does not know is not restored")
+	_expect(restored.sub_heroes.get_owned_hero_ids().size() == 1, "the known Sub Hero is restored and the unknown one dropped")
+	_expect(String(restored.sub_heroes.active_slot_ids[0]) == "", "a slot pointing at an unowned Sub Hero is cleared")
+
+
+## The same autosave rule the map progress follows: the save subscribes to the
+## containers, so a pickup, an equip and a summon persist with no gameplay path
+## asking for a save.
+func _test_autosave_follows_player_items() -> void:
+	SaveScript.delete_save_at(SCRATCH_PATH)
+	var save = SaveScript.new(null, null, SCRATCH_PATH)
+	var flow = StageFlowScript.new(save.progress)
+	save.bind(flow)
+	_expect(not save.has_save(), "binding alone writes nothing")
+
+	var weapon := _create_item("autosave_weapon", EquipmentSlot.WEAPON, EquipmentRarity.RARE, 12, &"")
+	_expect(save.inventory.add_item(weapon), "the picked-up weapon enters the bag")
+	_expect(save.has_save(), "acquiring an item wrote the save (the pickup path never asked)")
+	_expect(_scratch_list("inventory").size() == 1, "the acquired item is on disk")
+	_expect(String((_scratch_list("inventory")[0] as Dictionary).get("instance_id", "")) == "autosave_weapon", "the item on disk is the one that was picked up")
+
+	save.storage.add_item(_create_item("autosave_boots", EquipmentSlot.BOOTS, EquipmentRarity.COMMON, 4, &""))
+	_expect(_scratch_list("storage").size() == 1, "storing an item wrote the warehouse to disk")
+
+	save.sub_heroes.add_instance(SubHeroInstanceScript.new(&"skeleton_archer", 1))
+	var sub_hero_payload: Dictionary = _read_scratch().get("sub_heroes", {}) as Dictionary
+	_expect((sub_hero_payload.get("owned_sub_heroes", []) as Array).size() == 1, "summoning a Sub Hero wrote it to disk")
+	_expect(save.sub_heroes.assign_active_slot(2, &"skeleton_archer"), "the Sub Hero is assigned a slot")
+	_expect((_read_scratch().get("sub_heroes", {}) as Dictionary).get("active_slot_ids", [])[2] == "skeleton_archer", "the slot assignment is on disk")
+
+	var writes: Array = []
+	save.saved.connect(func(_save_path: String) -> void: writes.append(1))
+	_expect(save.inventory.equip_item(weapon), "the weapon is equipped")
+	_expect(writes.size() == 1, "equipping writes the save once (got %d)" % writes.size())
+
+	var reloaded = SaveScript.new(null, null, SCRATCH_PATH)
+	_expect(reloaded.load(), "the autosaved file loads")
+	_expect(reloaded.inventory.get_equipped_item(EquipmentSlot.WEAPON) != null, "the equipped state is on disk")
+	_expect(reloaded.sub_heroes.get_owned_instance(&"skeleton_archer") != null, "the owned Sub Hero is on disk")
+	SaveScript.delete_save_at(SCRATCH_PATH)
+
+
+## A fixture item built from the production model: identity, a rolled affix and a
+## definition, so the round trip is exercised on real data rather than on scalars.
+func _create_item(instance_id: String, slot: int, rarity: int, item_level: int, unique_effect_id: StringName) -> EquipmentInstance:
+	var definition := EquipmentDefinitionScript.new()
+	definition.definition_id = StringName("def_%s" % instance_id)
+	definition.display_name = "Smoke %s" % instance_id
+	definition.slot = slot
+	definition.rarity = rarity
+	definition.item_level = item_level
+	definition.unique_effect_id = unique_effect_id
+	definition.description = "Save smoke test fixture."
+	var item := EquipmentInstanceScript.new()
+	item.instance_id = StringName(instance_id)
+	item.definition = definition
+	var affix := EquipmentAffixScript.new()
+	affix.stat_id = &"attack"
+	affix.value = 7.0
+	affix.roll_ratio = 0.75
+	affix.display_name = "Attack"
+	item.affixes.append(affix)
+	return item
+
+
+## A slot-less consumable, the other item shape the bag can hold.
+func _create_potion(instance_id: String, item_level: int) -> EquipmentInstance:
+	var item := _create_item(instance_id, -1, EquipmentRarity.COMMON, item_level, &"")
+	item.definition.is_consumable = true
+	item.definition.heal_ratio = 0.35
+	item.affixes.clear()
+	return item
+
+
+func _find_item(items: Array[EquipmentInstance], instance_id: StringName) -> EquipmentInstance:
+	for item in items:
+		if item != null and item.instance_id == instance_id:
+			return item
+	return null
+
+
+func _has_instance(items: Array[EquipmentInstance], instance_id: StringName) -> bool:
+	return _find_item(items, instance_id) != null
 
 
 ## The payload currently on disk (empty when the file is missing or damaged).

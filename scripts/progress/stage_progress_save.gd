@@ -1,20 +1,24 @@
 class_name StageProgressSave
 extends RefCounted
 
-## The player-side PROGRESS SAVE: the single object that owns the two player-state
-## objects and the only code that writes or reads them on disk.
+## The player-side SAVE: the single object that owns the player's durable state
+## (map progress, consumed authored content, owned items, Sub Heroes) and the only
+## code that writes or reads them on disk.
 ##
-## Phase 8 of the Area / Stage / StageType system (Coding Plan Rev 3.1).
+## Phase 8 of the Area / Stage / StageType system (Coding Plan Rev 3.1); the player's
+## items and Sub Heroes were added by the persistence work (gameplay-spec §17).
 ##
-## Why ONE object owns both
-## -----------------------
-## PlayerProgress ("where am I / which stages are cleared / how far did I get") and
-## AuthoredContentState ("which one-shot content is used up") stay separate classes
-## — they answer different questions — but they are restored TOGETHER or not at
-## all. A load that restored only one of them would hand the player a state they
-## never had: a cleared stage whose chest is back, or a consumed chest on a stage
-## that was never played. That is why this is the ONE mount point the host injects
-## from, instead of each system loading its own half.
+## Why ONE object owns them all
+## ----------------------------
+## PlayerProgress ("where am I / which stages are cleared / how far did I get"),
+## AuthoredContentState ("which one-shot content is used up"), the item containers
+## ("what does the player own") and the Sub Hero progression ("which Sub Heroes,
+## at what level, in which slot") stay separate classes — they answer different
+## questions — but they are restored TOGETHER or not at all. A load that restored
+## only some of them would hand the player a state they never had: a cleared stage
+## whose chest is back, a consumed chest on a stage that was never played, or a bag
+## holding an item that was sold. That is why this is the ONE mount point the host
+## injects from, instead of each system loading its own half.
 ##
 ## What is stored: identifiers and scalars only
 ## -------------------------------------------
@@ -24,6 +28,18 @@ extends RefCounted
 ##   highest_stage_reached   the monotonic unlock ceiling
 ##   completed_stages        canonical stage ids ("forest_006"), never Resource refs
 ##   consumed_content        "<stage_id>:<content_id>" keys ("forest_006:cache")
+##   inventory               the player's OWNED ITEMS: equipped gear and bag alike
+##                           (an equipped item stays in the ownership list with
+##                           `is_equipped` set), as plain item payloads
+##   storage                 the warehouse items, same item payloads
+##   sub_heroes              the Sub Hero progression payload (owned instances and
+##                           active slot ids — see SubHeroProgressionService)
+##
+## The player's items and Sub Heroes live in state objects this save OWNS
+## (EquipmentInventory, StorageInventory, SubHeroProgressionService) and the host
+## injects into the hero, exactly like PlayerProgress is injected into the flow.
+## The hero and the save therefore share one collection each, so there is no path
+## that changes the player's gear without the save being able to see it.
 ##
 ## Deliberately NOT stored:
 ##   * any area field — the area is DERIVED from the position
@@ -33,9 +49,13 @@ extends RefCounted
 ##   * StageDatabase / StageData themselves — static authored data comes from the
 ##     .tres files. Snapshotting it would mean rewriting every save whenever content
 ##     is authored, and would tie a save to the content that existed when it was
-##     written.
+##     written. An ITEM's definition is different: a generated item builds its
+##     definition at runtime and has no `.tres` to point at, so it travels inline
+##     with the item (see EquipmentDefinition.to_save_data).
 ##   * any area-local stage number as a "position": the global number is the only
 ##     numbering the game has.
+##   * session-scoped state (combat state, the special-encounter pity, the buyback
+##     book, the potion counter) — see gameplay-spec §17.
 ##
 ## A position past every authored area (the endless tail, e.g. 51+) is a LEGAL
 ## save and is never pulled back into a range — that is the normal state after the
@@ -52,16 +72,31 @@ extends RefCounted
 ## re-spawn, a town visit and a consumed chest — without a save call in any of
 ## those paths (a caller that forgot one would silently lose progress).
 ##
+## The player's own state announces itself the same way: the item containers raise
+## their inventory / storage changed signals for every pickup, equip, discard,
+## store, withdraw and sale, and the Sub Hero progression announces ownership and
+## slot changes. So the same rule holds for gear and Sub Heroes — the gameplay
+## paths never call save() and can never forget to.
+##
 ## Format
 ## ------
-## JSON, written whole. The file is tiny (a handful of identifiers), the triggers
-## are all low-frequency player events, so there is no incremental / partial write.
+## JSON, written whole. The file is small (a few identifiers and the owned items),
+## the triggers are all low-frequency player events, so there is no incremental /
+## partial write.
+##
+## Version 2 added the player's items and Sub Heroes. A version 1 file (progress
+## only, from a build that predates them) still loads: the missing keys mean the
+## player owned nothing, which is exactly what a version 1 build could have saved.
 
 const PlayerProgressScript := preload("res://scripts/progress/player_progress.gd")
 const AuthoredContentStateScript := preload("res://scripts/progress/authored_content_state.gd")
+const EquipmentInventoryScript := preload("res://scripts/items/equipment_inventory.gd")
+const StorageInventoryScript := preload("res://scripts/items/storage_inventory.gd")
+const EquipmentInstanceScript := preload("res://scripts/items/equipment_instance.gd")
+const SubHeroProgressionServiceScript := preload("res://scripts/sub_hero/sub_hero_progression_service.gd")
 
 ## Bumped only when the stored shape changes in a way that needs migration.
-const FORMAT_VERSION := 1
+const FORMAT_VERSION := 2
 const SAVE_DIR := "user://save/"
 const SAVE_FILE_NAME := "stage_progress.json"
 const DEFAULT_SAVE_PATH := SAVE_DIR + SAVE_FILE_NAME
@@ -82,6 +117,19 @@ signal load_rejected(reason: String)
 var progress: PlayerProgress
 ## Which one-shot authored content has been consumed.
 var content_state: AuthoredContentState
+## The player's owned items: equipped gear and bag contents in one list, each item
+## carrying its own `is_equipped` flag. The hero is given THIS object, so the bag
+## the HUD shows and the bag that is saved are the same bag.
+##
+## The container is created with the class defaults (bag 10 slots, warehouse
+## effectively unbounded), which is exactly what the hero used to create for
+## itself — capacity is configuration, not player state, so it is not stored.
+var inventory: EquipmentInventory
+## The player's warehouse (never equips; separate from the bag's capacity).
+var storage: StorageInventory
+## The player's Sub Heroes: owned instances, their levels, duplicates and active
+## slot assignment.
+var sub_heroes: SubHeroProgressionService
 ## Where this save is read from / written to.
 var path: String = ""
 
@@ -89,16 +137,23 @@ static var _default_path_override: String = ""
 var _bound_flow: StageFlow = null
 
 
-## Builds a save around the two state objects. Passing existing objects injects
-## them (the host builds the flow and the content controller from this object's
-## instances, so nothing can end up with a second copy of the player's state).
+## Builds a save around the player-state objects. Passing existing objects injects
+## them (the host builds the flow, the content controller and the hero from this
+## object's instances, so nothing can end up with a second copy of the player's
+## state).
 func _init(
 	source_progress: PlayerProgress = null,
 	source_content_state: AuthoredContentState = null,
-	save_path: String = ""
+	save_path: String = "",
+	source_inventory: EquipmentInventory = null,
+	source_storage: StorageInventory = null,
+	source_sub_heroes: SubHeroProgressionService = null
 ) -> void:
 	progress = source_progress if source_progress != null else PlayerProgressScript.new()
 	content_state = source_content_state if source_content_state != null else AuthoredContentStateScript.new()
+	inventory = source_inventory if source_inventory != null else EquipmentInventoryScript.new()
+	storage = source_storage if source_storage != null else StorageInventoryScript.new()
+	sub_heroes = source_sub_heroes if source_sub_heroes != null else SubHeroProgressionServiceScript.new()
 	path = save_path if not save_path.is_empty() else default_path()
 
 
@@ -121,8 +176,9 @@ func get_resume_stage_number() -> int:
 	return clampi(progress.current_stage_number, MIN_STAGE_NUMBER, MAX_STAGE_NUMBER)
 
 
-## Connects the autosave triggers to the object that writes progress and the one
-## that records consumed content. Safe to call once, from the host's _ready().
+## Connects the autosave triggers to the object that writes progress, the one that
+## records consumed content, and this save's own player-state containers. Safe to
+## call once, from the host's _ready().
 func bind(flow: StageFlow) -> void:
 	unbind()
 	if flow == null:
@@ -132,6 +188,16 @@ func bind(flow: StageFlow) -> void:
 		flow.progress_changed.connect(_on_progress_changed)
 	if not content_state.content_consumed.is_connected(_on_content_consumed):
 		content_state.content_consumed.connect(_on_content_consumed)
+	# Items and Sub Heroes announce themselves: every pickup, equip, discard,
+	# store, withdraw, sale, summon and slot change.
+	if not inventory.inventory_changed.is_connected(_on_player_state_changed):
+		inventory.inventory_changed.connect(_on_player_state_changed)
+	if not storage.storage_changed.is_connected(_on_player_state_changed):
+		storage.storage_changed.connect(_on_player_state_changed)
+	if not sub_heroes.collection_changed.is_connected(_on_player_state_changed):
+		sub_heroes.collection_changed.connect(_on_player_state_changed)
+	if not sub_heroes.active_slots_changed.is_connected(_on_player_state_changed):
+		sub_heroes.active_slots_changed.connect(_on_player_state_changed)
 
 
 ## Drops the autosave subscriptions (a host tearing down, or a rebind).
@@ -142,6 +208,15 @@ func unbind() -> void:
 	_bound_flow = null
 	if content_state != null and content_state.content_consumed.is_connected(_on_content_consumed):
 		content_state.content_consumed.disconnect(_on_content_consumed)
+	if inventory != null and inventory.inventory_changed.is_connected(_on_player_state_changed):
+		inventory.inventory_changed.disconnect(_on_player_state_changed)
+	if storage != null and storage.storage_changed.is_connected(_on_player_state_changed):
+		storage.storage_changed.disconnect(_on_player_state_changed)
+	if sub_heroes != null:
+		if sub_heroes.collection_changed.is_connected(_on_player_state_changed):
+			sub_heroes.collection_changed.disconnect(_on_player_state_changed)
+		if sub_heroes.active_slots_changed.is_connected(_on_player_state_changed):
+			sub_heroes.active_slots_changed.disconnect(_on_player_state_changed)
 
 
 ## The exact payload written to disk, as a plain Dictionary.
@@ -152,10 +227,13 @@ func to_save_data() -> Dictionary:
 		"highest_stage_reached": clampi(progress.highest_stage_reached, MIN_STAGE_NUMBER, MAX_STAGE_NUMBER),
 		"completed_stages": _sorted_string_keys(progress.completed_stages),
 		"consumed_content": _sorted_string_keys(content_state.consumed),
+		"inventory": _items_to_save_data(inventory.items),
+		"storage": _items_to_save_data(storage.items),
+		"sub_heroes": sub_heroes.to_save_data(),
 	}
 
 
-## Restores the two state objects from a payload and returns true. Returns false
+## Restores the player-state objects from a payload and returns true. Returns false
 ## (changing nothing) when the payload is not a save this build can use.
 ##
 ## Validation, in the order it exists:
@@ -166,6 +244,12 @@ func to_save_data() -> Dictionary:
 ##   * the unlock ceiling must be at least the position: it is RAISED when it is
 ##     short (mark_reached), never satisfied by lowering the position
 ##   * the two id sets accept Strings only; anything else is dropped
+##   * an item entry with no usable definition, or one whose instance id is
+##     already restored in the same list, is dropped — an item that cannot be
+##     named cannot be displayed, equipped, priced or scored, and two items
+##     sharing one id would alias in every lookup the game does
+##   * a Sub Hero entry with an unknown hero id, or a duplicate of one already
+##     restored, is dropped by SubHeroProgressionService.load_save_data
 ## Ids that no authored area resolves any more are KEPT: after a re-authored
 ## stage range they are stale, not corrupt, and silently discarding a player's
 ## completions would be worse than carrying an id nothing asks about.
@@ -191,6 +275,9 @@ func load_save_data(data: Dictionary) -> bool:
 	content_state.consumed.clear()
 	for key in _string_list(data.get("consumed_content", [])):
 		content_state.consumed[key] = true
+	inventory.restore_items(_items_from_save_data(data.get("inventory", [])))
+	storage.restore_items(_items_from_save_data(data.get("storage", [])))
+	sub_heroes.load_save_data(_dictionary_field(data.get("sub_heroes", {})))
 	return true
 
 
@@ -263,6 +350,48 @@ func _on_progress_changed() -> void:
 
 func _on_content_consumed(_key: String) -> void:
 	save()
+
+
+## One handler for all four player-state signals: each of them announces "the
+## player's belongings changed", and every one of them means the same thing here —
+## write the whole payload again.
+func _on_player_state_changed() -> void:
+	save()
+
+
+## The item list as plain payloads, in the order the player owns them (that order
+## is also what decides which item is "first" when a damaged save is repaired).
+func _items_to_save_data(source: Array[EquipmentInstance]) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for item in source:
+		if item != null:
+			result.append(item.to_save_data())
+	return result
+
+
+## Rebuilds an item list from a payload, skipping entries that are not usable
+## items and entries whose instance id is already in the list (a damaged payload
+## must not produce two items that every lookup would confuse for one).
+func _items_from_save_data(value: Variant) -> Array[EquipmentInstance]:
+	var result: Array[EquipmentInstance] = []
+	if not (value is Array):
+		return result
+	var seen_ids: Dictionary = {}
+	for entry in (value as Array):
+		if not (entry is Dictionary):
+			continue
+		var item := EquipmentInstanceScript.from_save_data(entry as Dictionary)
+		if item == null or seen_ids.has(item.instance_id):
+			continue
+		seen_ids[item.instance_id] = true
+		result.append(item)
+	return result
+
+
+## A payload field that must be a Dictionary (an absent or damaged one restores
+## nothing instead of aborting the load).
+func _dictionary_field(value: Variant) -> Dictionary:
+	return value as Dictionary if value is Dictionary else {}
 
 
 ## A stage number is accepted anywhere inside the field's declared domain; only a

@@ -106,6 +106,24 @@ func set_equipment_inventory(inventory: EquipmentInventory) -> void:
 	_refresh_equipment_stats()
 
 
+## Injects the Sub Hero progression the host owns (the save's restored collection).
+## Rebinding the collection signals is part of the swap: the hero must announce the
+## restored collection and slot assignment, so every surface (assignment panel,
+## town, combat spawns) reads the restored Sub Heroes instead of an empty set.
+func set_sub_hero_progression(progression: SubHeroProgressionService) -> void:
+	_release_sub_hero_signals()
+	sub_hero_progression = progression
+	get_sub_hero_progression()
+	sub_hero_collection_changed.emit()
+	sub_hero_slots_changed.emit()
+
+
+## Injects the warehouse the host owns (the save's restored storage). Storage is a
+## plain container with no signals on the player, so the swap is just the swap.
+func set_storage(storage: StorageInventory) -> void:
+	storage_inventory = storage
+
+
 func get_inventory() -> EquipmentInventory:
 	_ensure_equipment_inventory()
 	return equipment_inventory
@@ -693,6 +711,18 @@ func _on_sub_hero_collection_changed() -> void:
 
 func _on_sub_hero_slots_changed() -> void:
 	sub_hero_slots_changed.emit()
+
+
+## Unsubscribes the current Sub Hero progression, so swapping in an injected one
+## cannot leave the hero listening to a collection nobody owns any more.
+func _release_sub_hero_signals() -> void:
+	if sub_hero_progression == null or not _sub_hero_signals_bound:
+		return
+	if sub_hero_progression.collection_changed.is_connected(_on_sub_hero_collection_changed):
+		sub_hero_progression.collection_changed.disconnect(_on_sub_hero_collection_changed)
+	if sub_hero_progression.active_slots_changed.is_connected(_on_sub_hero_slots_changed):
+		sub_hero_progression.active_slots_changed.disconnect(_on_sub_hero_slots_changed)
+	_sub_hero_signals_bound = false
 
 
 func _refresh_equipment_stats() -> void:

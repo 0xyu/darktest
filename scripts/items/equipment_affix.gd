@@ -39,6 +39,52 @@ const ROLL_MAX: float = 1.20
 @export var display_name: String = ""
 
 
+## Plain-Dictionary form, so a rolled affix survives a save / load round trip
+## (see StageProgressSave). The numbers travel WITH the item: `value` is rounded
+## and floored and `roll_ratio` is the only record of where the roll landed, so
+## neither can be recomputed from the definition or the stat catalogue.
+func to_save_data() -> Dictionary:
+	return {
+		"stat_id": String(stat_id),
+		"value": value,
+		"roll_ratio": roll_ratio,
+		"is_percentage": is_percentage,
+		"display_name": display_name,
+	}
+
+
+## Rebuilds an affix from [method to_save_data], or null when the payload has no
+## stat id at all — a damaged entry is dropped instead of producing an affix the
+## rest of the game would display and never apply.
+##
+## A stat id this build does not know is KEPT, because a missing number is not a
+## reason to delete an item the player owns (`EquipmentAffix` authoring rejects
+## unknown ids, but a save is not an authoring tool).
+static func from_save_data(save_data: Dictionary) -> EquipmentAffix:
+	var saved_stat_id := String(str(save_data.get("stat_id", "")))
+	if saved_stat_id.is_empty():
+		return null
+	var affix := EquipmentAffix.new()
+	affix.stat_id = StringName(saved_stat_id)
+	affix.value = _to_float(save_data.get("value"), 0.0)
+	affix.roll_ratio = clampf(_to_float(save_data.get("roll_ratio"), 0.5), 0.0, 1.0)
+	affix.is_percentage = bool(save_data.get("is_percentage", false))
+	affix.display_name = str(save_data.get("display_name", ""))
+	return affix
+
+
+## JSON writes every number as a float, so an int, float or numeric string all
+## have to be accepted for a value slot.
+static func _to_float(value: Variant, fallback: float) -> float:
+	if value is float:
+		return value
+	if value is int:
+		return float(value)
+	if value is String and (value as String).is_valid_float():
+		return (value as String).to_float()
+	return fallback
+
+
 ## The label to show for this affix: the authored name when there is one, otherwise
 ## the catalogue name for its stat.
 func get_label() -> String:

@@ -25,7 +25,7 @@ do*. Every entry in §3 is a work item, not a design decision.
 | Level generation / scaling / encounters | `scripts/systems/level_provider.gd`, `level_manager.gd`, `enemy_scaling.gd` |
 | Stage/area data model | `scripts/data/stage_database.gd`, `stage_data.gd`, `stage_type.gd`, `stage_content.gd` |
 | Routing (combat / town) | `scripts/systems/stage_router.gd`, `stage_flow.gd` |
-| Player progress + save | `scripts/progress/player_progress.gd`, `stage_progress_save.gd` |
+| Player progress + save (map progress, items, Sub Heroes) | `scripts/progress/player_progress.gd`, `stage_progress_save.gd` |
 | Character progression (level/EXP/gold/skills) | `scripts/player/player_progression.gd`, `scripts/systems/experience_system.gd`, `gold_system.gd` |
 | Player stats & controller | `scripts/player/player_stats.gd`, `player_controller.gd` |
 | Equipment, affixes, comparison, inventory, storage | `scripts/items/` |
@@ -109,7 +109,7 @@ Closed items are removed from these tables and their number retired, so ids stay
 | # | Spec | Current implementation | Impact |
 |---|---|---|---|
 | 1 | §9/§10 enemy level drives stats and EXP | Enemy level drives the EXP reward factor only; stat scaling uses the stage number and ignores level | The displayed enemy level is misleading at high stages |
-| 3 | §17 full persistence | Save holds **map progress only**: `current_stage_number`, `highest_stage_reached`, `completed_stages`, `consumed_content` (`user://save/stage_progress.json`, version 1) | Level, EXP, gold, skill points, skill levels, equipment, bag, storage and Sub Heroes are **reset on restart** — directly violates GDD §13.3 |
+| 3 | §17 full persistence | Save holds map progress, the player's **owned items** (equipped, bag and warehouse, with rolled affixes and the equipped flags) and **Sub Heroes** (owned instances, levels, duplicates, active slots) in `user://save/stage_progress.json`, format version 2 | Character numbers are still reset on restart: **level, EXP, gold, skill points and skill levels** continue to violate GDD §13.3. Items and Sub Heroes now survive |
 
 ### 3.2 Combat & Items
 
@@ -136,7 +136,7 @@ Closed items are removed from these tables and their number retired, so ids stay
 | 17 | §13/§14 item actions Equip / Keep / Sell / Discard | `Equip`, `Discard` and **`Sell`** all exist; `Store`/`Withdraw` (warehouse) approximates `Keep`. Sell is offered by the town surfaces only — the Scavenger Shop's SELL tab and the item popup from the warehouse — and pays the §19 price | Closed for the town surfaces; the in-combat inventory deliberately offers no Sell |
 | 18 | §14 comparison during loot presentation | The drop popup only reveals the item; comparison lives in the inventory item popup | Loot decisions require opening the inventory |
 | 19 | §13 rarity as a build lever | Rarity biases value via a multiplier, but no rarity-exclusive affix or effect exists beyond the unique-effect chance | Higher rarity is mostly a numbers upgrade |
-| 26 | §13/§14 buyback | The buyback book is **session-scoped**: it holds the items the player gave up this session and is emptied by a restart | Consequence of row 3 — the bag is not persisted either, so a surviving book would hold an item nobody owns. The once-per-save drop record itself IS persisted |
+| 26 | §13/§14 buyback | The buyback book is **session-scoped**: it holds the items the player gave up this session and is emptied by a restart | No longer a consequence of row 3 (the bag and warehouse ARE persisted now), it is an independent gap. The once-per-save drop record IS persisted |
 
 ### 3.5 World, Town, Content
 

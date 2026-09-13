@@ -64,6 +64,35 @@ func discard_item(item: EquipmentInstance) -> bool:
 	return remove_item(item)
 
 
+## Replaces the whole collection with a restored one (see StageProgressSave).
+##
+## Deliberately not add_item() in a loop: add_item() is an ACQUISITION — it
+## enforces bag capacity and clears `is_equipped`, which would strip the loadout
+## off every restored item. A restored collection is not a fresh pickup.
+##
+## Repair, not trust: only the first item per valid slot keeps `is_equipped`, so a
+## hand-damaged payload can never leave two weapons equipped at once or mark a
+## slot-less consumable as equipped. The equipped-slot cache is rebuilt from the
+## restored flags, and one inventory_changed announces the new contents to every
+## panel. Equipment stat bonuses are re-applied by the host through
+## `PlayerController.set_equipment_inventory()`.
+func restore_items(restored_items: Array[EquipmentInstance]) -> void:
+	items.clear()
+	_equipped_items.clear()
+	selected_item = null
+	var equipped_slots: Dictionary = {}
+	for item in restored_items:
+		if item == null:
+			continue
+		var slot: int = item.get_slot()
+		if item.is_equipped and EquipmentSlot.is_valid(slot) and not equipped_slots.has(slot):
+			equipped_slots[slot] = true
+		else:
+			item.is_equipped = false
+		items.append(item)
+	inventory_changed.emit()
+
+
 func select_item(item: EquipmentInstance) -> bool:
 	if item != null and not has_item(item):
 		return false

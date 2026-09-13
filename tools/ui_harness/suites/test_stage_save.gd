@@ -26,6 +26,8 @@ extends "res://tools/ui_harness/ui_harness_suite.gd"
 
 const MAIN_SCENE := preload("res://scenes/world/Main.tscn")
 const AreaViewScript := preload("res://scripts/ui/area_view.gd")
+const FixtureScript := preload("res://tests/fixtures/ui_fixture.gd")
+const SubHeroInstanceScript := preload("res://scripts/sub_hero/sub_hero_instance.gd")
 ## StageProgressSaveScript and HARNESS_SAVE_PATH are inherited from the base suite,
 ## which owns the redirect that keeps these tests off the player's real save.
 
@@ -314,3 +316,65 @@ func test_a_damaged_save_boots_a_new_game_instead_of_a_half_restored_one() -> vo
 	await _mount_game()
 	expect(_stage_number() == 1, "a future-format save boots a new game at stage 1")
 	expect(int(_progress().get("current_stage_number")) == 1, "a future-format save leaves the fresh position alone")
+
+
+## The player's belongings are part of the same save as the map progress: quit the
+## game and come back, and the equipped gear, the bag, the warehouse and the Sub
+## Heroes are what they were — without any gameplay path calling save().
+func test_items_and_sub_heroes_survive_a_restart() -> void:
+	await _mount_game()
+	var player: Node = _player()
+	# One item in each of the three places an owned item can live.
+	var weapon: EquipmentInstance = FixtureScript.create_equipment(EquipmentRarity.RARE, EquipmentSlot.WEAPON, 12, &"every_3rd_attack")
+	expect(bool(player.call("add_equipment", weapon)), "the hero takes the weapon")
+	expect(bool(player.call("equip_item", weapon)), "the weapon is equipped")
+	var ring: EquipmentInstance = FixtureScript.create_equipment(EquipmentRarity.EPIC, EquipmentSlot.RING, 22)
+	expect(bool(player.call("add_equipment", ring)), "the ring enters the bag")
+	var boots: EquipmentInstance = FixtureScript.create_equipment(EquipmentRarity.COMMON, EquipmentSlot.BOOTS, 4)
+	expect(bool(player.call("add_to_storage", boots)), "the boots go to the warehouse")
+	var hero := SubHeroInstanceScript.new(&"skeleton_archer", 3)
+	hero.duplicate_count = 2
+	expect(bool(player.call("add_sub_hero", hero).get("is_new", false)), "the Sub Hero is summoned")
+	expect(bool(player.call("assign_sub_hero_slot", 1, &"skeleton_archer")), "the Sub Hero is assigned to a slot")
+	await flush_frames(2)
+
+	# Autosave: everything above persisted on its own, and the file holds the items
+	# and the Sub Heroes — not just the map progress.
+	var payload: Dictionary = _saved_payload()
+	expect((payload.get("inventory", []) as Array).size() == 2, "the equipped weapon and the bagged ring are on disk")
+	expect((payload.get("storage", []) as Array).size() == 1, "the stored boots are on disk")
+	expect(((payload.get("sub_heroes", {}) as Dictionary).get("owned_sub_heroes", []) as Array).size() == 1, "the Sub Hero is on disk")
+	var equipped_attack_bonus: int = int(player.player_stats.attack)
+	await _unmount_game()
+
+	# A second session: nothing is carried over in memory, only the save file.
+	await _mount_game()
+	var restored_player: Node = _player()
+	var restored_weapon: EquipmentInstance = restored_player.call("get_equipped_item", EquipmentSlot.WEAPON)
+	expect(restored_weapon != null, "the equipped weapon is restored")
+	if restored_weapon != null:
+		expect(restored_weapon.instance_id == weapon.instance_id, "the restored weapon is the same item")
+		expect(restored_weapon.definition.unique_effect_id == &"every_3rd_attack", "its unique effect survived the restart")
+		expect(restored_weapon.affixes.size() == weapon.affixes.size(), "its rolled affixes survived the restart")
+	expect(int(restored_player.player_stats.attack) == equipped_attack_bonus, "the equipped item's stats are applied in the restored session")
+	expect(restored_player.call("get_inventory").has_item(ring), "the bagged ring is restored")
+	expect(not ring.is_equipped, "a bagged item does not come back equipped")
+	expect(restored_player.call("get_storage").has_item(boots), "the warehouse contents are restored")
+
+	var restored_hero: SubHeroInstance = restored_player.call("get_sub_hero_progression").get_owned_instance(&"skeleton_archer")
+	expect(restored_hero != null, "the Sub Hero is restored as owned")
+	if restored_hero != null:
+		expect(restored_hero.level == 3, "the Sub Hero keeps its level")
+		expect(restored_hero.duplicate_count == 2, "the Sub Hero keeps its duplicate progress")
+	expect(
+		restored_player.call("get_sub_hero_progression").active_slot_ids[1] == &"skeleton_archer",
+		"the Sub Hero is restored into its slot"
+	)
+	# And it is a LIVE combatant, not just a line in the file: the scene spawns the
+	# restored active slots when it boots.
+	var restored_manager: Node = _grid_test.find_child("SubHeroCombatManager", true, false)
+	expect_eq(
+		(restored_manager.get("_active_states") as Array).size(),
+		1,
+		"the restored Sub Hero fights in the resumed session"
+	)
