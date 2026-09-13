@@ -408,7 +408,10 @@ func _move_settles_the_turn() -> bool:
 		return false
 	if player.is_free_moving() or not player.is_input_enabled():
 		return false
-	if auto_combat != null and auto_combat.is_auto_enabled():
+	if auto_combat != null and auto_combat.is_automation_active():
+		# Either automation owns the action: AUTO settles its own turn after moving,
+		# and AUTO BACKWARD retreats WITHOUT fighting, so the automatic strike a spent
+		# movement bar would otherwise trigger must never fire.
 		return false
 	return player.movement_points_remaining <= 0
 

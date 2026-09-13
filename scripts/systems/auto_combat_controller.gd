@@ -5,6 +5,10 @@ extends Node
 ## Decisions are deferred so signals from one action can finish before the
 ## next automatic decision is made.
 signal auto_mode_changed(enabled: bool)
+## AUTO BACKWARD (see set_auto_backward_enabled): the same automation pointed at the
+## other gate — the previous stage instead of the next one. Announced on its own so
+## the forward AUTO mode and its indicators keep their unchanged meaning.
+signal auto_backward_changed(enabled: bool)
 signal auto_action_taken(description: String)
 signal farming_changed(enabled: bool)
 signal game_speed_changed(speed: int)
@@ -47,6 +51,7 @@ var _combat_system: CombatSystem
 var _stage_manager: StageManager
 var _grid: GridMap2D
 var _auto_enabled: bool = false
+var _auto_backward_enabled: bool = false
 var _decision_scheduled: bool = false
 var _decision_remaining_seconds: float = 0.0
 var _decision_wait_duration: float = 0.0
@@ -75,7 +80,7 @@ func _process(delta: float) -> void:
 		return
 	if not _decision_scheduled:
 		return
-	if not _auto_enabled or _turn_manager == null or _turn_manager.get_phase() != TurnState.PLAYER_TURN:
+	if not is_automation_active() or _turn_manager == null or _turn_manager.get_phase() != TurnState.PLAYER_TURN:
 		_decision_scheduled = false
 		return
 	_decision_remaining_seconds -= delta
@@ -103,6 +108,9 @@ func attach_systems(
 func set_auto_enabled(enabled: bool) -> void:
 	if enabled and _turn_manager != null and _turn_manager.get_phase() == TurnState.DEFEAT:
 		return
+	if enabled and _auto_backward_enabled:
+		# Only one automation drives the turn.
+		set_auto_backward_enabled(false)
 	if _auto_enabled == enabled:
 		if enabled:
 			_schedule_for_current_state()
@@ -127,6 +135,57 @@ func is_auto_enabled() -> bool:
 
 func stop_auto() -> void:
 	set_auto_enabled(false)
+
+
+## AUTO BACKWARD: the existing AUTO logic pointed at the OTHER gate. It reuses this
+## controller's whole decision machinery — the same turn beats, action delays and
+## game speed — and walks the hero toward the Stage Starting Point with the same
+## pathfinder, with one deliberate difference: enemies are IGNORED. No target is
+## selected, nothing is attacked, and the route treats the cells live enemies stand
+## on as free (see _find_retreat_path).
+##
+## The walk back is the host's, exactly as it is for a manual step: stepping onto
+## the gate is reported through the player's `moved` signal and the host's own
+## stage gates decide whether the battle may move back, so this mode never starts a
+## stage itself. It keeps retreating stage by stage and stops at stage 01.
+##
+## Mutually exclusive with AUTO, because both drive the same player turn.
+func set_auto_backward_enabled(enabled: bool) -> void:
+	if enabled and _turn_manager != null and _turn_manager.get_phase() == TurnState.DEFEAT:
+		return
+	if enabled and _auto_enabled:
+		set_auto_enabled(false)
+	if _auto_backward_enabled == enabled:
+		if enabled:
+			_schedule_for_current_state()
+		return
+	_auto_backward_enabled = enabled
+	_run_token += 1
+	_decision_scheduled = false
+	_stage_advance_scheduled = false
+	_exit_roam_active = false
+	auto_backward_changed.emit(_auto_backward_enabled)
+	if _auto_backward_enabled:
+		_schedule_for_current_state()
+
+
+func toggle_auto_backward() -> void:
+	set_auto_backward_enabled(not _auto_backward_enabled)
+
+
+func is_auto_backward_enabled() -> bool:
+	return _auto_backward_enabled
+
+
+func stop_auto_backward() -> void:
+	set_auto_backward_enabled(false)
+
+
+## True while EITHER automation owns the turn. The forward AUTO indicators and the
+## stage gates keep asking `is_auto_enabled()`, which still means exactly what it
+## always did; this answers the broader "is an automation driving decisions".
+func is_automation_active() -> bool:
+	return _auto_enabled or _auto_backward_enabled
 
 
 func set_farming_enabled(enabled: bool) -> void:
@@ -266,17 +325,18 @@ func _on_stage_completed(_stage_state: StageState) -> void:
 
 
 ## After a clear, FARMING re-spawns the current stage (regardless of AUTO);
-## with FARMING off, AUTO walks the hero to the exit cell and only then starts
-## the next stage. Manual play without FARMING waits on the NEXT STAGE button
-## and schedules nothing here.
+## with FARMING off, an automation walks the hero to its gate — the exit when
+## advancing, the starting point when retreating — and only then does the battle
+## move on. Manual play without FARMING waits on the NEXT STAGE button and
+## schedules nothing here.
 func _schedule_post_clear_transition() -> void:
 	if _stage_manager == null or _stage_advance_scheduled:
 		return
-	if not _auto_enabled and not farming_enabled:
+	if not is_automation_active() and not farming_enabled:
 		return
-	if _auto_enabled and not farming_enabled:
-		# AUTO & non-farming: no immediate advance. The deferred pass starts the
-		# walk-to-exit once the victory phase has been set.
+	if not farming_enabled:
+		# Automation & non-farming: no immediate transition. The deferred pass starts
+		# the walk to the gate once the victory phase has been set.
 		_stage_advance_scheduled = true
 		var token: int = _run_token
 		call_deferred("_begin_exit_roam", token)
@@ -368,7 +428,7 @@ func _begin_exit_roam(token: int = -1) -> void:
 		return
 	if _exit_roam_active:
 		return
-	if not _auto_enabled or farming_enabled:
+	if not is_automation_active() or farming_enabled:
 		return
 	if not _is_cleared_victory():
 		return
@@ -388,7 +448,7 @@ func _cancel_exit_roam() -> void:
 
 
 func _process_exit_roam(delta: float) -> void:
-	if _turn_manager == null or not _auto_enabled or farming_enabled:
+	if _turn_manager == null or not is_automation_active() or farming_enabled:
 		_cancel_exit_roam()
 		if farming_enabled and _is_cleared_victory():
 			_schedule_post_clear_transition()
@@ -406,31 +466,51 @@ func _step_exit_roam() -> void:
 	if _stage_manager == null:
 		_cancel_exit_roam()
 		return
-	var exit_cell: Vector2i = _stage_manager.get_stage_exit_cell()
-	if _player.grid_position == exit_cell:
+	var goal_cell: Vector2i = _get_roam_goal_cell()
+	if _player.grid_position == goal_cell:
 		_exit_roam_active = false
+		if _is_retreating():
+			# The stage moves back as the step onto the gate is reported; standing
+			# here unchanged means the gate refused it (stage 01, or FARMING), so
+			# stop instead of idling on the cell.
+			stop_auto_backward()
+			auto_action_taken.emit("AUTO BACK stopped: the previous stage point is blocked")
+			return
 		_start_next_stage_from_exit()
 		return
 	if _grid == null:
 		_cancel_exit_roam()
 		return
-	var path: Array[Vector2i] = _grid.find_path(_player.grid_position, exit_cell)
+	var path: Array[Vector2i]
+	if _is_retreating():
+		# The retreat ignores enemies as obstacles (see _find_retreat_path).
+		path = _grid.find_path(_player.grid_position, goal_cell, _enemy_occupied_cells())
+	else:
+		path = _grid.find_path(_player.grid_position, goal_cell)
 	if path.size() < 2:
 		_cancel_exit_roam()
 		return
 	var direction: Vector2i = path[1] - _player.grid_position
 	if _player.try_move(direction):
 		_exit_roam_remaining_seconds = _get_action_delay_seconds()
-		auto_action_taken.emit("AUTO: heading to the exit")
+		auto_action_taken.emit("AUTO: heading to the exit" if not _is_retreating() else "AUTO BACK: heading to the previous stage")
 	else:
 		_cancel_exit_roam()
+
+
+## The gate this walk is aimed at: the Next Stage Point when advancing (AUTO) and
+## the Stage Starting Point when retreating (AUTO BACKWARD).
+func _get_roam_goal_cell() -> Vector2i:
+	if _is_retreating():
+		return _stage_manager.get_stage_start_cell()
+	return _stage_manager.get_stage_exit_cell()
 
 
 ## AUTO reached the exit of a cleared stage. It only REQUESTS the advance; the
 ## host decides and performs it (so AUTO and the manual NEXT STAGE button share
 ## one seam), then reports back through notify_advance_result().
 func _start_next_stage_from_exit() -> void:
-	if not _auto_enabled or farming_enabled:
+	if not _auto_enabled or _auto_backward_enabled or farming_enabled:
 		return
 	if _turn_manager == null or _turn_manager.get_phase() != TurnState.VICTORY:
 		return
@@ -460,7 +540,7 @@ func _on_player_defeated() -> void:
 
 
 func _schedule_decision() -> void:
-	if not _auto_enabled or _decision_scheduled or _turn_manager == null:
+	if not is_automation_active() or _decision_scheduled or _turn_manager == null:
 		return
 	if _navigation_hold:
 		return
@@ -473,7 +553,7 @@ func _schedule_decision() -> void:
 
 func _run_auto_turn(token: int) -> void:
 	_decision_scheduled = false
-	if token != _run_token or not _auto_enabled:
+	if token != _run_token or not is_automation_active():
 		return
 	# A decision armed before the hold must not slip through once the walk owns the turn.
 	if _navigation_hold:
@@ -482,6 +562,11 @@ func _run_auto_turn(token: int) -> void:
 		return
 	if _player == null or _player.is_defeated():
 		stop_auto()
+		return
+	if _is_retreating():
+		# The one branch that differs: AUTO BACKWARD walks to the other gate and
+		# never picks a target.
+		_run_auto_backward_turn()
 		return
 	if _player.movement_points_remaining <= 0:
 		_end_player_turn("AUTO: movement exhausted")
@@ -514,6 +599,117 @@ func _run_auto_turn(token: int) -> void:
 	if moved_cells > 0:
 		auto_action_taken.emit("AUTO: moved toward %s" % target.get_display_name())
 	_end_player_turn("AUTO: target out of range")
+
+
+## One AUTO BACKWARD decision: the same guards and the same turn beats as AUTO —
+## movement points, healing item, one action per turn — with the enemy logic
+## removed. The goal is the Stage Starting Point, never a target.
+func _run_auto_backward_turn() -> void:
+	if _stage_manager == null or _stage_manager.stage_state == null:
+		stop_auto_backward()
+		return
+	if _stage_manager.stage_state.stage_number <= 1:
+		# Stage 01 is the first stage: the host's gate leads nowhere, so the retreat
+		# is finished rather than idling on the starting point.
+		stop_auto_backward()
+		auto_action_taken.emit("AUTO BACK stopped: stage 01 is the first stage")
+		return
+	if _player.movement_points_remaining <= 0:
+		_end_player_turn("AUTO BACK: movement exhausted")
+		return
+	if _should_use_healing_item() and _player.use_healing_item():
+		auto_action_taken.emit("AUTO BACK: used healing item")
+		_end_player_turn("")
+		return
+
+	var goal_cell: Vector2i = _stage_manager.get_stage_start_cell()
+	if _player.grid_position == goal_cell:
+		# On the gate without the battle having moved back through it: the host's gate
+		# refused the step (FARMING), so stop instead of idling on the cell.
+		stop_auto_backward()
+		auto_action_taken.emit("AUTO BACK stopped: the previous stage point is blocked")
+		return
+
+	var planned_stage: int = _stage_manager.stage_state.stage_number
+	var moved_cells: int = _move_toward_previous_stage(goal_cell)
+	if _stage_manager.stage_state == null or _stage_manager.stage_state.stage_number != planned_stage:
+		# The last step went through the gate and the battle moved back a stage. That
+		# fresh stage owns its own turn, so this decision must not settle it.
+		auto_action_taken.emit("AUTO BACK: back through the starting point")
+		_schedule_for_current_state()
+		return
+	if moved_cells == 0:
+		if _find_retreat_path(goal_cell).size() < 2:
+			stop_auto_backward()
+			auto_action_taken.emit("AUTO BACK stopped: no route to the previous stage")
+			return
+		auto_action_taken.emit("AUTO BACK: the way is blocked")
+		_end_player_turn("")
+		return
+	auto_action_taken.emit("AUTO BACK: heading to the previous stage")
+	_end_player_turn("")
+
+
+## Walks as far toward the previous stage as this turn's movement points allow,
+## along the pathfinder's route. Returns the number of cells actually walked.
+func _move_toward_previous_stage(goal_cell: Vector2i) -> int:
+	if _grid == null or _player == null or _stage_manager == null:
+		return 0
+	var planned_stage: int = _stage_manager.stage_state.stage_number
+	var moved_cells: int = 0
+	var path: Array[Vector2i] = _find_retreat_path(goal_cell)
+	while path.size() >= 2:
+		var direction: Vector2i = path[1] - _player.grid_position
+		if not _player.try_move(direction):
+			# The ignored enemy was literally in the way — a cell an actor stands on can
+			# never be entered. Re-plan AROUND it with the occupancy-respecting route
+			# instead of stalling; if that is the very same route, the way is closed.
+			var detour: Array[Vector2i] = _grid.find_path(_player.grid_position, goal_cell)
+			if detour.size() < 2 or detour == path:
+				break
+			path = detour
+			continue
+		moved_cells += 1
+		if _player.grid_position == goal_cell:
+			break
+		if _stage_manager.stage_state == null or _stage_manager.stage_state.stage_number != planned_stage:
+			break
+		if _player.movement_points_remaining <= 0:
+			break
+		path = _find_retreat_path(goal_cell)
+	return moved_cells
+
+
+## The retreat route: the existing grid pathfinder, with the cells live enemies
+## stand on handed over as free (find_path's ignored_occupied probe). Enemies are
+## ignored as obstacles because the retreat is deliberately not a fight — the hero
+## walks PAST them, and a cell one of them really stands on is still never entered,
+## so a blocked walker re-plans around it (see _move_toward_previous_stage).
+func _find_retreat_path(goal_cell: Vector2i) -> Array[Vector2i]:
+	var empty: Array[Vector2i] = []
+	if _grid == null or _player == null:
+		return empty
+	return _grid.find_path(_player.grid_position, goal_cell, _enemy_occupied_cells())
+
+
+## Every cell a living enemy of the current stage stands on.
+func _enemy_occupied_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	if _stage_manager == null:
+		return cells
+	for enemy in _stage_manager.get_spawned_enemies():
+		if enemy == null or not is_instance_valid(enemy) or enemy.is_defeated():
+			continue
+		if enemy.enemy_runtime == null or enemy.enemy_runtime.current_hp <= 0:
+			continue
+		cells.append(enemy.grid_position)
+	return cells
+
+
+## True while AUTO BACKWARD is the automation driving the turn. The two automations
+## are mutually exclusive, so the flag alone answers it.
+func _is_retreating() -> bool:
+	return _auto_backward_enabled
 
 
 func _select_target() -> EnemyController:

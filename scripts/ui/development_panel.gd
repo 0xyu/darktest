@@ -62,6 +62,7 @@ var _player: PlayerController
 var _slot_rotation: Dictionary = {}
 var _status_label: Label
 var _reset_dialog: ConfirmationDialog
+var _auto_backward_button: Button
 
 
 func _ready() -> void:
@@ -274,6 +275,8 @@ func _build_ui() -> void:
 	content.add_child(_build_town_actions())
 	content.add_child(_section_title("AREA STAGES"))
 	content.add_child(_build_area_stage_actions())
+	content.add_child(_section_title("AUTO BACKWARD"))
+	content.add_child(_build_auto_backward_actions())
 	content.add_child(_section_title("GENERATE ITEM"))
 	content.add_child(_build_rarity_grid())
 	content.add_child(_section_title("FIXTURES"))
@@ -364,6 +367,72 @@ func _build_area_stage_actions() -> GridContainer:
 func _enter_area_stage(stage_number: int) -> void:
 	hide_panel()
 	area_stage_enter_requested.emit(stage_number)
+
+
+# ---------------------------------------------------------------------------
+# AUTO BACKWARD
+# ---------------------------------------------------------------------------
+
+
+## The DEV toggle for AUTO BACKWARD: the existing AUTO automation pointed at the
+## PREVIOUS stage (AutoCombatController.set_auto_backward_enabled). It walks the hero
+## back through the Stage Starting Point using the same pathfinder while ignoring
+## enemies — no target is picked and nothing is attacked.
+func _build_auto_backward_actions() -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	_auto_backward_button = _make_button("AUTO BACKWARD: OFF", Color("9fb6c9"), _toggle_auto_backward)
+	box.add_child(_auto_backward_button)
+	return box
+
+
+func _toggle_auto_backward() -> void:
+	var auto_combat := _get_auto_combat()
+	if auto_combat == null:
+		_set_status("Auto combat controller unavailable")
+		return
+	dev_set_auto_backward(not auto_combat.is_auto_backward_enabled())
+
+
+## Direct API for agent/runtime tests, mirroring dev_summon_sub_hero: drives the live
+## AutoCombatController without the button. Returns false when there is no battle
+## running to drive.
+func dev_set_auto_backward(enabled: bool) -> bool:
+	var auto_combat := _get_auto_combat()
+	if auto_combat == null:
+		_set_status("Auto combat controller unavailable")
+		return false
+	auto_combat.set_auto_backward_enabled(enabled)
+	_refresh_auto_backward_button()
+	_set_status("AUTO BACKWARD %s" % ("ON" if enabled else "OFF"))
+	return true
+
+
+func _get_auto_combat() -> AutoCombatController:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	# Main scene boots as Main/grid_combat; running grid_combat.tscn directly has no
+	# Main wrapper.
+	var node := tree.root.get_node_or_null(^"Main/grid_combat/AutoCombatController")
+	if node == null:
+		node = tree.root.get_node_or_null(^"grid_combat/AutoCombatController")
+	var auto_combat := node as AutoCombatController
+	if auto_combat != null and not auto_combat.auto_backward_changed.is_connected(_on_auto_backward_changed):
+		auto_combat.auto_backward_changed.connect(_on_auto_backward_changed)
+	return auto_combat
+
+
+func _on_auto_backward_changed(_enabled: bool) -> void:
+	_refresh_auto_backward_button()
+
+
+func _refresh_auto_backward_button() -> void:
+	if _auto_backward_button == null:
+		return
+	var auto_combat := _get_auto_combat()
+	var enabled: bool = auto_combat != null and auto_combat.is_auto_backward_enabled()
+	_auto_backward_button.text = "AUTO BACKWARD: %s" % ("ON" if enabled else "OFF")
 
 
 func _build_rarity_grid() -> GridContainer:
