@@ -47,12 +47,12 @@ theme_override_constants/margin_bottom = 4
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="CharacterNavigationItem" type="TextureButton" parent="Margin/Row" unique_id=121393724]
+[node name="CharacterBtn" type="TextureButton" parent="Margin/Row" unique_id=121393724]
 custom_maximum_size = Vector2(110, -1)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="Control" type="Control" parent="Margin/Row/CharacterNavigationItem" unique_id=157964582]
+[node name="Control" type="Control" parent="Margin/Row/CharacterBtn" unique_id=157964582]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -62,7 +62,7 @@ offset_bottom = -22.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Icon" type="TextureRect" parent="Margin/Row/CharacterNavigationItem/Control" unique_id=2051147891]
+[node name="Icon" type="TextureRect" parent="Margin/Row/CharacterBtn/Control" unique_id=2051147891]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -76,7 +76,7 @@ texture = ExtResource("3_character")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Label" type="Label" parent="Margin/Row/CharacterNavigationItem/Control" unique_id=1328306540]
+[node name="Label" type="Label" parent="Margin/Row/CharacterBtn/Control" unique_id=1328306540]
 layout_mode = 1
 anchors_preset = 7
 anchor_left = 0.5
@@ -141,20 +141,20 @@ text = "INVENTORY"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="ModesNavigationItem" type="TextureButton" parent="Margin/Row" unique_id=1213777700]
+[node name="CombatBtn" type="TextureButton" parent="Margin/Row" unique_id=1213777700]
 layout_mode = 2
 size_flags_horizontal = 3
 ignore_texture_size = true
 stretch_mode = 5
 
-[node name="Control" type="Control" parent="Margin/Row/ModesNavigationItem" unique_id=1347969148]
+[node name="Control" type="Control" parent="Margin/Row/CombatBtn" unique_id=1347969148]
 anchors_preset = 0
 offset_left = 54.0
 offset_top = 19.0
 offset_right = 152.0
 offset_bottom = 115.0
 
-[node name="TextureRect" type="TextureRect" parent="Margin/Row/ModesNavigationItem/Control" unique_id=280555994]
+[node name="TextureRect" type="TextureRect" parent="Margin/Row/CombatBtn/Control" unique_id=280555994]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -167,7 +167,7 @@ grow_horizontal = 2
 texture = ExtResource("6_modes")
 expand_mode = 1
 
-[node name="ModesLabel" type="Label" parent="Margin/Row/ModesNavigationItem/Control" unique_id=561473416]
+[node name="ModesLabel" type="Label" parent="Margin/Row/CombatBtn/Control" unique_id=561473416]
 layout_mode = 1
 anchors_preset = 7
 anchor_left = 0.5
@@ -233,12 +233,12 @@ text = "REWARD"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="CharacterNavigationItem2" type="TextureButton" parent="Margin/Row" unique_id=518067116]
+[node name="ShopBtn" type="TextureButton" parent="Margin/Row" unique_id=518067116]
 custom_maximum_size = Vector2(110, -1)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="Control" type="Control" parent="Margin/Row/CharacterNavigationItem2" unique_id=239139954]
+[node name="Control" type="Control" parent="Margin/Row/ShopBtn" unique_id=239139954]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -248,7 +248,7 @@ offset_bottom = -22.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Icon" type="TextureRect" parent="Margin/Row/CharacterNavigationItem2/Control" unique_id=171542476]
+[node name="Icon" type="TextureRect" parent="Margin/Row/ShopBtn/Control" unique_id=171542476]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -263,7 +263,7 @@ texture = ExtResource("7_bi3pk")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Label" type="Label" parent="Margin/Row/CharacterNavigationItem2/Control" unique_id=1818360550]
+[node name="Label" type="Label" parent="Margin/Row/ShopBtn/Control" unique_id=1818360550]
 layout_mode = 1
 anchors_preset = 7
 anchor_left = 0.5

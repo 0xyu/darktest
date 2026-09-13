@@ -15,6 +15,7 @@ do*. Every entry in §3 is a work item, not a design decision.
 |---|---|
 | Grid combat, arena, gates, presentation | `scripts/world/grid_combat.gd`, `scenes/world/grid_combat.tscn` |
 | Grid model / pathfinding | `scripts/systems/grid_map_2d.gd` |
+| Click-to-navigate (persistent destination, blocker handling) | `scripts/systems/navigation_controller.gd` |
 | Turn manager / phases | `scripts/systems/turn_manager.gd`, `scripts/combat/turn_state.gd` |
 | Damage, targeting, skills resolution | `scripts/combat/combat_system.gd` |
 | Skill definitions | `scripts/combat/skill_catalog.gd`, `skill_definition.gd` |
@@ -179,11 +180,11 @@ UI harness suites (`tools/ui_harness/run_ui_harness.ps1 -Suite <name> -Quiet`):
 ```text
 test_combat_log_panel      test_combat_log_wiring     test_development_panel
 test_enemy_attack_move_lock test_game_locale          test_grid_click_actions
-test_inventory_panel       test_item_popup            test_stage_content
-test_magic_tome            test_stage_exit_advance    test_stage_flow
-test_stage_progression     test_stage_range           test_stage_save
-test_subhero_assignment    test_subhero_row           test_subhero_shop
-test_town_view             test_world_map
+test_grid_navigation       test_inventory_panel      test_item_popup
+test_stage_content         test_magic_tome           test_stage_exit_advance
+test_stage_flow            test_stage_progression    test_stage_range
+test_stage_save            test_subhero_assignment   test_subhero_row
+test_subhero_shop          test_town_view            test_world_map
 ```
 
 Headless smoke tests (`res://tests/*_smoke_test.gd`):

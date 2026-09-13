@@ -31,6 +31,11 @@ const ATTACK_REFUSED_REASON: String = "no enemy in attack range"
 ## player has it from the first battle; its cooldowns live in Player Turns and are
 ## driven by the turn manager it is attached to below.
 @onready var magic_tome: MagicTome = $MagicTome
+## Click-to-navigate: the persistent destination behind a click that lands OUTSIDE this
+## turn's movement range. It owns no movement and no combat rule — it walks through the
+## hero's own input step and strikes through the hero's own attack seam — so the host
+## only wires it, shows it, and cancels it when the arena changes.
+@onready var navigation: NavigationController = $NavigationController
 
 var _last_move_text: String = "Awaiting input"
 var _active_enemies: Array[Node] = []
@@ -185,6 +190,12 @@ func _ready() -> void:
 	# so the last enemy's damage number and death animation play out before the
 	# wave is rebuilt.
 	auto_combat.set_presentation_waiter(combat_presentation)
+	# Click-to-navigate. Navigation and AUTO are independent systems: AUTO keeps its
+	# state and only HOLDS its own movement decision while the hero walks to a
+	# destination the player clicked (see AutoCombatController.set_navigation_hold).
+	navigation.attach_systems(player, turn_manager, combat_system, stage_manager, grid)
+	navigation.navigation_started.connect(_on_navigation_started)
+	navigation.navigation_finished.connect(_on_navigation_finished)
 	hud.set_farming_mode(auto_combat.is_farming_enabled())
 	hud.set_game_speed(auto_combat.get_game_speed())
 	_sync_sub_hero_combatants()
@@ -282,19 +293,23 @@ func _click_attack_enemy(enemy: EnemyController) -> void:
 	player.attack_requested.emit(player, enemy)
 
 
-## A cell click is a move request, allowed only inside the movement range (free
-## roam is unbounded, exactly like the AUTO walk to the stage exit).
+## A cell click is a move request. Inside the movement range it is the existing walk
+## (free roam is unbounded, exactly like the AUTO walk to the stage exit); BEYOND the
+## range it is no longer a refusal but a persistent navigation destination — the hero
+## walks what this turn can pay for and continues on its own following turns until it
+## arrives (§5 / §14 of the navigation spec).
 ##
-## Clicking the hero's OWN cell is a no-op that re-selects the hero, never a
-## deselect: a deselected hero ignores every click and every D-pad step (both
-## refuse to move while `is_selected` is false), so a stray tap on the hero would
-## silently freeze the player — most visibly in free roam, where walking freely is
-## the whole point.
+## Clicking the hero's OWN cell is the manual stop: it cancels the walk and re-selects
+## the hero. It is never a deselect — a deselected hero ignores every click and every
+## D-pad step (both refuse to move while `is_selected` is false), so a stray tap on the
+## hero would silently freeze the player — most visibly in free roam, where walking
+## freely is the whole point.
 ##
 ## With no movement points left the click cannot be a walk, so it ends the turn
 ## instead — see _move_settles_the_turn().
 func _click_move_to(cell: Vector2i) -> void:
 	if cell == player.get_grid_position():
+		navigation.cancel_navigation()
 		player.set_selected(true)
 		return
 	# A live enemy-attack movement lock is not a range problem, so it gets its own
@@ -311,11 +326,62 @@ func _click_move_to(cell: Vector2i) -> void:
 		queue_redraw()
 		turn_manager.complete_player_turn()
 		return
-	if not player.can_move_to(cell):
+	if player.can_move_to(cell):
+		# A walk the hero can finish right now replaces any destination it was walking
+		# toward: there is only ever ONE destination (§20).
+		navigation.cancel_navigation()
+		player.try_move_to(cell)
+		return
+	# Beyond the movement range, or not a cell the walk can start from at all.
+	if player.is_free_moving() or not _is_navigable_cell(cell):
 		_last_move_text = "CANNOT MOVE THERE — beyond the movement range"
 		queue_redraw()
 		return
-	player.try_move_to(cell)
+	if turn_manager.get_phase() != TurnState.PLAYER_TURN or not player.is_input_enabled():
+		_last_move_text = "CANNOT NAVIGATE YET — not the player's turn"
+		queue_redraw()
+		return
+	# A destination is armed on the hero's own turn only: from there the walk follows
+	# the same turn lifecycle as a manual move. A failure (no route, no movement) is
+	# reported by _on_navigation_finished, so it is not overwritten here.
+	navigation.set_navigation_target(cell)
+
+
+## A cell automatic navigation may be aimed at: walkable, not occupied, and not the
+## cell the hero already stands on (that one is the manual stop).
+func _is_navigable_cell(cell: Vector2i) -> bool:
+	if cell == player.get_grid_position():
+		return false
+	return grid.is_walkable(cell) and not grid.is_occupied(cell)
+
+
+## §13: the walk to a clicked destination began. AUTO and FARMING are deliberately NOT
+## consulted or toggled — navigation is its own system — but AUTO holds its own movement
+## decision while the walk owns the turn, and the HUD shows the indicator.
+func _on_navigation_started(target_cell: Vector2i) -> void:
+	auto_combat.set_navigation_hold(true)
+	hud.set_navigating(true)
+	_last_move_text = "AUTO NAVIGATING — CELL %d, %d" % [target_cell.x + 1, target_cell.y + 1]
+	queue_redraw()
+
+
+func _on_navigation_finished(reason: StringName) -> void:
+	auto_combat.set_navigation_hold(false)
+	hud.set_navigating(false)
+	match reason:
+		NavigationController.REASON_ARRIVED:
+			_last_move_text = "NAVIGATION COMPLETE — DESTINATION REACHED"
+		NavigationController.REASON_NO_ROUTE:
+			_last_move_text = "NAVIGATION CANCELLED — no route to the destination"
+		NavigationController.REASON_NO_MOVEMENT:
+			_last_move_text = "NAVIGATION CANCELLED — no movement to walk with"
+		NavigationController.REASON_STAGE_CHANGED:
+			_last_move_text = "NAVIGATION CANCELLED — the arena changed"
+		NavigationController.REASON_DEFEAT:
+			_last_move_text = "NAVIGATION CANCELLED — the hero fell"
+		_:
+			_last_move_text = "NAVIGATION CANCELLED"
+	queue_redraw()
 
 
 ## True when the hero has no movement points left and the turn's action is therefore
@@ -331,6 +397,10 @@ func _click_move_to(cell: Vector2i) -> void:
 ## AUTO is exempt too: it walks the hero and attacks in the SAME turn, so settling the
 ## turn on the last step of its walk would cancel the attack it walked there for.
 ## AUTO settles its own turn.
+##
+## A NAVIGATING hero is in the same position for the same reason: it walks with AUTO held
+## back (AutoCombatController.set_navigation_hold), so this settle is also skipped and
+## NavigationController ends the turn itself once the movement is really spent.
 func _move_settles_the_turn() -> bool:
 	if player == null or turn_manager == null:
 		return false
@@ -924,6 +994,8 @@ func _on_stage_started(stage_state: StageState, enemies: Array[Node]) -> void:
 	# PlayerProgress, the stage bar and the world map's HERE marker on one number.
 	if _flow != null:
 		_flow.on_stage_started(stage_state.stage_number)
+	# §19: a new arena invalidates both the destination and the route to it.
+	navigation.cancel_navigation(NavigationController.REASON_STAGE_CHANGED)
 	player.set_free_movement(false)
 	# Every stage generation (defeat retreat included) frees the enemies whose swing
 	# was still animating, so their strike lock is dropped here before the new turn
@@ -974,6 +1046,9 @@ func _on_enemy_spawned(enemy: Node) -> void:
 	turn_manager.add_enemy(enemy_controller)
 	sub_hero_combat_manager.add_enemy(enemy_controller)
 	_last_move_text = "%s summoned" % enemy_controller.get_display_name()
+	# A summoned enemy can stand on the route the hero is walking, so the walk is
+	# recalculated on the next beat like it is for any other dynamic obstacle.
+	navigation.notify_environment_changed()
 	hud.log_event("log.enemy_summoned", {"name": enemy_controller.get_display_name()})
 	queue_redraw()
 
@@ -1070,6 +1145,9 @@ func _on_player_moved(from_cell: Vector2i, to_cell: Vector2i, points_remaining: 
 
 func _on_enemy_moved(from_cell: Vector2i, to_cell: Vector2i) -> void:
 	_last_move_text = "Enemy moved %s → %s" % [from_cell, to_cell]
+	# §15: enemies are dynamic obstacles, so a move can open or close the route the hero
+	# is walking. The walk is recalculated on the next beat.
+	navigation.notify_environment_changed()
 	queue_redraw()
 
 
@@ -1247,6 +1325,10 @@ func _on_actor_died(actor: Node) -> void:
 				"amount": experience_system.calculate_enemy_experience(enemy),
 			})
 		_select_next_target()
+	# §15: an enemy died, so whatever route navigation had is stale. The walk is
+	# recalculated on the next beat — and with the blocker gone it continues toward the
+	# ORIGINAL destination, never toward the enemy.
+	navigation.notify_environment_changed()
 	queue_redraw()
 
 
@@ -1273,7 +1355,12 @@ func _select_next_target() -> void:
 			return
 
 
-func _on_turn_state_changed(_state: TurnState) -> void:
+func _on_turn_state_changed(state: TurnState) -> void:
+	# A walk to a clicked destination only exists inside a live battle: once the stage
+	# is won or lost there is nothing left to walk to (free roam / the defeat retreat
+	# own the arena), so navigation is stopped here rather than left armed forever.
+	if state.phase == TurnState.VICTORY or state.phase == TurnState.DEFEAT:
+		navigation.cancel_navigation()
 	queue_redraw()
 
 

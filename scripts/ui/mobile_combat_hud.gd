@@ -526,6 +526,18 @@ func set_farming_mode(enabled: bool) -> void:
 		_combat_actions.set_farming_mode(enabled)
 
 
+## §13: the persistent "AUTO NAVIGATING" indicator. The HUD only forwards it — the
+## navigation system owns the state, and AUTO / FARMING are never touched by it.
+func set_navigating(navigating: bool) -> void:
+	if _combat_actions != null:
+		_combat_actions.set_navigating(navigating)
+
+
+## True while the indicator is on screen.
+func is_navigating() -> bool:
+	return _combat_actions != null and _combat_actions.is_navigating()
+
+
 func set_game_speed(speed: int) -> void:
 	if _speed_x1_button == null:
 		return

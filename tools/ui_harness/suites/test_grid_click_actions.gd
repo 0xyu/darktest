@@ -313,32 +313,58 @@ func test_click_on_a_reachable_cell_walks_the_hero_there() -> void:
 	)
 
 
-func test_click_outside_the_movement_range_does_not_move() -> void:
+## A click BEYOND the movement range is no longer a refusal: it arms a persistent
+## navigation destination (see test_grid_navigation for the multi-turn walk itself).
+## The hero still spends exactly one movement point per cell walked this turn, and the
+## destination is kept for its own following turns.
+func test_click_outside_the_movement_range_arms_a_destination() -> void:
 	await _mount_game()
 	var player := _player()
 	var grid := _grid()
+	var navigation: Node = _grid_test.find_child("NavigationController", true, false)
+	expect(navigation != null, "the scene has a navigation controller")
+	if navigation == null:
+		return
 	var start: Vector2i = _cell_of(player)
 	var points: int = int(player.get("movement_points_remaining"))
 	var reachable: Array = grid.call("get_reachable_cells", start, points)
 	var grid_size: Vector2i = grid.get("grid_size")
 
+	# A cell that IS reachable in the end, but not with this turn's movement points: the
+	# walk has a route, it simply cannot finish it yet.
 	var far_cell: Vector2i = Vector2i(-1, -1)
+	var far_steps: int = 0
 	for y in range(grid_size.y):
 		for x in range(grid_size.x):
 			var cell := Vector2i(x, y)
 			if reachable.has(cell) or not _free_cell(cell):
 				continue
-			far_cell = cell
+			var path: Array = grid.call("find_path", start, cell)
+			if path.size() < 2:
+				continue
+			if path.size() - 1 > far_steps:
+				far_steps = path.size() - 1
+				far_cell = cell
 	expect(far_cell != Vector2i(-1, -1), "a walkable cell beyond the movement range exists")
+	if far_cell == Vector2i(-1, -1):
+		return
 
 	_click_cell(far_cell)
-	await flush_frames(2)
 
-	expect_eq(_cell_of(player), start, "a click beyond the movement range leaves the hero in place")
+	# Asserted before the deferred continuation can walk again: the click armed the
+	# destination and walked the first cells of the route. Running out of movement ends
+	# the turn the normal way, so the enemy phase and the next player turn may already
+	# have happened inside the click — the walk must simply still be aimed at the cell.
+	expect(bool(navigation.call("is_navigating")), "a click beyond the range starts automatic navigation")
 	expect_eq(
-		int(player.get("movement_points_remaining")),
-		points,
-		"an out-of-range click spends no movement points"
+		navigation.call("get_navigation_target"),
+		far_cell,
+		"the clicked cell becomes the navigation target"
+	)
+	expect_ne(_cell_of(player), start, "the hero walks toward the clicked cell at once")
+	expect(
+		_distance(_cell_of(player), far_cell) < _distance(start, far_cell),
+		"the walk closes the distance to the clicked cell"
 	)
 
 

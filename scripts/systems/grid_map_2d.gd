@@ -112,14 +112,24 @@ func get_reachable_cells(start: Vector2i, max_steps: int, include_start: bool = 
 	return reachable
 
 
-func find_path(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
+## Shortest orthogonal path from `start` to `goal`, both included, or an empty array
+## when no route exists. A cell an actor stands on is never walked into, and `goal`
+## itself must be free — this is the ONE route rule the grid highlights, click-to-move
+## and every autonomous walker share.
+##
+## `ignored_occupied` names occupied cells to treat as FREE for this QUERY ONLY. It is
+## a probe, not a walk: a caller asks "would a route exist if whoever stands here were
+## not in the way?" (the navigation controller uses it to prove that an actor, and not
+## the terrain, is what blocks a destination). A path built with an ignored cell may
+## therefore pass THROUGH that cell, so it must never be stepped along cell by cell.
+func find_path(start: Vector2i, goal: Vector2i, ignored_occupied: Array[Vector2i] = []) -> Array[Vector2i]:
 	var path: Array[Vector2i] = []
 	if not is_walkable(start) or not is_walkable(goal):
 		return path
 	if start == goal:
 		path.append(start)
 		return path
-	if is_occupied(goal):
+	if is_occupied(goal) and not ignored_occupied.has(goal):
 		return path
 
 	var came_from: Dictionary = {start: start}
@@ -131,7 +141,7 @@ func find_path(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
 		for neighbor in get_neighbors(current):
 			if came_from.has(neighbor):
 				continue
-			if is_occupied(neighbor) and neighbor != goal:
+			if is_occupied(neighbor) and neighbor != goal and not ignored_occupied.has(neighbor):
 				continue
 			came_from[neighbor] = current
 			frontier.append(neighbor)

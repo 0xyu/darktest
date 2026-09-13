@@ -30,6 +30,9 @@ const DISABLED_COLOR := Color(0.459, 0.435, 0.514, 1.0)
 const ACTIVE_COLOR := Color(0.537, 0.78, 0.592, 1.0)
 const MAGIC_READY_TEXT := "READY"
 const MAGIC_COOLDOWN_TEXT := "CD"
+## §13: the indicator shown while the hero walks to a destination the player clicked.
+## AUTO and FARMING keep their own labels — navigation is a separate system.
+const NAVIGATION_TEXT := "AUTO NAVIGATING"
 
 @onready var _attack_button: Button = %AttackButton
 @onready var _whirlwind_button: Button = %WhirlwindButton
@@ -46,6 +49,10 @@ var _skill_buttons: Dictionary = {}
 ## §16: the tome's buttons are BUILT from the state the host reports, so a new spell
 ## needs no scene edit and the row can never disagree with the catalog.
 var _magic_buttons: Dictionary = {}
+## The navigation indicator is BUILT here rather than authored in the scene: the AUTO /
+## FARMING cluster is its owner, so it can never drift away from the state it reports,
+## and a scene with no navigation shows nothing at all (hidden and inert).
+var _navigation_label: Label = null
 
 
 func _ready() -> void:
@@ -62,6 +69,7 @@ func _ready() -> void:
 	_next_stage_button.pressed.connect(func() -> void: next_stage_requested.emit())
 	_auto_button.pressed.connect(func() -> void: auto_toggle_requested.emit())
 	_farming_button.pressed.connect(func() -> void: farming_toggle_requested.emit())
+	_build_navigation_label()
 
 
 func set_attack_usable(usable: bool) -> void:
@@ -151,6 +159,35 @@ func set_farming_mode(enabled: bool) -> void:
 	_farming_button.text = "FARMING: ON" if enabled else "FARMING: OFF"
 	_farming_button.icon = AUTO_ON_ICON if enabled else AUTO_OFF_ICON
 	_farming_button.modulate = ACTIVE_COLOR if enabled else ENABLED_COLOR
+
+
+## §13: shown while the hero is walking to a destination the player clicked, hidden the
+## moment the walk ends. It reports NAVIGATION only — AUTO and FARMING are never changed
+## by it.
+func set_navigating(navigating: bool) -> void:
+	if _navigation_label == null:
+		return
+	_navigation_label.visible = navigating
+
+
+## True while the indicator is on screen (the state the HUD reads and tests assert on).
+func is_navigating() -> bool:
+	return _navigation_label != null and _navigation_label.visible
+
+
+func _build_navigation_label() -> void:
+	var cluster: Node = _auto_button.get_parent() if _auto_button != null else null
+	if cluster == null:
+		return
+	_navigation_label = Label.new()
+	_navigation_label.name = "NavigationLabel"
+	_navigation_label.text = NAVIGATION_TEXT
+	_navigation_label.visible = false
+	_navigation_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_navigation_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_navigation_label.add_theme_font_size_override("font_size", 10)
+	_navigation_label.add_theme_color_override("font_color", ACTIVE_COLOR)
+	cluster.add_child(_navigation_label)
 
 
 ## Disables every action that depends on a valid player-stat snapshot.

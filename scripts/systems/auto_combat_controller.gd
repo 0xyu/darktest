@@ -59,6 +59,9 @@ var _exit_roam_remaining_seconds: float = 0.0
 ## stage, so the wave is never rebuilt while the last enemy's final blow — its
 ## damage number and death animation — is still on screen.
 var _presentation_waiter: Object = null
+## See set_navigation_hold: the hero is walking to a player-clicked destination, so
+## AUTO keeps its state but leaves the movement of the turn to that walk.
+var _navigation_hold: bool = false
 
 
 func _ready() -> void:
@@ -189,6 +192,24 @@ func get_game_speed_label() -> String:
 ## so AUTO stays fully runnable — and immediate — without presentation.
 func set_presentation_waiter(waiter: Object) -> void:
 	_presentation_waiter = waiter
+
+
+## Navigation hold: the hero is walking to a destination the PLAYER clicked, so AUTO
+## holds its own movement decision until that walk is finished and then resumes on
+## whatever state it finds. AUTO itself is never toggled — its own state (and FARMING's)
+## survives the navigation untouched — so this is a hold, not a mode change.
+func set_navigation_hold(hold: bool) -> void:
+	if _navigation_hold == hold:
+		return
+	_navigation_hold = hold
+	if _navigation_hold:
+		_decision_scheduled = false
+		return
+	_schedule_for_current_state()
+
+
+func is_navigation_held() -> bool:
+	return _navigation_hold
 
 
 func _resolve_dependencies() -> void:
@@ -441,6 +462,8 @@ func _on_player_defeated() -> void:
 func _schedule_decision() -> void:
 	if not _auto_enabled or _decision_scheduled or _turn_manager == null:
 		return
+	if _navigation_hold:
+		return
 	if _turn_manager.get_phase() != TurnState.PLAYER_TURN:
 		return
 	_decision_scheduled = true
@@ -451,6 +474,9 @@ func _schedule_decision() -> void:
 func _run_auto_turn(token: int) -> void:
 	_decision_scheduled = false
 	if token != _run_token or not _auto_enabled:
+		return
+	# A decision armed before the hold must not slip through once the walk owns the turn.
+	if _navigation_hold:
 		return
 	if _turn_manager == null or _turn_manager.get_phase() != TurnState.PLAYER_TURN:
 		return

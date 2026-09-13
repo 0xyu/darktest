@@ -56,14 +56,28 @@ Player turn = move 0..MovementPoints cells + exactly one Action
 | Passing | `END TURN` ends the turn without acting |
 | Spending the last movement point | Auto-strikes an enemy in attack range — the selected target, else the closest one — then the turn ends; with nothing in reach the turn just ends. Never in AUTO or free roam |
 | Move click with 0 points left | Ends the turn, same as `END TURN` (free roam is exempt) |
+| Move click beyond the range | Arms **automatic navigation**: the hero walks the cells this turn can pay for and keeps walking on its own following turns until it arrives. One destination at a time; a tap on the hero's own cell cancels it |
 | After a stage clear | Free movement: unlimited cells, no point cost, until the player advances |
 
 ## 3. Movement
 
 - Blocked cells: enemies, occupied cells, non-walkable cells.
 - **Destination movement:** the player selects a reachable cell; the hero walks the
-  shortest valid path, one movement point per cell. A cell outside the current movement
-  range is not a legal destination.
+  shortest valid path, one movement point per cell.
+- **Automatic navigation:** a cell beyond the current movement range is a valid
+  destination — it becomes the persistent navigation target. The hero walks the cells the
+  turn can pay for, the turn ends normally, and the walk resumes by itself on every
+  following Player Turn until the hero arrives. The route is recalculated whenever the
+  board can have changed (a step, an enemy move, an enemy death, a new turn, a new
+  destination); the shortest route is used, so an avoidable enemy is walked around.
+- **Blocking enemies:** when no route exists and the actors — not the terrain — are the
+  reason, the blocking enemy is dealt with first: the hero walks into its attack range
+  and strikes it through the normal attack flow (same damage, crits, EXP, loot, turn),
+  then resumes the original destination. An enemy that cannot be approached stops the
+  walk instead of attacking something unrelated.
+- **One target:** a new click replaces the destination; a tap on the hero's own cell
+  cancels the walk. Navigation never disables AUTO or Farming (`Auto`/`Farming` keep
+  their state; AUTO only holds its own movement decision while a destination is walked).
 - **Direct movement:** the directional pad steps one cell at a time.
 - Movement points are modified by the `movement` affix (tunable per item).
 
