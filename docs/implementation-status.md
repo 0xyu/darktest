@@ -25,7 +25,7 @@ do*. Every entry in §3 is a work item, not a design decision.
 | Level generation / scaling / encounters | `scripts/systems/level_provider.gd`, `level_manager.gd`, `enemy_scaling.gd` |
 | Stage/area data model | `scripts/data/stage_database.gd`, `stage_data.gd`, `stage_type.gd`, `stage_content.gd` |
 | Routing (combat / town) | `scripts/systems/stage_router.gd`, `stage_flow.gd` |
-| Player progress + save (map progress, items, Sub Heroes) | `scripts/progress/player_progress.gd`, `stage_progress_save.gd` |
+| Player progress + save (map progress, items, Sub Heroes, character numbers) | `scripts/progress/player_progress.gd`, `stage_progress_save.gd` |
 | Character progression (level/EXP/gold/skills) | `scripts/player/player_progression.gd`, `scripts/systems/experience_system.gd`, `gold_system.gd` |
 | Player stats & controller | `scripts/player/player_stats.gd`, `player_controller.gd` |
 | Equipment, affixes, comparison, inventory, storage | `scripts/items/` |
@@ -109,7 +109,6 @@ Closed items are removed from these tables and their number retired, so ids stay
 | # | Spec | Current implementation | Impact |
 |---|---|---|---|
 | 1 | §9/§10 enemy level drives stats and EXP | Enemy level drives the EXP reward factor only; stat scaling uses the stage number and ignores level | The displayed enemy level is misleading at high stages |
-| 3 | §17 full persistence | Save holds map progress, the player's **owned items** (equipped, bag and warehouse, with rolled affixes and the equipped flags) and **Sub Heroes** (owned instances, levels, duplicates, active slots) in `user://save/stage_progress.json`, format version 2 | Character numbers are still reset on restart: **level, EXP, gold, skill points and skill levels** continue to violate GDD §13.3. Items and Sub Heroes now survive |
 
 ### 3.2 Combat & Items
 

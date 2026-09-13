@@ -378,3 +378,54 @@ func test_items_and_sub_heroes_survive_a_restart() -> void:
 		1,
 		"the restored Sub Hero fights in the resumed session"
 	)
+
+
+## The character's own numbers are part of the same save: quit the game and come
+## back, and the level, the EXP inside it, the purse, the skill points and the
+## learned skills are what they were. The save ADOPTS the hero's own progression
+## object, so the identity check below is also what keeps the skill panel's binding
+## (made while the scene was still coming up) pointed at the live object.
+func test_character_progression_survives_a_restart() -> void:
+	await _mount_game()
+	var save: StageProgressSave = _grid_test.call("get_stage_save") as StageProgressSave
+	expect(save != null, "the scene owns a progress save")
+	var player: Node = _player()
+	var progression: PlayerProgression = player.get("player_progression") as PlayerProgression
+	expect(progression != null, "the hero has a progression object")
+	expect(save.player_progression == progression, "the save adopts the hero's own progression, never a second copy")
+
+	# The ordinary progression paths: an EXP award that levels the hero, the skill
+	# point it grants, a skill learned with it, and an awarded coin.
+	expect(progression.add_experience(150) == 1, "the awarded EXP levels the hero once")
+	expect(bool(player.call("upgrade_skill", SkillCatalog.WHIRLWIND)), "the level-up's skill point learns a skill")
+	expect(progression.add_gold(275) == 275, "the purse takes the awarded gold")
+	await flush_frames(2)
+
+	# Autosave: all of it persisted on its own — no gameplay path and no panel asked
+	# for a save.
+	var payload: Dictionary = _saved_payload()
+	expect_eq(int(payload.get("level", -1)), 2, "the level is on disk")
+	expect_eq(int(payload.get("experience", -1)), 50, "the EXP left inside the level is on disk")
+	expect_eq(int(payload.get("gold", -1)), 275, "the purse is on disk")
+	expect_eq(int(payload.get("skill_points", -1)), 0, "the spent skill point is on disk")
+	expect_eq(
+		int((payload.get("skill_levels", {}) as Dictionary).get("whirlwind", 0)),
+		1,
+		"the learned skill is on disk"
+	)
+	expect_eq(int(payload.get("version", -1)), StageProgressSaveScript.FORMAT_VERSION, "the file carries the format version that added them")
+	await _unmount_game()
+
+	# A second session: nothing is carried over in memory, only the save file.
+	await _mount_game()
+	var restored: PlayerProgression = _player().get("player_progression") as PlayerProgression
+	expect_eq(restored.level, 2, "the restored session keeps the level")
+	expect_eq(restored.experience, 50, "the restored session keeps the EXP inside the level")
+	expect_eq(restored.gold, 275, "the restored session keeps the purse")
+	expect_eq(restored.get_skill_points(), 0, "the restored session keeps the point as spent")
+	expect_eq(restored.get_skill_level(SkillCatalog.WHIRLWIND), 1, "the restored session keeps the learned skill")
+	expect_eq(
+		restored.get_skill_level(SkillCatalog.ARCANE_BOLT),
+		0,
+		"a skill that was never learned is not restored as learned"
+	)

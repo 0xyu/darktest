@@ -34,12 +34,26 @@ extends RefCounted
 ##   storage                 the warehouse items, same item payloads
 ##   sub_heroes              the Sub Hero progression payload (owned instances and
 ##                           active slot ids — see SubHeroProgressionService)
+##   level                   the character's own level
+##   experience              the progress inside that level
+##   gold                    the purse
+##   skill_points            the points level-ups granted and nothing has spent yet
+##   skill_levels            the learned skills, as a map of skill id -> level
 ##
 ## The player's items and Sub Heroes live in state objects this save OWNS
 ## (EquipmentInventory, StorageInventory, SubHeroProgressionService) and the host
 ## injects into the hero, exactly like PlayerProgress is injected into the flow.
 ## The hero and the save therefore share one collection each, so there is no path
 ## that changes the player's gear without the save being able to see it.
+##
+## The character's own numbers are the same arrangement, reached from the other
+## side: the hero builds its PlayerProgression when it is constructed and the HUD's
+## panels bind to THAT resource while the scene is still coming up, so this save
+## ADOPTS the hero's object (adopt_player_progression) instead of creating its own.
+## One object is shared by both, so an EXP award, a gold award, a purchase, a
+## level-up and a skill upgrade all write through the object this file is written
+## from. The hero's derived stats (attack, HP, defense) are deliberately NOT stored
+## — they are recomputed from the level and the equipped items, which are.
 ##
 ## Deliberately NOT stored:
 ##   * any area field — the area is DERIVED from the position
@@ -78,6 +92,11 @@ extends RefCounted
 ## slot changes. So the same rule holds for gear and Sub Heroes — the gameplay
 ## paths never call save() and can never forget to.
 ##
+## The character's numbers follow it too: PlayerProgression announces every EXP
+## award, gold award, skill point and skill level change, so killing an enemy,
+## finishing a stage, buying from a shop or learning a skill persists without the
+## combat, economy or UI code knowing a save exists.
+##
 ## Format
 ## ------
 ## JSON, written whole. The file is small (a few identifiers and the owned items),
@@ -87,6 +106,12 @@ extends RefCounted
 ## Version 2 added the player's items and Sub Heroes. A version 1 file (progress
 ## only, from a build that predates them) still loads: the missing keys mean the
 ## player owned nothing, which is exactly what a version 1 build could have saved.
+##
+## Version 3 added the character's own numbers (level / EXP / gold / skill points /
+## skill levels). A version 1 or 2 file still loads on the same argument: those
+## builds reset the character's growth on every launch, so "no recorded growth" —
+## a level 1 character with an empty purse and no learned skills — is exactly what
+## they could have saved.
 
 const PlayerProgressScript := preload("res://scripts/progress/player_progress.gd")
 const AuthoredContentStateScript := preload("res://scripts/progress/authored_content_state.gd")
@@ -94,9 +119,10 @@ const EquipmentInventoryScript := preload("res://scripts/items/equipment_invento
 const StorageInventoryScript := preload("res://scripts/items/storage_inventory.gd")
 const EquipmentInstanceScript := preload("res://scripts/items/equipment_instance.gd")
 const SubHeroProgressionServiceScript := preload("res://scripts/sub_hero/sub_hero_progression_service.gd")
+const PlayerProgressionScript := preload("res://scripts/player/player_progression.gd")
 
 ## Bumped only when the stored shape changes in a way that needs migration.
-const FORMAT_VERSION := 2
+const FORMAT_VERSION := 3
 const SAVE_DIR := "user://save/"
 const SAVE_FILE_NAME := "stage_progress.json"
 const DEFAULT_SAVE_PATH := SAVE_DIR + SAVE_FILE_NAME
@@ -104,6 +130,11 @@ const DEFAULT_SAVE_PATH := SAVE_DIR + SAVE_FILE_NAME
 ## range. A saved number outside it is damage, not progress.
 const MIN_STAGE_NUMBER := 1
 const MAX_STAGE_NUMBER := 999999
+## The declared domain of the character's level and skill points, matching
+## PlayerProgression's own export ranges. A saved value outside it is damage, not
+## growth.
+const MIN_CHARACTER_LEVEL := 1
+const MAX_CHARACTER_LEVEL := 999999
 
 ## Raised after the file was written, so a caller (or a test) can observe a save
 ## without reaching into the filesystem.
@@ -130,6 +161,9 @@ var storage: StorageInventory
 ## The player's Sub Heroes: owned instances, their levels, duplicates and active
 ## slot assignment.
 var sub_heroes: SubHeroProgressionService
+## The CHARACTER's own numbers: level, experience, gold, skill points and the
+## learned skill levels. Shared with the hero — see adopt_player_progression.
+var player_progression: PlayerProgression
 ## Where this save is read from / written to.
 var path: String = ""
 
@@ -154,7 +188,23 @@ func _init(
 	inventory = source_inventory if source_inventory != null else EquipmentInventoryScript.new()
 	storage = source_storage if source_storage != null else StorageInventoryScript.new()
 	sub_heroes = source_sub_heroes if source_sub_heroes != null else SubHeroProgressionServiceScript.new()
+	player_progression = PlayerProgressionScript.new()
 	path = save_path if not save_path.is_empty() else default_path()
+
+
+## Adopts the hero's OWN PlayerProgression instead of carrying the one this save
+## created. The hero builds its progression when it is constructed, and the HUD's
+## panels bind to that resource while the scene is still coming up (a child is ready
+## before its host), so swapping in a second object would leave the skill panel
+## listening to an orphan: the player's live skill points would stop reaching the UI.
+## One object is shared instead, which also means load() restores the saved numbers
+## into the resource the rest of the game already reads.
+##
+## Called BEFORE load(); passing null is ignored (the created object stays).
+func adopt_player_progression(progression: PlayerProgression) -> void:
+	if progression == null:
+		return
+	player_progression = progression
 
 
 ## Where the game persists progress: the shipped default, or the scratch path a
@@ -198,6 +248,19 @@ func bind(flow: StageFlow) -> void:
 		sub_heroes.collection_changed.connect(_on_player_state_changed)
 	if not sub_heroes.active_slots_changed.is_connected(_on_player_state_changed):
 		sub_heroes.active_slots_changed.connect(_on_player_state_changed)
+	# The character's numbers announce themselves too: an EXP award and the
+	# level-up it may carry, a gold award, a purchase or sale, and a skill upgrade.
+	# `level_up` needs no subscription of its own — every level-up is announced by
+	# the skill-points signal it grants a point through and by the experience signal
+	# that consumed the EXP, which are the two stored fields it changes.
+	if not player_progression.experience_changed.is_connected(_on_experience_changed):
+		player_progression.experience_changed.connect(_on_experience_changed)
+	if not player_progression.gold_changed.is_connected(_on_gold_changed):
+		player_progression.gold_changed.connect(_on_gold_changed)
+	if not player_progression.skill_points_changed.is_connected(_on_skill_points_changed):
+		player_progression.skill_points_changed.connect(_on_skill_points_changed)
+	if not player_progression.skill_level_changed.is_connected(_on_skill_level_changed):
+		player_progression.skill_level_changed.connect(_on_skill_level_changed)
 
 
 ## Drops the autosave subscriptions (a host tearing down, or a rebind).
@@ -217,6 +280,15 @@ func unbind() -> void:
 			sub_heroes.collection_changed.disconnect(_on_player_state_changed)
 		if sub_heroes.active_slots_changed.is_connected(_on_player_state_changed):
 			sub_heroes.active_slots_changed.disconnect(_on_player_state_changed)
+	if player_progression != null:
+		if player_progression.experience_changed.is_connected(_on_experience_changed):
+			player_progression.experience_changed.disconnect(_on_experience_changed)
+		if player_progression.gold_changed.is_connected(_on_gold_changed):
+			player_progression.gold_changed.disconnect(_on_gold_changed)
+		if player_progression.skill_points_changed.is_connected(_on_skill_points_changed):
+			player_progression.skill_points_changed.disconnect(_on_skill_points_changed)
+		if player_progression.skill_level_changed.is_connected(_on_skill_level_changed):
+			player_progression.skill_level_changed.disconnect(_on_skill_level_changed)
 
 
 ## The exact payload written to disk, as a plain Dictionary.
@@ -230,6 +302,11 @@ func to_save_data() -> Dictionary:
 		"inventory": _items_to_save_data(inventory.items),
 		"storage": _items_to_save_data(storage.items),
 		"sub_heroes": sub_heroes.to_save_data(),
+		"level": clampi(player_progression.level, MIN_CHARACTER_LEVEL, MAX_CHARACTER_LEVEL),
+		"experience": maxi(player_progression.experience, 0),
+		"gold": maxi(player_progression.gold, 0),
+		"skill_points": clampi(player_progression.skill_points, 0, MAX_CHARACTER_LEVEL),
+		"skill_levels": _skill_levels_to_save_data(player_progression.skill_levels),
 	}
 
 
@@ -250,9 +327,15 @@ func to_save_data() -> Dictionary:
 ##     sharing one id would alias in every lookup the game does
 ##   * a Sub Hero entry with an unknown hero id, or a duplicate of one already
 ##     restored, is dropped by SubHeroProgressionService.load_save_data
+##   * the character's numbers are clamped into their own declared domains: a level
+##     below 1 is raised to 1, EXP at or past the level's requirement is capped,
+##     gold and skill points are never negative, a skill level past
+##     SkillDefinition.MAX_LEVEL is clamped to it, and a skill entry with no id or a
+##     level of 0 (unlearned) is dropped
 ## Ids that no authored area resolves any more are KEPT: after a re-authored
 ## stage range they are stale, not corrupt, and silently discarding a player's
-## completions would be worse than carrying an id nothing asks about.
+## completions would be worse than carrying an id nothing asks about. A learned
+## skill id this build cannot name is kept for the same reason.
 func load_save_data(data: Dictionary) -> bool:
 	if data.is_empty():
 		return _reject("save data is empty")
@@ -275,6 +358,21 @@ func load_save_data(data: Dictionary) -> bool:
 	content_state.consumed.clear()
 	for key in _string_list(data.get("consumed_content", [])):
 		content_state.consumed[key] = true
+	# The character's own numbers. The level is restored FIRST: the EXP domain
+	# depends on it (see below).
+	player_progression.level = clampi(
+		_to_int(data.get("level"), MIN_CHARACTER_LEVEL), MIN_CHARACTER_LEVEL, MAX_CHARACTER_LEVEL
+	)
+	# EXP lives INSIDE one level: add_experience() always leaves it below the
+	# threshold, so an amount at or past the requirement is damage. The level field
+	# is the authoritative one, so the excess is capped rather than converted into
+	# levels (and skill points) the player never earned.
+	player_progression.experience = clampi(
+		_to_int(data.get("experience"), 0), 0, player_progression.experience_to_next_level() - 1
+	)
+	player_progression.gold = maxi(_to_int(data.get("gold"), 0), 0)
+	player_progression.skill_points = clampi(_to_int(data.get("skill_points"), 0), 0, MAX_CHARACTER_LEVEL)
+	player_progression.skill_levels = _skill_levels_from_save_data(data.get("skill_levels", {}))
 	inventory.restore_items(_items_from_save_data(data.get("inventory", [])))
 	storage.restore_items(_items_from_save_data(data.get("storage", [])))
 	sub_heroes.load_save_data(_dictionary_field(data.get("sub_heroes", {})))
@@ -359,6 +457,27 @@ func _on_player_state_changed() -> void:
 	save()
 
 
+## The character's growth changed (EXP, gold, skill points or a skill level). Each
+## signal carries its own numbers and every one of them means the same thing here —
+## write the whole payload again. The payload is written whole, so an event that
+## announces two of them (a level-up grants a point AND re-bases the EXP bar) writes
+## the same file twice in one beat instead of needing a transaction.
+func _on_experience_changed(_current_experience: int, _required_experience: int) -> void:
+	save()
+
+
+func _on_gold_changed(_current_gold: int, _amount: int) -> void:
+	save()
+
+
+func _on_skill_points_changed(_current_skill_points: int) -> void:
+	save()
+
+
+func _on_skill_level_changed(_skill_id: StringName, _new_level: int) -> void:
+	save()
+
+
 ## The item list as plain payloads, in the order the player owns them (that order
 ## is also what decides which item is "first" when a damaged save is repaired).
 func _items_to_save_data(source: Array[EquipmentInstance]) -> Array[Dictionary]:
@@ -392,6 +511,54 @@ func _items_from_save_data(value: Variant) -> Array[EquipmentInstance]:
 ## nothing instead of aborting the load).
 func _dictionary_field(value: Variant) -> Dictionary:
 	return value as Dictionary if value is Dictionary else {}
+
+
+## The learned skills as a plain id -> level payload, sorted by id so the written
+## file is stable (and its diffs readable). An entry with no usable id, or a level
+## outside 1..SkillDefinition.MAX_LEVEL, is dropped: level 0 is "unlearned", which
+## is the absence of the entry rather than a value, and a level past the cap is
+## damage rather than growth.
+func _skill_levels_to_save_data(source: Dictionary) -> Dictionary:
+	var validated: Dictionary = {}
+	for key in source:
+		if not (key is String or key is StringName):
+			continue
+		var skill_id := String(key)
+		var skill_level: int = clampi(_to_int(source[key], 0), 0, SkillDefinition.MAX_LEVEL)
+		if skill_id.is_empty() or skill_level <= 0:
+			continue
+		validated[skill_id] = skill_level
+	var sorted_ids: Array = validated.keys()
+	sorted_ids.sort()
+	var result: Dictionary = {}
+	for skill_id in sorted_ids:
+		result[skill_id] = validated[skill_id]
+	return result
+
+
+## Rebuilds the learned skills from a payload, with the keys normalized to the
+## StringName the live object and every lookup use, and the levels clamped to the
+## definition's range.
+##
+## An id this build's catalog cannot name is KEPT, exactly like a stale stage id in
+## completed_stages: it costs nothing, it is never read without a catalog entry to
+## ask for it, and a build that learns the skill again would otherwise find the
+## player's investment silently deleted. (A Sub Hero id is different: ownership
+## drives spawning, so SubHeroProgressionService drops an id it cannot resolve.)
+func _skill_levels_from_save_data(value: Variant) -> Dictionary:
+	var result: Dictionary = {}
+	if not (value is Dictionary):
+		return result
+	var source: Dictionary = value as Dictionary
+	for key in source:
+		if not (key is String or key is StringName):
+			continue
+		var skill_id := String(key)
+		var skill_level: int = clampi(_to_int(source[key], 0), 0, SkillDefinition.MAX_LEVEL)
+		if skill_id.is_empty() or skill_level <= 0:
+			continue
+		result[StringName(skill_id)] = skill_level
+	return result
 
 
 ## A stage number is accepted anywhere inside the field's declared domain; only a

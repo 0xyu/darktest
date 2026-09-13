@@ -67,6 +67,13 @@ func _ready() -> void:
 	# Sub Heroes. Nothing here builds a second copy of the player's state, so there
 	# is no path that changes the player's gear without the save being able to see it.
 	_stage_save = StageProgressSaveScript.new()
+	# The character's own numbers are the one piece that travels the other way: the
+	# hero builds its progression when it is constructed and the HUD's panels bind to
+	# that resource while the scene is still coming up (a child is ready before this
+	# host), so the save ADOPTS the hero's object. One object is shared, so the
+	# restored level, EXP, gold, skill points and skill levels land in what the whole
+	# game already reads, and every later award writes through what the save stores.
+	_stage_save.adopt_player_progression(player.player_progression)
 	_stage_save.load()
 	player.set_equipment_inventory(_stage_save.inventory)
 	player.set_storage(_stage_save.storage)
@@ -150,8 +157,9 @@ func _ready() -> void:
 	_stage_content.configure(grid, player, stage_manager, _flow, gold_system, _stage_save.content_state)
 	_stage_content.content_resolved.connect(_on_stage_content_resolved)
 	# Autosave: the save subscribes to the one writer of progress, to consumed
-	# content, and to its own item / Sub Hero containers — so every path that changes
-	# any of them persists without a save call here.
+	# content, to its own item / Sub Hero containers and to the character's own
+	# numbers — so every path that changes any of them persists without a save call
+	# here.
 	_stage_save.bind(_flow)
 	hud.area_stage_enter_requested.connect(_on_hud_area_stage_enter_requested)
 	# Battlefield clicks: the HUD owns the GUI pipeline (the grid is drawn behind a

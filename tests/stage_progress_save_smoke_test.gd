@@ -15,6 +15,9 @@ extends SceneTree
 ##   * the player's OWNED ITEMS (equipped, bagged and stored) and SUB HEROES
 ##     round-tripping, their autosave triggers, and the repair rules a damaged
 ##     item / Sub Hero payload is held to
+##   * the CHARACTER's own numbers (level, EXP, gold, skill points, skill levels)
+##     round-tripping, their autosave triggers, the domains a damaged value is
+##     clamped into, and the version 1 / 2 file that has none of them
 ##
 ## The scratch file lives in the project's generated .godot/ folder, so a test run
 ## never reads or writes a player's real save in user:// and leaves nothing behind.
@@ -50,6 +53,9 @@ func _run() -> void:
 	_test_player_items_and_sub_heroes_round_trip()
 	_test_damaged_item_and_sub_hero_payloads_are_repaired()
 	_test_autosave_follows_player_items()
+	_test_character_progression_round_trips()
+	_test_damaged_character_numbers_are_repaired()
+	_test_autosave_follows_character_progression()
 	SaveScript.delete_save_at(SCRATCH_PATH)
 
 	if _failures.is_empty():
@@ -68,6 +74,11 @@ func _test_fresh_save_payload() -> void:
 	_expect(int(data.get("highest_stage_reached", -1)) == 1, "a new game's unlock ceiling starts at 1")
 	_expect((data.get("completed_stages") as Array).is_empty(), "a new game has no completions")
 	_expect((data.get("consumed_content") as Array).is_empty(), "a new game has no consumed content")
+	_expect(int(data.get("level", -1)) == 1, "a new game's character is level 1")
+	_expect(int(data.get("experience", -1)) == 0, "a new game's character has no EXP")
+	_expect(int(data.get("gold", -1)) == 0, "a new game's character has an empty purse")
+	_expect(int(data.get("skill_points", -1)) == 0, "a new game's character has no skill points")
+	_expect((data.get("skill_levels") as Dictionary).is_empty(), "a new game's character has learned no skill")
 	_expect(save.get_resume_stage_number() == 1, "a new game resumes on stage 1")
 
 
@@ -438,6 +449,153 @@ func _test_autosave_follows_player_items() -> void:
 	_expect(reloaded.load(), "the autosaved file loads")
 	_expect(reloaded.inventory.get_equipped_item(EquipmentSlot.WEAPON) != null, "the equipped state is on disk")
 	_expect(reloaded.sub_heroes.get_owned_instance(&"skeleton_archer") != null, "the owned Sub Hero is on disk")
+	SaveScript.delete_save_at(SCRATCH_PATH)
+
+
+## The character's own numbers belong in the SAME save as the map progress and the
+## belongings: quit and come back, and the level, the EXP inside it, the purse, the
+## unspent points and the learned skills are what they were. The skill map is the
+## part that exists nowhere else — a learned level cannot be recomputed.
+func _test_character_progression_round_trips() -> void:
+	var source = SaveScript.new()
+	source.player_progression.level = 12
+	source.player_progression.experience = 40
+	source.player_progression.gold = 3450
+	source.player_progression.skill_points = 3
+	source.player_progression.skill_levels = {
+		SkillCatalog.WHIRLWIND: 4,
+		SkillCatalog.ARCANE_BOLT: 1,
+	}
+
+	var parsed: Variant = JSON.parse_string(JSON.stringify(source.to_save_data(), "\t"))
+	_expect(parsed is Dictionary, "the payload with character growth survives JSON (the on-disk format)")
+	var restored = SaveScript.new()
+	_expect(restored.load_save_data(parsed as Dictionary), "the payload with character growth loads")
+	_expect(restored.player_progression.level == 12, "the level round-trips")
+	_expect(restored.player_progression.experience == 40, "the EXP inside the level round-trips")
+	_expect(restored.player_progression.gold == 3450, "the purse round-trips")
+	_expect(restored.player_progression.skill_points == 3, "the unspent skill points round-trip")
+	_expect(restored.player_progression.get_skill_level(SkillCatalog.WHIRLWIND) == 4, "a learned skill keeps its level")
+	_expect(restored.player_progression.get_skill_level(SkillCatalog.ARCANE_BOLT) == 1, "every learned skill is restored")
+	_expect(restored.player_progression.get_skill_level(SkillCatalog.EXECUTION_STRIKE) == 0, "a skill that was never learned stays unlearned")
+	_expect(
+		restored.player_progression.experience_to_next_level() == source.player_progression.experience_to_next_level(),
+		"the restored level carries the same EXP requirement"
+	)
+	_expect(restored.player_progression != source.player_progression, "a load restores into its own progression object")
+
+	var adopted = SaveScript.new()
+	var hero_progression = adopted.player_progression
+	adopted.adopt_player_progression(restored.player_progression)
+	_expect(adopted.player_progression == restored.player_progression, "a save can adopt the hero's own progression object")
+	adopted.adopt_player_progression(null)
+	_expect(adopted.player_progression == restored.player_progression, "adopting null leaves the current object alone")
+	_expect(hero_progression != adopted.player_progression, "the object a save created is the one the adopter replaces")
+
+
+## Damaged character numbers are clamped into their declared domains, never
+## trusted — and the level field stays authoritative over the EXP that claims it.
+func _test_damaged_character_numbers_are_repaired() -> void:
+	var repaired = SaveScript.new()
+	_expect(
+		repaired.load_save_data({
+			"version": SaveScript.FORMAT_VERSION,
+			"level": 0,
+			"experience": "not a number",
+			"gold": -500,
+			"skill_points": -3,
+			"skill_levels": {"whirlwind": 99, "not_a_skill": 2, "": 3, "arcane_bolt": 0, 7: 4},
+		}),
+		"a payload with damaged character numbers still loads"
+	)
+	_expect(repaired.player_progression.level == 1, "a level below 1 is raised to 1")
+	_expect(repaired.player_progression.experience == 0, "unusable EXP restores nothing")
+	_expect(repaired.player_progression.gold == 0, "negative gold is repaired to zero")
+	_expect(repaired.player_progression.skill_points == 0, "negative skill points are repaired to zero")
+	_expect(
+		repaired.player_progression.get_skill_level(SkillCatalog.WHIRLWIND) == SkillDefinition.MAX_LEVEL,
+		"a skill level past the definition's cap is clamped"
+	)
+	_expect(repaired.player_progression.get_skill_level(&"not_a_skill") == 2, "an id this build cannot name is kept (stale, not corrupt)")
+	_expect(not repaired.player_progression.skill_levels.has(&""), "an empty skill id is dropped")
+	_expect(not repaired.player_progression.skill_levels.has(SkillCatalog.ARCANE_BOLT), "a level-0 entry is not stored")
+	_expect(repaired.player_progression.skill_levels.size() == 2, "exactly the usable skill entries are restored")
+
+	# EXP lives inside one level: add_experience() always leaves it below the
+	# requirement, so an amount at or past it is damage. The level the file declares
+	# is kept and the excess is capped, rather than turned into free levels (and free
+	# skill points) the player never earned.
+	var overflowing = SaveScript.new()
+	_expect(
+		overflowing.load_save_data({"version": SaveScript.FORMAT_VERSION, "level": 1, "experience": 999999}),
+		"a payload with overflowing EXP loads"
+	)
+	_expect(overflowing.player_progression.level == 1, "the declared level is kept when the EXP claims more")
+	_expect(
+		overflowing.player_progression.experience < overflowing.player_progression.experience_to_next_level(),
+		"EXP past the level's requirement is capped instead of granting free levels"
+	)
+	_expect(overflowing.player_progression.skill_points == 0, "no free skill point is granted by the repair")
+
+	# A file written before character numbers were stored (version 1 / 2) still
+	# loads: those builds reset the growth on every launch, so "no recorded growth"
+	# is exactly what they could have saved.
+	var legacy = SaveScript.new()
+	legacy.player_progression.level = 7
+	legacy.player_progression.gold = 500
+	legacy.player_progression.skill_points = 2
+	_expect(
+		legacy.load_save_data({"version": 2, "current_stage_number": 6, "highest_stage_reached": 6}),
+		"a save from before character persistence still loads"
+	)
+	_expect(legacy.player_progression.level == 1, "it restores a fresh level rather than keeping the live one")
+	_expect(legacy.player_progression.gold == 0, "it restores an empty purse")
+	_expect(legacy.player_progression.skill_points == 0, "it restores no skill points")
+
+
+## The same autosave rule the progress, the items and the Sub Heroes follow: the
+## save subscribes to the character's own announcements, so an EXP award, a
+## level-up, a purchase and a skill upgrade persist with no gameplay path (and no UI
+## panel) asking for a save.
+func _test_autosave_follows_character_progression() -> void:
+	SaveScript.delete_save_at(SCRATCH_PATH)
+	var save = SaveScript.new(null, null, SCRATCH_PATH)
+	var flow = StageFlowScript.new(save.progress)
+	save.bind(flow)
+	_expect(not save.has_save(), "binding alone writes nothing")
+
+	save.player_progression.add_gold(120)
+	_expect(save.has_save(), "an awarded coin wrote the save (no gameplay path asked)")
+	_expect(int(_read_scratch().get("gold", -1)) == 120, "the purse on disk is the one that was awarded")
+
+	save.player_progression.add_experience(150)
+	_expect(int(_read_scratch().get("level", -1)) == 2, "the level-up is on disk")
+	_expect(int(_read_scratch().get("experience", -1)) == 50, "the EXP left inside the new level is on disk")
+	_expect(int(_read_scratch().get("skill_points", -1)) == 1, "the skill point the level-up granted is on disk")
+
+	_expect(save.player_progression.upgrade_skill(SkillCatalog.WHIRLWIND), "the skill point learns a skill")
+	var skills: Dictionary = _read_scratch().get("skill_levels", {}) as Dictionary
+	_expect(int(skills.get("whirlwind", 0)) == 1, "the learned skill is on disk")
+	_expect(int(_read_scratch().get("skill_points", -1)) == 0, "the spent skill point is on disk")
+
+	_expect(save.player_progression.spend_gold(20), "a purchase spends gold")
+	_expect(int(_read_scratch().get("gold", -1)) == 100, "a purchase writes the purse to disk")
+
+	var reloaded = SaveScript.new(null, null, SCRATCH_PATH)
+	_expect(reloaded.load(), "the autosaved file loads")
+	_expect(reloaded.player_progression.level == 2, "the restored session keeps the level")
+	_expect(reloaded.player_progression.gold == 100, "the restored session keeps the purse")
+	_expect(
+		reloaded.player_progression.get_skill_level(SkillCatalog.WHIRLWIND) == 1,
+		"the restored session keeps the learned skill"
+	)
+
+	var writes: Array = []
+	save.saved.connect(func(_save_path: String) -> void: writes.append(1))
+	save.player_progression.add_gold(0)
+	_expect(writes.is_empty(), "an award of nothing changes nothing and writes nothing")
+	save.player_progression.spend_gold(0)
+	_expect(writes.is_empty(), "spending nothing changes nothing and writes nothing")
 	SaveScript.delete_save_at(SCRATCH_PATH)
 
 
