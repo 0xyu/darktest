@@ -9,6 +9,23 @@ do*. Every entry in §3 is a work item, not a design decision.
 
 ---
 
+## Balance v4: finalized design, implementation pending (2026-09-13)
+
+The balance review changed Markdown only. The runtime still uses the legacy formulas
+listed below. [The final contract](balance-rework-implementation.md) and
+[reproducible calculations](balance-scale-rebase.md) define the pending implementation;
+no legacy gap is closed by the document edit.
+
+| Work item | Shipped behavior → finalized target |
+|---|---|
+| P0 stat reconstruction | Incremental level stats and missing load rebuild → one idempotent rebuild |
+| Combat/scaling | Subtractive armor and separate exponentials → shared armor and power-law G |
+| Equipment | Additive old flat/utility scaling → inherent per-slot growth, normalized flat budgets, bounded utilities |
+| EXP/Gold/economy | Legacy exponentials and k50 → shared G, joint expected value, BaseItemValue 30 / k 100 |
+| Sub Heroes | Linear damage bypasses armor, fixed 250 summons → armor-resolved investment growth and collection-based pricing |
+| Persistence/boundary | Format 3 and oversized stages → backed-up format 4 migration and validated Stage 1..1000 release |
+| Verification | Document analytic/discrete/EXP-only probes → production M1–M8 still required |
+
 ## 1. Implemented Systems
 
 | System | Location |
@@ -52,7 +69,7 @@ do*. Every entry in §3 is a work item, not a design decision.
 
 ---
 
-## 2. Current Values That Match the Spec
+## 2. Current Shipped Values (legacy balance baseline)
 
 Verified equal to `gameplay-spec.md`, so no action needed:
 
@@ -69,7 +86,7 @@ Verified equal to `gameplay-spec.md`, so no action needed:
 - Enemy scaling rates HP 1.20 / ATK 1.16 / DEF 1.15 / gold 1.18 / EXP 1.15, ±15 % variance,
   level offsets `40/15/15/10/10/5/5`, enemy count `clamp(1 + floor((stage-1)/3), 1, 4)`.
   `experience_reward` is stage-scaled at spawn like the other rates, so
-  `EnemyEXP = BaseEXP × EnemyLevelMultiplier × EnemyTypeMultiplier × 1.15^(stage-1)` (§10).
+  `EnemyEXP = BaseEXP × EnemyLevelMultiplier × EnemyTypeMultiplier × 1.15^(stage-1)` (legacy §10; superseded in the v4 target).
 - Mini Boss every 10th stage; boss level = stage number.
 - Special encounters: 3 % base, +1 % per failure, 15 % cap, reset on success, six types,
   random Mini Boss level window, no pity consumption on boss stages.
@@ -115,7 +132,7 @@ Closed items are removed from these tables and their number retired, so ids stay
 
 | # | Spec | Current implementation | Impact |
 |---|---|---|---|
-| 1 | §9/§10 enemy level drives stats and EXP | Enemy level drives the EXP reward factor only; stat scaling uses the stage number and ignores level | The displayed enemy level is misleading at high stages |
+| 1 | §9/§10 offset multiplier 1+0.06×(enemy_level-stage) affects stats and rewards | Enemy level drives only the legacy EXP factor; stats ignore it | Design resolved; implementation pending |
 
 ### 3.2 Combat & Items
 
@@ -168,7 +185,7 @@ These cannot be closed by implementation alone — they need an answer first
 | Inventory capacity | A capacity rule. The build uses a 10-item bag plus effectively unbounded storage; the spec leaves capacity TBD |
 | Idle Power / Idle Capability / Idle AI tiers | Scheduling, plus a defined player-facing output (where Stable Farming Stage, Maximum Push Stage and the recommended farming stage are shown) |
 | Assist Sub Heroes | Buff / utility role design — all 8 Sub Heroes are pure damage today |
-| Enemy level's stat effect | How strongly the per-spawn level offset should move HP / attack / defense on top of stage-based scaling |
+
 | Potion replenishment | The potion source beyond the 3 starting uses and loot drops |
 
 ---

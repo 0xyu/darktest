@@ -5,11 +5,13 @@ What the game is, how it should feel, and which decisions drive it.
 ## Companion Documents
 
 - `docs/gameplay-spec.md` — exact mechanical rules, formulas and tuning values.
+- `docs/balance-rework-implementation.md` — finalized balance contract and implementation gates (pending code).
+- `docs/balance-scale-rebase.md` — reproducible progression calculations and model limits.
 - `docs/implementation-status.md` — what the current build actually does, and where it
   deviates from this design.
 
 **Authority:** this document defines **intent**, the spec defines **exact rules**, and the
-implementation document records **current code truth**. When they disagree, the gap list
+implementation-status document records **current code truth**. When they disagree, the gap list
 in `implementation-status.md` is the work queue — not a reason to change this design.
 
 ---
@@ -207,11 +209,11 @@ unreachable enemy does not consume the Action.
 
 ## 5.6 Damage
 
-```text
-Max(1, Attack - Defense)
-```
-
-Skills and modifiers multiply the resulting damage.
+Defense reduces damage continuously: `raw = Attack / (1 + Defense / Attack)`
+for positive Attack. Apply skill and applicable modifiers, then round once with a
+minimum of 1. This avoids the subtraction cliff; very weak attackers can still deal
+only 1 damage. All damage sources share this armor function; their crit, on-hit and
+action-cost rules remain distinct. Exact rules: gameplay-spec §5.
 
 ## 5.7 Critical Hits
 
@@ -290,14 +292,14 @@ Higher stages introduce mechanics, not only larger stats.
 
 ## 7.3 Enemy Scaling
 
-```text
-HP      ×1.20 per stage
-Attack  ×1.16 per stage
-Defense ×1.15 per stage
-Gold    ×1.18 per stage
-```
+A shared power-law world curve `G(x)=((x+20)/21)^4` scales HP, Attack,
+Defense, rewards and prices. Growth is noticeable early and slows later; it is not
+a fixed exponential forever. Group size and stage difficulty shape encounters
+independently from that curve. Individual normal-enemy stats retain ±15% variance.
 
-Individual enemy stats may vary approximately **±15 %**.
+The release supports stages 1..1000. More content requires renewed balance and
+numeric-range checks; separately capping enemy/player numbers is not endless progression.
+Exact group, offset and difficulty rules: gameplay-spec §9.
 
 ## 7.4 Enemy Levels
 
@@ -345,17 +347,19 @@ Point.
 
 ## 8.2 EXP
 
-```text
-EXP requirement: 100 × 1.15^(Level - 1)
+Levels contribute 40% and refreshed equipment 60% of reference logarithmic stat
+growth. This is a growth allocation, not a promise that gear is always 60% of
+displayed power. Slot-based inherent power ensures every equipment tier participates;
+affixes, rarity and unique effects provide additional build choices.
 
-EnemyEXP = BaseEXP
-         × EnemyLevelMultiplier
-         × EnemyTypeMultiplier
-         × 1.15^(Stage - 1)
-```
+EXP requirements and rewards use G, enemy count, real level offsets and a bounded
+catch-up factor. One ideal full clear grants roughly one level; random encounters
+and repeated farming can diverge. Evaluate the level entering each stage, not the
+level earned after winning it. Exact formulas and validation: gameplay-spec §10.
 
-**EXP rewards grow with stage and enemy level.** Player levelling must not stall while
-enemy power keeps compounding.
+Late-game +1 item level offers less power than early-game +1. Verify replacement
+frequency, rarity/affix upgrades and actual additional stages unlocked; do not assume
+a readable stat curve alone provides enduring motivation.
 
 ---
 
@@ -447,7 +451,10 @@ Rare:       25%
 Legendary:   5%
 ```
 
-Duplicates contribute to progression — for example **3 duplicate copies → +1 Level**.
+Duplicates contribute to progression: **3 duplicate copies → +1 Level**. Damage scales
+with rarity-normalized investment and is limited by Main Player level. Summon pricing
+uses total collection investment, so returning to an easier stage cannot lower the price.
+See gameplay-spec §15; the real-time attack intervals and 3 active slots remain.
 
 ## 10.2 DPS Sub Hero Philosophy
 

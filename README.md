@@ -45,7 +45,7 @@ The game should combine:
 
 - The readable grid combat of a turn-based RPG
 - The loot excitement of a Diablo-like ARPG
-- The continuous exponential progression philosophy of Clicker Heroes
+- The continuous progression and milestone rewards of Clicker Heroes, with a bounded-release power-law stat curve
 - The convenience of auto combat / idle-friendly progression
 
 The game should be easy to understand while gradually becoming deeper through equipment builds.
@@ -56,5 +56,7 @@ The game should be easy to understand while gradually becoming deeper through eq
 - `docs/game-design.md` — design intent, pillars and priorities
 - `docs/gameplay-spec.md` — exact mechanical rules, formulas and tuning values
 - `docs/implementation-status.md` — current implementation and its gaps vs the spec
+- `docs/balance-rework-implementation.md` — final balance implementation contract and release gates (code pending)
+- `docs/balance-scale-rebase.md` — balance rationale, reproducible calculations and limits of the model
 
 ## GoDot Engine Path: D:\IDE\godotEngine

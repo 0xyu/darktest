@@ -11,6 +11,16 @@ one is a data change, not a design change.
 
 ---
 
+## Balance v4 status and authority
+
+The balance rules below are finalized on 2026-09-13 and **pending implementation**.
+The detailed equations, parameter tables, source units, migration and release gates in
+[balance-rework-implementation.md](balance-rework-implementation.md) are incorporated
+by reference into §§5, 9, 10, 12, 15, 17 and 19 of this spec. Its companion
+[balance-scale-rebase.md](balance-scale-rebase.md) is explanatory and reproducible,
+not evidence of runtime verification. Current shipped behavior remains recorded in
+[implementation-status.md](implementation-status.md).
+
 ## 1. Combat Grid
 
 | Rule | Value |
@@ -94,20 +104,28 @@ Player turn = move 0..MovementPoints cells + exactly one Action
 ## 5. Damage & Critical Hits
 
 ```text
-raw      = max(1, attacker.attack - target.defense)
-modified = raw × skill_multiplier × modifier_multiplier
-final    = max(1, round(modified))
-critical = max(1, round(modified × critical_damage))
+raw = Attack / (1 + Defense / Attack)      # Attack > 0; raw=0 for Attack=0
+modified = raw × skill_multiplier × applicable_damage_modifiers
+final = max(1, round(modified × (critical ? critical_damage : 1)))
 ```
+
+Use nonnegative float inputs, then round once. Damage has degree-one homogeneity
+before rounding; minimum damage is still 1 for sufficiently low Attack/Defense ratios.
+Do not multiply equipment ATK scaling again after armor.
 
 | Rule | Value |
 |---|---|
-| Multiplier order | Applied **after** defense subtraction |
-| Minimum damage | 1 |
-| Critical chance (default) | **5 %** (tunable) |
-| Critical damage (default) | **150 %** (tunable) |
-| Who can crit | Main Player only |
-| Enemy critical hits | Never |
+| Default crit chance / damage | 5% / 150% |
+| Effective crit chance / damage caps | 50% / 250% |
+| Enemy crits | Never |
+| Main Player, skills, Tome | Existing source-specific crit and on-hit rules |
+| Sub Heroes | Share armor resolution; no Main Player crit or equipment procs |
+| Life steal | Actual HP lost, excluding overkill; effective cap 10% |
+| Dodge / stun chance caps | 35% / 15% |
+| Type damage bonuses | Elite and Boss bonuses separately capped at +50% |
+
+The Tome remains action-free with its existing cooldown; it does not proc life steal,
+stun or other on-hit effects. Preserve the three active skills and their level-5 caps.
 
 ## 6. Skills
 
@@ -193,62 +211,68 @@ share the Action (see §2 Turn System). Design intent is in `docs/game-design.md
 ## 9. Enemy Scaling, Levels & Count
 
 ```text
-stat(stage) = base_stat × growth_rate^(stage - 1) × difficulty_multiplier
-              × per-entry stat multiplier
-              ± 15 % per-spawn variance
+G(x) = ((max(x,1)+20)/21)^4
+r(S) = G(S+1)/G(S)
+count(S) = clamp(1+floor((S-1)/3),1,4)
+enemy_level = max(1,S+offset)
+offset_mult = 1+0.06*(enemy_level-S)
+HP  = base_hp  × G(S) × c^-0.60 × difficulty(S) × offset_mult × hp_variance
+ATK = base_atk × G(S) × c^-0.80 × difficulty(S) × offset_mult × atk_variance
+DEF = base_def × G(S)          × difficulty(S) × offset_mult × def_variance
 ```
 
-| Stat | Growth per stage |
-|---|---|
-| HP | ×1.20 (tunable) |
-| Attack | ×1.16 (tunable) |
-| Defense | ×1.15 (tunable) |
-| Gold | ×1.18 (tunable) |
+Ordinary encounters freeze c to the actual initial enemy count. Existing entry/type
+modifiers apply once. Offset distribution: 0=40%, each ±1=15%, each ±2=10%,
+each ±3=5%. Each combat-stat variance is independently uniform [0.85,1.15].
+Only the clamped offset affects stats/rewards; do not additionally multiply by G(enemy_level).
 
-| Rule | Value |
-|---|---|
-| Enemy level | stage level + offset, minimum 1 |
-| Offset distribution | `0: 40 %`, `±1: 15 %`, `±2: 10 %`, `±3: 5 %` |
-| Stat variance | ±15 %, rolled per spawn, per stat |
-| Difficulty multiplier | Per stage (default 1.0), applies to HP/attack/defense |
-| Enemy count | `clamp(1 + floor((stage - 1) / 3), 1, 4)` — tunable |
+Difficulty is linear from 0.90 at S1 to 1.00 at S10, then to 1.10 at S100,
+remaining 1.10 through S1000; authored and generated levels use the same field once.
+Normal reference stats are 150 HP / 22 ATK / 4 DEF / 100 EXP. Compress generated
+enemy HP/ATK/DEF to 90..110% of those reference values, preserving each stat's
+old ordering as specified in the implementation contract §4.2.
+S1–2 training uses 130/12/3/100, with zero offset and no variance.
 
-**Enemy level is a real gameplay value.** It must drive enemy stat scaling and EXP
-rewards (§10); it is not display-only.
+Every tenth stage retains its Mini Boss. Relative to the ordinary reference enemy
+scaled with c=4, apply HP×6, ATK×1.5, DEF×1.25, with offset=0 and variance=1;
+these replace old Boss base/tier stat multipliers. Preserve existing mechanics and
+drops; minions inherit the encounter's frozen scaling context. Mini Boss EXP/Gold
+are 4× a single normal reward, not another 4× for count.
+
+Playable stages are 1..1000; character level is at most 1000, item level at most 1003.
+Stage 1000 completion permits replay/farming and shows the content endpoint.
+G remains mathematically unbounded; expansion requires new validation.
 
 ## 10. EXP, Levels & Gold
 
 ```text
-EXP requirement = round(100 × 1.15^(level - 1))
-
-EnemyEXP = BaseEXP
-         × EnemyLevelMultiplier        # 1 + 0.10 × (EnemyLevel - 1)
-         × EnemyTypeMultiplier
-         × StageFactor                 # 1.15^(Stage - 1)
+need(L) = round(100 × count(L) × G(L))
+catchup(S,L) = clamp(1+0.10*(S-L),0.25,2.0)
+kill_exp = max(1,round(100 × G(S) × offset_mult × type_exp × catchup(S,L)))
+stage_clear_gold = round(50 × G(S))
+enemy_gold = round(base_gold × G(S) × offset_mult × type_gold)
 ```
 
-| Rule | Value |
-|---|---|
-| `base_exp` | Per enemy definition (`experience_reward`) |
-| `level_factor` | `1 + 0.10 × (enemy_level - 1)` |
-| `StageFactor` | **1.15^(stage - 1)** (tunable) — tracks the level-requirement curve, so kills per level stays stable as enemy power compounds |
-| Type multipliers | normal 1.0, elite 2.0, special 2.5, mini boss 4.0, treasure 1.5, gold 1.5, cursed 2.0 |
-| EXP must not stall | Player levelling must keep pace with compounding enemy power |
+Type EXP: normal1, elite2, special2.5, mini boss4, treasure1.5, gold1.5, cursed2.
+Keep authored base_gold and gold type multipliers, except the Mini Boss rule in §9.
+Rewards apply G/type only once. Player level is sampled immediately before each kill
+reward. Carry excess EXP through multiple levels; at level 1000 stop gaining EXP.
+Every level still grants 1 skill point; no talent tree or free stat allocation.
 
-| Level-up grant | Value |
-|---|---|
-| Max HP | +20 |
-| Attack | +2 |
-| Defense | +1 |
-| Skill points | +1 |
-| Talent tree / stat allocation | None — skill points are the only choice |
+Player stat bases are HP121.2 / ATK51.8 / DEF5 with level scale G(L)^0.4.
+Equipment is combined by §12; rebuilding replaces old +20/+2/+1 increments.
+Use one idempotent function for initialization, load, level-up and equipment changes.
+Level-ups heal according to the established level-up policy; equipment changes never
+create HP. Exact HP projection/rounding rules are in implementation contract §3.3.
 
-```text
-stage gold = base_stage_gold × 1.18^(stage - 1)      # base_stage_gold = 50, tunable
-enemy gold = base_gold × type_multiplier
-```
+One perfect ordinary clear with battle-start L=S, EXP=0, no offset yields L=S+1
+after the final kill. This is not an invariant for random or repeated content.
+Use the seeded trajectory and battle-start sampling gates in implementation contract §5/§8.
 
-Gold uses: Sub Hero summons, Sub Hero progression, town services.
+Single combat values must stay below 1e12 throughout supported content; Gold/EXP
+storage uses nonnegative int64 with a 9e15 safety limit. Check products and sums
+before conversion; never treat independent stat clamping as playable progression.
+Gold continues to fund summons, Sub Hero progression and existing town services.
 
 ## 11. Mini Bosses & Special Encounters
 
@@ -295,9 +319,9 @@ Weapon, Helmet, Armor, Gloves, Boots, Ring, Amulet. Consumables are slot-less.
 
 | Affix | Base value | Roll weight |
 |---|---|---|
-| Attack | 5 | 1.2 |
-| Defense | 4 | 1.2 |
-| HP | 20 | 1.1 |
+| Attack | 5.18 | 1.2 |
+| Defense | 0.50 | 1.2 |
+| HP | 12.12 | 1.1 |
 | Dodge | 3 % | 0.9 |
 | Critical Chance | 3 % | 0.8 |
 | Critical Damage | 15 % | 0.7 |
@@ -309,10 +333,25 @@ Weapon, Helmet, Armor, Gloves, Boots, Ring, Amulet. Consumables are slot-less.
 | Stun Chance | 3 % | 0.35 |
 
 ```text
-affix value = base × (1 + (item_level - 1) × 0.08)
-                    × (1 + rarity_index × 0.35)
-                    × random(0.80 .. 1.20)
+flat affix value = base × G(item_level)^0.60 × (1+rarity_index×0.35) × roll
+utility affix value = base × (1+rarity_index×0.35) × roll
+movement/range affix value = +1
+roll = random(0.80..1.20)
 ```
+
+Each item also has deterministic inherent slot power, without occupying an affix
+slot. For X in HP/ATK/DEF, `M_X=Σslot(w_X,slot×slot_factor)`, where an empty
+slot has factor 1 and an equipped slot has `(1+0.08×rarity)×G(il)^0.6`.
+The complete 7-slot weights in implementation contract §3.1 are normative and sum
+to 1 for each stat. Flat affix values already include item scale and exclude level scale.
+
+`effective_X=round(G(L)^0.4×(base_X×M_X+Σflat_value_X))`.
+All-common same-level inherent gear with no affixes and L=il=S gives base_X×G(S).
+Mixed gear is evaluated per slot; never scale an average il or double-scale affix.value.
+Utility does not grow with il. Apply §5 caps; equipment movement and range bonuses
+are each capped at +2. Authored utility keeps its signed value; final probabilities,
+life steal and type bonuses have a floor of0, movement a floor of0 and range a floor of1.
+Show inherent power, affixes and effective swap deltas separately.
 
 - A stat appears at most once per item.
 - **Every listed affix must affect combat.** Affixes that only display are a defect.
@@ -323,7 +362,8 @@ affix value = base × (1 + (item_level - 1) × 0.08)
   `value` freely, so a cursed `HP -10` is a valid affix; it lowers `max_hp` like any other
   bonus. Rolled affixes stay positive.
 - Stun Chance is the chance per landed hit to stun the target for **1 turn**, during which
-  it loses its turn entirely. Duration lives in `StatusEffectComponent.STUN_TURNS`.
+  it loses its turn entirely. Stun cannot extend an existing stun, and cannot be applied again
+  until the target has completed its next own turn after recovery. Duration lives in `StatusEffectComponent.STUN_TURNS`.
 
 ### Unique Effects
 
@@ -404,17 +444,33 @@ enemy dies → item rolls → added to bag (or storage)
 | Combat slots | **3** |
 | Control | Fully automatic, never directly controlled |
 | Roles | DPS (damage, farming), Assist (buffs, utility) |
-| Summon cost | 250 gold (tunable) |
+| Summon cost | max(250, ceil(10×G(price_coordinate))); see formula below |
 | Quality weights | Common 70 % / Rare 25 % / Legendary 5 % (tunable) |
 | Duplicate progression | 3 duplicates → +1 level |
 | Attack model | Independent real-time cooldown per Sub Hero (`attack_interval`) |
-| Damage | `attack_damage × (1 + 0.10 × (level - 1)) × quality_multiplier` |
+| Damage | Armor-resolved attack_damage×quality_multiplier×G(combat_level); see below |
 | Quality multipliers | Common 1.00 / Rare 1.10 / Legendary 1.20 |
 | Targeting | Lowest HP by default; Boss First for boss-oriented Sub Heroes |
 | Attacks during enemy turns | Yes — they are not turn participants |
 | Main Player is the only enemy target | Yes |
 | Kills made by Sub Heroes | Must award EXP, gold and loot like any other kill |
 | Investment before autonomous farming | Equipment, levels, build quality |
+
+For each hero probability p (Common .7/3, Rare .25/3, Legendary .05/2):
+
+```text
+investment_level = 1+(hero_level-1)/(8*p)
+combat_level = min(main_player_level,investment_level)
+owned_draws = Σowned(1+3*(hero_level-1)+duplicate_count)
+price_coordinate = min(1000,1+owned_draws/24)
+summon_cost = max(250,ceil(10*G(price_coordinate)))
+```
+
+Price is determined before the random draw from total collection investment; returning
+to a lower stage cannot reduce it. The three-duplicate milestone alone changes damage.
+Preserve intervals, quality multipliers and the 3 active slots. No new Sub Hero HP or
+equipment system is introduced. DEV-generated collections are excluded from economy
+validation. Include real-time attacks and Tome cooldowns in assisted combat checks.
 
 ## 16. AUTO, Farming, Replay, Defeat
 
@@ -490,6 +546,17 @@ Saved between sessions:
 Session-scoped (not saved): special-encounter pity, combat state, current stage runtime
 state.
 
+### Balance v4 migration
+
+Save format 3 upgrades to 4 with balance_version4. Retain a one-time atomic backup;
+normalize still-supported v1/v2 records using existing defaults before applying the
+same migration. Preserve identity, skill choices, collection and item rolls. Convert
+EXP by old within-level fraction and Gold by old/new price scale at the old high-water
+stage, with log-safe arithmetic. Rebuild item values/core and player stats once, after
+loading all data. Exact formulas, source units, HP handling, oversized-save snapshots
+and retry/rollback behavior are normative in implementation contract §9.
+Do not let an older executable load a migrated v4 save.
+
 ## 18. Idle Evaluation Model
 
 ```text
@@ -530,253 +597,124 @@ Tuning lives in `EconomyConfig` (`scripts/economy/economy_config.gd`) and the mo
 (`EquipmentInstance.get_equipment_score()`), which stays a *comparison* signal only. No
 vendor price may be computed from the Power Score.
 
-### Gold income (reference)
-
-Unchanged by this section, and the curve everything below is calibrated against:
+### Gold income and item value
 
 ```text
-ClearGold(stage) = stage gold + Σ enemy gold                    # §10
-                 = (base_stage_gold + base_gold × EnemyCount(stage)) × 1.18^(stage - 1)
-                 = (50 + 10 × EnemyCount(stage)) × 1.18^(stage - 1)
+ClearGold(S) = 50*G(S) + Σ(base_gold_i*G(S)*offset_mult_i*type_gold_i)
+LevelMultiplier = G(item_level)
+AffixRollRatio = (roll-0.8)/0.4
+AffixMultiplier = clamp(1+0.15*Σ(AffixRollRatio*AffixEconomicWeight),1,3)
+EconomicValue = BaseItemValue*G(il)*RarityMultiplier*SlotValueWeight*AffixMultiplier
+BaseItemValue = 30
+ConsumableValue = 25*G(potion_level)*RarityMultiplier
 ```
 
-| Stage | `EnemyCount` (§9) | `ClearGold ÷ 1.18^(stage-1)` |
-|---|---|---|
-| 1–3 | 1 | 60 |
-| 4–6 | 2 | 70 |
-| 7–9 | 3 | 80 |
-| 10+ | 4 | 90 |
+Flat combat affix values and inherent equipment power never enter EconomicValue.
+Persist roll_ratio in[0,1]; authored/unrecoverable fixed rolls use0.5. Do not infer it
+from rounded utility values. EconomicValue is derived at price time, not stored.
 
-### Item Economic Value
-
-```text
-LevelMultiplier = 1.18^(item_level - 1)
-
-AffixMultiplier = clamp(
-    1 + 0.15 × Σ(AffixRollRatio × AffixEconomicWeight),
-    1.0,
-    3.0
-)
-
-EconomicValue = BaseItemValue
-              × LevelMultiplier
-              × RarityMultiplier
-              × SlotValueWeight
-              × AffixMultiplier
-```
-
-`AffixRollRatio` is §12's roll factor normalized to `0..1`, measured against the range
-valid **at the item's own level *and* rarity** (both feed `roll_value`):
-
-```text
-AffixRollRatio = (roll - 0.80) / 0.40      # roll = §12's random(0.80 .. 1.20)
-```
-
-| Rule | Value |
-|---|---|
-| `AffixRollRatio` must be **persisted** | `EquipmentAffix` gains `roll_ratio`, set in `create_rolled()` |
-| Why | `value` is rounded (`roundi`; 2 decimals for percentages) and floored at 1.0, so the ratio cannot be recovered from it — `Movement` / `Attack Range` store the same integer at any low item level |
-| Authored / fixed affixes (never rolled) | `roll_ratio = 0.5` (neutral) |
-| Percentage vs flat affixes | No special case: the ratio is normalized per affix, so one weight scale covers both |
-
-Rarity multipliers — **economic only; never combat multipliers**:
-
-| Rarity | Multiplier |
-|---|---|
-| Common | 1.0 |
+| Rarity | Economic multiplier |
+|---|---:|
+| Common | 1 |
 | Uncommon | 1.5 |
-| Rare | 3.0 |
-| Epic | 7.0 |
-| Legendary | 15.0 |
-| Mythic | 35.0 |
+| Rare | 3 |
+| Epic | 7 |
+| Legendary | 15 |
+| Mythic | 35 |
 
-Affix economic weights — data on the affix, never a table inside vendor code. They
-deliberately do not match §12's combat roll weights: a rare, build-defining affix is worth
-more than a common one.
+All slot economic weights are1. Unique effects are excluded from price; confirmation
+must name the unique effect before selling such an item.
 
 | Affix | Economic weight |
-|---|---|
-| Attack | 1.0 |
-| Defense | 0.9 |
-| HP | 0.8 |
-| Critical Chance | 1.5 |
-| Critical Damage | 1.4 |
-| Dodge | 1.3 |
-| Movement | 2.5 |
-| Attack Range | 2.0 |
-| Life Steal | 2.0 |
-| Damage vs Elite | 1.5 |
-| Damage vs Boss | 1.8 |
+|---|---:|
+| Attack / Defense / HP | 1.0 / 0.9 / 0.8 |
+| Critical Chance / Critical Damage / Dodge | 1.5 / 1.4 / 1.3 |
+| Movement / Attack Range | 2.5 / 2.0 |
+| Life Steal / Stun | 2.0 / 2.2 |
+| Damage vs Elite / Boss | 1.5 / 1.8 |
 
-| Rule | Value |
-|---|---|
-| `SlotValueWeight` | All 7 slots **1.0** in v1 — the table exists so slots can diverge without changing the formula |
-| Unique effects | **Excluded** from `EconomicValue`: a build-defining effect must never be the reason an item is worth vendoring |
-| Sell confirmation | Must name the unique effect (or the Power Score gain) before an item carrying one is sold |
-| Persistence | `EconomicValue` is recomputed at price time and never stored in the save; only `roll_ratio` (item data, not a price) is persisted, so retuning weights cannot leave stale prices behind |
+Potions remain 15% of successful drops, have no affixes, and preserve rolled rarity.
+Their value relative to gear follows the formula; there is no fixed 70% ratio.
 
-### Consumable pricing
-
-Potions are **15 %** of successful drops (§13) and carry no affixes, so they reuse the value
-formula with their own base:
+### Buying, selling and windfall cap
 
 ```text
-ConsumableValue = BasePotionValue
-                × LevelMultiplier
-                × RarityMultiplier        # the rarity the drop rolled
-                × 1.0                     # an affix-less item sits on the AffixMultiplier floor
-
-BasePotionValue = 25
+RawSellPrice = EconomicValue*0.25
+normal_value_mean = E_normal[RarityMultiplier*AffixMultiplier]
+StageExpectedSell(S) = 30*G(S)*normal_value_mean*0.25
+WindfallCap(S) = 100*StageExpectedSell(S)
+SellPrice = max(1,floor(min(RawSellPrice,WindfallCap(S))))
+BuyPrice = max(floor(EconomicValue*4),SellPrice+1,1)
 ```
 
-A potion is a usable combat resource, so the same roll is worth **less** than the equipment
-branch — at the same level and rarity a potion is **≈ 70 %** of a common item — but never
-nothing. The rolled rarity still counts, so a Legendary roll pays like a Legendary roll;
-only the affix term is absent.
+The cap uses the current legal stage; the item value uses its own il. Keep the ordinary
+vendor role as convenience/fallback, and never stock unique-effect items. Forward
+vendor stock policy remains open in §20; this balance revision does not create a shop.
 
-### Vendor buy price
+Compute normal_value_mean from normal rarity probabilities60/25/10/4/1/0,
+the per-rarity affix counts, §12 weighted sampling **without replacement**, and mean
+roll_ratio0.5. In the current 12-stat catalogue it is approximately2.136384474.
+High rarity has more affixes, so E[R*A] is **not** E[R]*E[A].
+If a slot filters the catalogue, average its conditional result with actual slot
+probabilities; changing catalogue/weights/counts must regenerate the expectation.
 
-```text
-BuyPrice = EconomicValue × VendorBuyMultiplier        # 4.0
-```
+The largest +3il scale ratio is G(4)/G(1)=(24/21)^4≈1.706. Conservative
+no-clipping bound uses AffixMultiplier≤3:
+`k >= 35*3*(24/21)^4/normal_value_mean ≈83.85`; **k=100**.
+This replaces the old k50 proof, which used a Mythic average rather than its maximum.
+No in-band clipping means equality to `max(1,floor(RawSellPrice))`, not the unrounded float.
+The cap may clip far-ahead or extreme authored items; it is not an inflation control.
 
-| Rule | Value |
-|---|---|
-| Role | Convenience / fallback equipment — never the default best upgrade path |
-| Never stocked | Items carrying a unique effect |
-| Stock policy | §20 — item level policy, stock size, restock cadence, whether stock rolls affixes |
-| Affordability | Stock item level must be checked against the buy-price affordability target (§20) |
+### Income calibration
 
-### Vendor sell price
+BaseItemValue30 targets equipment selling as secondary income, approximately5..18%
+of combat Gold in normal encounters. Under the diagnostic base_gold10, no offsets,
+no guaranteed drops and normal 25% drop chance with 85% equipment:
 
-```text
-RawSellPrice = EconomicValue × VendorSellMultiplier       # 0.25
+| Ordinary count | ClearGold/G | Equipment drops | Expected equipment sell/Gold |
+|---|---:|---:|---:|
+| 1 | 60 | 0.2125 | 5.7% |
+| 2 | 70 | 0.4250 | 9.7% |
+| 3 | 80 | 0.6375 | 12.8% |
+| 4 | 90 | 0.8500 | 15.1% |
 
-StageExpectedSell(stage) = BaseItemValue
-                         × 1.18^(stage - 1)
-                         × RarityMeanMultiplier          # 1.705
-                         × AffixMeanMultiplier           # 1.190
-                         × VendorSellMultiplier
-
-WindfallCap(stage) = k × StageExpectedSell(stage)          # k = 50
-
-SellPrice = maxi(1, floori(min(RawSellPrice, WindfallCap(stage))))
-```
-
-Both means are derived, not authored:
-
-```text
-RarityMeanMultiplier = 0.60×1.0 + 0.25×1.5 + 0.10×3.0 + 0.04×7.0 + 0.01×15.0   # §13 normal-enemy weights
-                     = 1.705                                                  # Mythic is 0 there
-
-AffixMeanMultiplier  = 1 + 0.15 × mean_affix_count × mean_economic_weight × 0.5
-                     = 1 + 0.15 × 1.61 × 1.575 × 0.5
-                     = 1.190      # §12 affix counts per rarity, mean ratio 0.5
-```
-
-`mean_economic_weight` is the mean of the §19 affix weights over the §12 catalogue
-(`EquipmentAffix.get_economic_weight_mean()`), so adding an affix re-derives both this
-multiplier and `k` below.
-
-#### The cap clips windfalls; it does not control inflation
-
-- Both sides already grow as `1.18^(stage-1)`, so selling's share of gold income is
-  structurally **stage-flat** — there is no drift for a slower cap curve (e.g. `1.12`) to
-  correct. A stage-only decay instead clips the top of the rarity table: with
-  `min(RawSell, BaseVendorSellCap × 1.12^(stage-1))` a Legendary/Mythic is clipped from
-  **stage 1**, contradicting `RarityMultiplier = 35`.
-- `k` is **derived, not chosen**: the highest in-band item must never be clipped, so
-
-  ```text
-  k ≥ RarityMultiplier_Mythic × AffixMultiplier_Mythic × 1.18^(max in-band level offset)
-      ÷ (RarityMeanMultiplier × AffixMeanMultiplier)
-    = 35 × 1.569 × 1.18^3 ÷ (1.705 × 1.190)
-    ≈ 44                → k = 50
-  ```
-
-  The max in-band level offset is **+3**: a dropped item's level is
-  `max(enemy_level, stage)` and enemy level is `stage ± 3` (§9). Requirement: **no item
-  whose `item_level ≤ stage + 3` is ever clipped.**
-- Aggregate gold injection is a function of **volume**, not of a per-item ceiling: 1000
-  clipped commons inject as much gold as one unclipped Legendary. The volume levers are
-  §13's drop chance, `VendorSellMultiplier` and clears per hour — which is why idle farming,
-  not rarity, is what can break the economy.
-- No arbitrage, by construction:
-  `SellPrice ≤ RawSellPrice = 0.25 × EconomicValue < 4.0 × EconomicValue = BuyPrice`,
-  for every item and every cap value. This is an assertion, not a tuning accident.
-
-### `BaseItemValue` is derived, not authored
-
-```text
-EquipmentDropsPerClear(stage) = EnemyCount(stage) × 0.25 × 0.85    # §13 drop chance, 15 % potion share
-
-BaseItemValue = TargetSellShare × ClearGold(stage*)
-              ÷ (EquipmentDropsPerClear(stage*) × VendorSellMultiplier
-                 × RarityMeanMultiplier × AffixMeanMultiplier)
-```
-
-`stage*` is the **calibration stage**. Drops per clear are a step function of `EnemyCount`
-(1 → 4 by stage 10) while `ClearGold` grows only ~1.5× over the same range, so the
-calibration point decides the shape of the whole economy:
-
-| `stage*` | `BaseItemValue` | Sell share, stage 1–3 | Sell share, stage 10+ |
-|---|---|---|---|
-| 1 | 84 | 15 % | **40 %** |
-| 10 (steady state) | **32** | 6 % | 15 % |
-
-Calibrating at stage 1 makes selling the *larger* share of gold income from stage 10 on —
-the opposite of "secondary income". **Recommended: `stage* = 10`, `BaseItemValue = 32`,
-target band 5–17 %.**
-
-### Calibration table
-
-At `BaseItemValue = 32`, with `L = 1.18^(stage - 1)`:
-
-| Stage | `EnemyCount` | `ClearGold ÷ L` | Drops per clear | Sell income ÷ L | Sell share |
-|---|---|---|---|---|---|
-| 1–3 | 1 | 60 | 0.21 | 3.4 | 5.7 % |
-| 4–6 | 2 | 70 | 0.43 | 6.9 | 9.8 % |
-| 7–9 | 3 | 80 | 0.64 | 10.3 | 12.9 % |
-| 10+ | 4 | 90 | 0.85 | 13.7 | 15.2 % |
-
-The share ramps with encounter size and is then **flat forever** — no stage-dependent decay
-is needed anywhere. Two refinements any calibration must account for:
-
-- A dropped item's expected level is `stage + 0.5`, not `stage` (the §9 offset band clamped
-  by `max(enemy_level, stage)`): ≈ +8.6 %, so the steady-state share is ≈ **16.6 %**.
-- Rarity weights are stage-independent (§13), so `RarityMeanMultiplier` is a constant and
-  the share cannot drift with rarity supply.
+These are a calibration example, not a claim about every authored enemy.
+Include real gold bases, level offsets, potion sales, guaranteed rewards and actual
+slot restrictions in production validation. il=max(enemy_level,stage), so E(il-S)=0.5
+away from boundaries, but use E[G(il)/G(S)] directly rather than G(E[il]).
+Selling's share is not exactly stage-flat; item count per hour and assisted farming
+must also be measured.
 
 ### Sell action rules
 
 | Rule | Value |
 |---|---|
-| Rounding | `floori`, then `maxi(1, …)` — every sellable item is worth at least 1 gold |
-| Sell location | **Town only**, at two surfaces: the Scavenger Shop's **SELL** tab and the item popup opened from the **Warehouse**. The in-combat inventory never offers Sell |
-| Potions / consumables | Sellable, priced by the consumable model above |
-| Buyback | A given-up item is stocked in `PlayerController.get_scavenger_shop()` at the exact `SellPrice` it was given up for. `ScavengerShop.get_price()` returns that recorded price and never the Power Score |
-| What may be stocked | Only AUTHORED definitions (a `.tres`, so `resource_path` is set) that opt in with `EquipmentDefinition.can_buy_back`. Generated loot sells for gold but is not recoverable |
-| Guaranteed drops | Selling never re-arms or resets a one-per-save grant (§13) |
-| Numeric range | Gold is an `int`: single awards stop being integer-exact at `2^53` (≈ stage 200 on the §10 curve) and saturate int64 at ≈ stage 240 — a ledger/notation decision is required before those stages ship (§20) |
+| Location | Town only: Scavenger Shop SELL tab and Warehouse item popup; no in-combat sale |
+| Consumables | Sellable by the potion formula |
+| Buyback | Recorded historical SellPrice, never Power Score or forward BuyPrice |
+| Buyback stock | Only authored .tres definitions with can_buy_back; generated loot is not recoverable |
+| Guaranteed drops | Selling does not reset one-per-save grants |
+| Currency limit | Nonnegative int64, safety maximum 9e15; checked arithmetic before conversion |
 
 ### Test contract
 
-`tests/economy_smoke_test.gd` — headless, pure data, no scene tree:
+Use production functions and resources in the existing economy smoke suite:
 
-1. `SellPrice` is monotonic in item level, rarity and `AffixRollRatio`.
-2. No arbitrage: `SellPrice < BuyPrice` across a full rarity × level × ratio sample.
-3. No in-band clipping: `item_level ≤ stage + 3 ⇒ SellPrice == RawSellPrice`.
-4. The calibration table above, within the target band.
-5. `SellPrice ≥ 1` for every sellable item.
-
-The file ships **with** the implementation, not before it: a test written first would have
-to restate every constant, creating the second source of truth this project forbids.
+1. Nondecreasing sell price with il/rarity/roll at fixed stage and otherwise equal input.
+2. BuyPrice>SellPrice including floor/minimum boundaries; buyback returns the recorded price.
+3. il≤S+3: no in-band clipping for all rarities and highest allowed rolls; hand-authored
+   affixes are constrained by AffixMultiplier≤3.
+4. Recompute the joint expectation and verify the normal 5..18% calibration separately
+   from authored/special/guaranteed-drop and potion-inclusive results.
+5. Every sellable item pays at least 1; no overflow at the supported boundary.
+6. Migrated Gold and item rolls are stable on repeated load; low-stage travel cannot
+   reduce summon cost. Do not run unrelated full harness suites.
 
 ## 20. Open Questions
 
 **Resolved and now part of this spec:**
 
-- EXP stage growth (§10) — `StageFactor = 1.15^(stage - 1)`.
+- Balance v4 (§§5/9/10/12/15/17/19): shared G, equipment growth, enemy offset, bounded utilities, Gold/EXP range and migration are finalized; implementation is pending.
 - Farming × AUTO behavior (§16) — the four-mode matrix, already implemented.
 - Buyback pricing (§14) — buying an item back from the Scavenger Shop charges the
   `SellPrice` it was given up at (§19). The Power Score is no longer a price, and the
@@ -789,15 +727,10 @@ to restate every constant, creating the second source of truth this project forb
    stock size, restock cadence, whether stock rolls affixes), what it may never stock
    (items with unique effects), and its affordability target. `BuyPrice` is specified (§19);
    the shop around it is not.
-2. **Gold's numeric range** — gold is an `int`, and the §10 curve stops being integer-exact
-   around stage 200 (int64 saturates near stage 240). A ledger/notation decision is required
-   before those stages ship.
-3. **Inventory capacity** — TBD. The shipped build uses a small bag plus effectively
+2. **Inventory capacity** — TBD. The shipped build uses a small bag plus effectively
    unbounded storage; capacity must be decided before it is treated as a rule.
-4. **Enemy level's effect on stats** — the per-spawn level offset is rolled today; confirm
-   how strongly it should move HP / attack / defense on top of stage-based scaling (§9).
-5. **Assist Sub Heroes and Idle AI tiers** — designed (§15, §18) but unscheduled; confirm
+3. **Assist Sub Heroes and Idle AI tiers** — designed (§15, §18) but unscheduled; confirm
    they are Tier 2 scope before implementation.
-6. **Potion replenishment** — potions must come from somewhere beyond the starting stock
+4. **Potion replenishment** — potions must come from somewhere beyond the starting stock
    and loot drops (§7): confirm town purchase, stage resupply, or loot only. Their sell price
    is now specified (§19).
