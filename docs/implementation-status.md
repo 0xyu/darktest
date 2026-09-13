@@ -55,7 +55,10 @@ do*. Every entry in §3 is a work item, not a design decision.
 
 Verified equal to `gameplay-spec.md`, so no action needed:
 
-- Grid 11×7, orthogonal movement, Manhattan distance, start `(0, 3)`, exit `(10, 3)`.
+- Grid: 11×7 inner field (`x = 1..11`, `y = 0..6`) with one gate cell on each side of row 4
+  (`x = 0` Starting Cell, `x = 12` Next Stage Cell); the outer columns are unusable on every
+  other row. Orthogonal movement, Manhattan distance, forward arrival `(1, 3)`, backward
+  arrival `(11, 3)`, gate cells excluded from enemy spawn.
 - Turn rule: 3 movement points + one action; moving never spends the action; the action
   ends the turn; free movement after a clear.
 - Attack range 1; crit 5 % / 150 %; player-only crits.
@@ -94,6 +97,9 @@ Verified equal to `gameplay-spec.md`, so no action needed:
   the FARMING × AUTO matrix matches the spec (farming repeats the current stage; AUTO
   with farming off walks to the exit and advances).
 - Replay skip and defeat retreat (stage −1, minimum 1, no penalty).
+- Backward transition: stepping onto the Starting Cell returns to the previous stage and
+  arrives one cell left of the Next Stage Cell (the defeat retreat uses the same arrival).
+  Refused on stage 1 and while FARMING or AUTO is on; needs no clear and no particular turn.
 - Authoring model: `StageDatabase` ranges, `LevelConfig` + `LevelTemplate` both producing
   a `StageDefinition`; canonical stage id `forest_006`.
 - Content layer (`StageContent`) for chests / springs instead of new stage types.

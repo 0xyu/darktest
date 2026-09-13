@@ -10,6 +10,18 @@ signal enemy_spawned(enemy: Node)
 signal stage_completed(stage_state: StageState)
 signal stage_generation_failed(stage_number: int, reason: String)
 
+## Which arena gate the hero walks in through when a stage is generated.
+##
+## FROM_START_POINT is the forward direction: the battle arrives from behind, so
+## the hero is placed one cell right of the Stage Starting Point. It covers map
+## entry, the first boot, farming re-spawn and every "next stage" advance.
+## FROM_NEXT_STAGE_POINT is the walk backwards: the hero arrives through the Next
+## Stage Point and is placed one cell left of it.
+enum Arrival {
+	FROM_START_POINT,
+	FROM_NEXT_STAGE_POINT,
+}
+
 @export var grid_path: NodePath
 @export var spawn_parent_path: NodePath = NodePath("..")
 @export var player_path: NodePath = NodePath("../Player")
@@ -21,6 +33,8 @@ signal stage_generation_failed(stage_number: int, reason: String)
 @export_range(0.0, 1.0, 0.01) var enemy_stat_variance: float = 0.15
 ## 0-based y row of the arena gate lane: the Stage Starting Point sits on the
 ## left edge of this row and the Next Stage Point / exit on the right edge.
+## It is also the ONLY row where the grid's two outer columns are usable, so it
+## is pushed into GridMap2D.gate_row (see _resolve_references).
 @export_range(0, 63, 1) var stage_gate_row: int = 3
 
 var stage_state: StageState = StageState.new()
@@ -52,7 +66,7 @@ func _ready() -> void:
 	_random_number_generator.randomize()
 
 
-func initialize_stage(new_stage_number: int = -1, requested_special_encounter_type: int = SpecialEncounterTypeResource.NONE) -> bool:
+func initialize_stage(new_stage_number: int = -1, requested_special_encounter_type: int = SpecialEncounterTypeResource.NONE, arrival: int = Arrival.FROM_START_POINT) -> bool:
 	_resolve_references()
 	var target_stage: int = starting_stage if new_stage_number < 0 else maxi(new_stage_number, 1)
 	if _grid == null or _spawn_parent == null or _level_manager == null:
@@ -67,15 +81,16 @@ func initialize_stage(new_stage_number: int = -1, requested_special_encounter_ty
 		return false
 
 	# A new stage (different number from the one currently generated, including
-	# the first boot) re-enters the arena through the Stage Starting Point.
-	# Farming re-spawns the SAME number, so the hero stays where it is.
+	# the first boot) re-enters the arena through the gate the battle arrived at,
+	# one cell inward from it (`arrival`). Farming re-spawns the SAME number, so
+	# the hero stays where it is and `arrival` is not consulted.
 	var teleport_to_start: bool = _active_stage_number != target_stage
 	_clear_spawned_enemies()
 	current_definition = _level_manager.request_level(target_stage, requested_special_encounter_type)
 	if current_definition == null:
 		return false
 	if teleport_to_start:
-		_place_player_at_start()
+		_place_player_at_arrival(arrival)
 	stage_state.reset_for_stage(target_stage, current_definition.is_mini_boss_stage)
 	stage_state.is_special_encounter = current_definition.is_special_encounter
 	stage_state.special_encounter_type = current_definition.special_encounter_type
@@ -140,16 +155,23 @@ func start_next_stage() -> bool:
 	return initialize_stage(stage_state.stage_number + 1)
 
 
+## Moves the battle one stage back: the player stepped onto the Stage Starting
+## Point, or was pushed back by a defeat. The hero arrives through the Next Stage
+## Point, one cell left of it.
 func start_previous_stage() -> bool:
-	return initialize_stage(maxi(stage_state.stage_number - 1, 1))
+	return initialize_stage(
+		maxi(stage_state.stage_number - 1, 1),
+		SpecialEncounterTypeResource.NONE,
+		Arrival.FROM_NEXT_STAGE_POINT
+	)
 
 
 func get_spawned_enemies() -> Array[EnemyController]:
 	return _spawned_enemies.duplicate()
 
 
-## The left arrival cell of the arena (Stage Starting Point). The hero is
-## teleported here when a new stage is generated.
+## The left arrival cell of the arena (Stage Starting Point). The hero walks back
+## out through it into the previous stage.
 func get_stage_start_cell() -> Vector2i:
 	if _grid == null:
 		return Vector2i.ZERO
@@ -162,6 +184,16 @@ func get_stage_exit_cell() -> Vector2i:
 	if _grid == null:
 		return Vector2i.ZERO
 	return Vector2i(_grid.grid_size.x - 1, clampi(stage_gate_row, 0, _grid.grid_size.y - 1))
+
+
+## Where the hero stands right after a stage is generated: one cell inward from
+## the gate the battle arrived through, so both gate cells stay free for walking
+## back out. Forward stages start one cell right of the Stage Starting Point;
+## walking backwards starts one cell left of the Next Stage Point.
+func get_stage_arrival_cell(arrival: int = Arrival.FROM_START_POINT) -> Vector2i:
+	if arrival == Arrival.FROM_NEXT_STAGE_POINT:
+		return get_stage_exit_cell() + Vector2i.LEFT
+	return get_stage_start_cell() + Vector2i.RIGHT
 
 
 func is_player_on_stage_exit() -> bool:
@@ -198,21 +230,44 @@ func _resolve_references() -> void:
 		_player = get_node_or_null(player_path)
 	if _level_manager == null:
 		_level_manager = get_node_or_null(level_manager_path) as LevelManager
+	_sync_grid_gate_row()
 
 
-## Best-effort teleport of the hero onto the Stage Starting Point so enemies
-## spawn away from the arena entrance. Runs before enemies spawn, therefore the
-## start cell is occupied and excluded from spawn candidates.
-func _place_player_at_start() -> void:
-	if _player != null and _player.has_method("place_at"):
-		_player.place_at(get_stage_start_cell())
+## The gate lane row is the one row whose two outer columns are usable, so the
+## grid needs it to know which cells are positions and which are unusable. This
+## manager owns the row; the grid is told, never asked.
+func _sync_grid_gate_row() -> void:
+	if _grid != null:
+		_grid.gate_row = stage_gate_row
 
 
+## Best-effort teleport of the hero onto the arrival cell of the gate the stage
+## was entered through, so enemies spawn away from the arena gate. Runs before
+## enemies spawn, therefore the arrival cell is occupied and excluded from spawn
+## candidates. If the arrival cell is unusable or taken, the gate cell itself is
+## used instead, so the hero is never left standing in another stage's arena.
+func _place_player_at_arrival(arrival: int) -> void:
+	if _player == null or not _player.has_method("place_at"):
+		return
+	if _player.place_at(get_stage_arrival_cell(arrival)):
+		return
+	var gate_cell: Vector2i = (
+		get_stage_exit_cell() if arrival == Arrival.FROM_NEXT_STAGE_POINT else get_stage_start_cell()
+	)
+	_player.place_at(gate_cell)
+
+
+## Walkable cells an enemy may spawn on: the whole arena except the two gate
+## cells, which belong to the stage entrance and exit and must stay free for the
+## walk into the next stage / back into the previous one.
 func _get_available_spawn_cells() -> Array[Vector2i]:
+	var reserved_gate_cells: Array[Vector2i] = [get_stage_start_cell(), get_stage_exit_cell()]
 	var available_cells: Array[Vector2i] = []
 	for y in range(_grid.grid_size.y):
 		for x in range(_grid.grid_size.x):
 			var cell := Vector2i(x, y)
+			if reserved_gate_cells.has(cell):
+				continue
 			if _grid.is_walkable(cell) and not _grid.is_occupied(cell):
 				available_cells.append(cell)
 	return available_cells

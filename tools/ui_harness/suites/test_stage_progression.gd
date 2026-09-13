@@ -102,6 +102,11 @@ func _place_player(cell: Vector2i) -> void:
 	await flush_frames(1)
 
 
+## The Next Stage Point of the current arena: the extra right cell of row 4.
+func _exit_cell() -> Vector2i:
+	return _stage().call("get_stage_exit_cell")
+
+
 func _open_map() -> void:
 	_grid_test.call("open_world_map")
 	await flush_frames(2)
@@ -142,7 +147,7 @@ func test_authored_battle_clear_records_completion_and_continues_endless() -> vo
 	# The game is primarily endless: the exit / NEXT STAGE moves the battle one
 	# stage on. The world map is an always-available shortcut, not a hub the
 	# player is forced back to after every clear.
-	await _place_player(Vector2i(10, 3))
+	await _place_player(_exit_cell())
 	_hud().emit_signal("next_stage_requested")
 	await flush_frames(4)
 	var map: Node = _world_map()
@@ -179,7 +184,7 @@ func test_auto_and_manual_advance_share_one_seam() -> void:
 	await _enter_typed_stage(2)
 	await _defeat_all_enemies()
 	expect(bool(progress.call("is_stage_completed", 2)), "manual clear records stage 02")
-	await _place_player(Vector2i(10, 3))
+	await _place_player(_exit_cell())
 	_hud().emit_signal("next_stage_requested")
 	await flush_frames(4)
 	expect_eq(_stage_number(), 3, "manual advance moves on to battle 3")
@@ -187,7 +192,7 @@ func test_auto_and_manual_advance_share_one_seam() -> void:
 
 	# --- AUTO advance: same clear, advanced by the auto walker ---------------
 	await _enter_typed_stage(4)
-	await _place_player(Vector2i(10, 3))
+	await _place_player(_exit_cell())
 	await _defeat_all_enemies()
 	expect(bool(progress.call("is_stage_completed", 4)), "AUTO clear records the authored completion exactly like manual")
 	expect_contains(_status_text(), "STAGE 05 (COMBAT) UNLOCKED", "AUTO clear reports the same authored next stage")
@@ -295,7 +300,7 @@ func test_boot_clear_records_area_1_progress_and_advances() -> void:
 	expect_contains(_status_text(), "AREA FOREST", "the boot clear is reported as authored progress")
 	expect_contains(_status_text(), "STAGE 02 (COMBAT) UNLOCKED", "the boot clear reports the authored next stage")
 
-	await _place_player(Vector2i(10, 3))
+	await _place_player(_exit_cell())
 	_hud().emit_signal("next_stage_requested")
 	await flush_frames(6)
 	expect_eq(_stage_number(), 2, "the loop still advances to battle 2 from the exit")
@@ -336,7 +341,7 @@ func test_boss_clear_finishes_the_area() -> void:
 
 	# The authored path is finished, so the endless loop simply carries on past
 	# it; the map is opened on demand to inspect the finished area.
-	await _place_player(Vector2i(10, 3))
+	await _place_player(_exit_cell())
 	_hud().emit_signal("next_stage_requested")
 	await flush_frames(4)
 	expect_eq(_stage_number(), 11, "the endless loop continues past the finished area")

@@ -146,15 +146,41 @@ progression and navigation.
 
 ## 5.1 Grid
 
-**11 × 7 grid**, `X: 0–10`, `Y: 0–6`. Movement is up / down / left / right only —
-diagonal movement is not allowed. Distance uses Manhattan distance.
+The combat arena is an **11 × 7 grid** (`x = 1–11`, `y = 0–6`) plus **one gate cell on each
+side of Row 4**:
+
+```text
+Row 1      .  .  .  .  .  .  .  .  .  .  . 
+Row 2      .  .  .  .  .  .  .  .  .  .  . 
+Row 3      .  .  .  .  .  .  .  .  .  .  . 
+Row 4   S  H  .  .  .  .  .  .  .  .  .  B  E
+Row 5      .  .  .  .  .  .  .  .  .  .  . 
+Row 6      .  .  .  .  .  .  .  .  .  .  . 
+Row 7      .  .  .  .  .  .  .  .  .  .  . 
+
+S = Starting Cell      E = Next Stage Cell
+H = hero start         B = arrival when the battle walks backwards
+```
+
+- The two gate cells exist **only on Row 4**. On rows 1–3 and 5–7 those positions **do not
+  exist**: they are unusable — no movement, no pathfinding, no enemies, no content.
+- Movement is up / down / left / right only — diagonal movement is not allowed. Distance
+  uses Manhattan distance.
+- The gate row is the arena's gate lane: the stage is entered and left along it.
 
 ## 5.2 Stage Positions
 
 ```text
-Main Player start:  X = 0,  Y = 3
-Normal exit:        X = 10, Y = 3
+Starting Cell:      X = 0,  Y = 3   (extra left cell of Row 4)
+Next Stage Cell:    X = 12, Y = 3   (extra right cell of Row 4)
+Main Player start:  X = 1,  Y = 3   (one cell right of the Starting Cell)
+Backward arrival:   X = 11, Y = 3   (one cell left of the Next Stage Cell)
 ```
+
+`Y = 3` is Row 4 in 1-based terms — the gate row the rest of this section names.
+
+The hero never stands on a gate cell when a stage is generated: the stage is entered one
+cell inward from the gate it came through, and both gate cells stay free for walking out.
 
 ## 5.3 Turn System
 
@@ -195,6 +221,28 @@ Critical Damage: 150%
 ```
 
 Critical hits need stronger visual and audio feedback.
+
+## 5.8 Stage Gates
+
+The two Row 4 gate cells are the stage's doors, and they mirror each other:
+
+| Cell | Standing on it means |
+|---|---|
+| Starting Cell | The way **back**: the battle returns to the previous stage |
+| Next Stage Cell | The way **forward**: the next stage can be started |
+
+- **Entering a stage forwards** (boot, clear + advance, map entry): the hero starts **one
+  cell to the right of the Starting Cell**.
+- **Entering a stage backwards** (walking back through the Starting Cell, or the defeat
+  retreat): the hero starts **one cell to the left of the Next Stage Cell**.
+- Walking back is therefore always a step onto the Starting Cell and nothing else, and the
+  stage walked out of is not recorded as cleared — it was abandoned, not beaten.
+- Walking back is the player's own decision, so it is a manual move: it is refused while
+  FARMING pins the stage ("stay on this stage") and while AUTO plays, because AUTO never
+  plans a retreat.
+
+The arena is a loop of doors rather than a one-way corridor: a player can step back to farm
+ground they already know, and step forward again from where they re-entered.
 
 ---
 

@@ -132,6 +132,11 @@ func _place_player(cell: Vector2i) -> void:
 	await flush_frames(1)
 
 
+## The Next Stage Point of the current arena: the extra right cell of row 4.
+func _exit_cell() -> Vector2i:
+	return _stage().call("get_stage_exit_cell")
+
+
 func _grid() -> Node:
 	return _grid_test.find_child("Grid", true, false)
 
@@ -272,7 +277,7 @@ func test_t2_clearing_an_area_boundary_switches_the_derived_area() -> void:
 	expect_eq(_area_of_position(), "forest", "which is still the first area")
 
 	# Advancing across the boundary switches the derived area with no special rule.
-	await _place_player(Vector2i(10, 3))
+	await _place_player(_exit_cell())
 	_hud().emit_signal("next_stage_requested")
 	await flush_frames(6)
 	expect_eq(_stage_number(), 11, "the advance crossed into global stage 11")
@@ -326,7 +331,7 @@ func test_t4_all_three_places_agree_on_the_position() -> void:
 	await _open_map()
 	await _expect_one_position("after a map entry")
 	await _defeat_all_enemies()
-	await _place_player(Vector2i(10, 3))
+	await _place_player(_exit_cell())
 	_hud().emit_signal("next_stage_requested")
 	await flush_frames(6)
 	expect_eq(_position(), 5, "the manual advance moved the position")
@@ -338,7 +343,7 @@ func test_t4_all_three_places_agree_on_the_position() -> void:
 	auto.set("action_delay_seconds", 0.0)
 	auto.call("set_game_speed", 2)
 	await _grid_test.call("enter_area_stage", 6)
-	await _place_player(Vector2i(10, 3))
+	await _place_player(_exit_cell())
 	await _defeat_all_enemies()
 	auto.call("set_auto_enabled", true)
 	await flush_frames(16)
@@ -382,7 +387,7 @@ func test_t5_past_the_last_authored_area_still_advances() -> void:
 	await _defeat_all_enemies()
 	expect_eq(progress.get("completed_stages").size(), 20, "the last authored stage recorded its completion")
 
-	await _place_player(Vector2i(10, 3))
+	await _place_player(_exit_cell())
 	_hud().emit_signal("next_stage_requested")
 	await flush_frames(6)
 	expect_eq(_position(), 21, "the position advanced past the authored path")

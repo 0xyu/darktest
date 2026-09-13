@@ -566,6 +566,16 @@ func _player_is_on_stage_exit() -> bool:
 	return player.get_grid_position() == stage_manager.get_stage_exit_cell()
 
 
+## True when the hero stands on the Stage Starting Point, the gate back into the
+## previous stage (the mirror of _player_is_on_stage_exit).
+func _player_is_on_stage_start() -> bool:
+	if player == null or stage_manager == null:
+		return false
+	if not stage_manager.has_method("get_stage_start_cell"):
+		return false
+	return player.get_grid_position() == stage_manager.get_stage_start_cell()
+
+
 ## The classic gate: this stage has been fully cleared.
 func _is_current_stage_cleared() -> bool:
 	if stage_manager == null or stage_manager.stage_state == null:
@@ -615,6 +625,40 @@ func _can_advance_to_next_stage() -> bool:
 	if not _player_is_on_stage_exit():
 		return false
 	return _is_current_stage_cleared() or can_leave_stage_uncleared()
+
+
+## True when the hero may walk back out through the Stage Starting Point into the
+## previous stage RIGHT NOW.
+##
+## The Starting Cell is the mirror of the Next Stage Point, so the deliberate
+## limits of walking out forwards apply here too: there is no stage before stage
+## 1, and both modes that pin the battle down stop the step — FARMING means "stay
+## on this stage", and AUTO never plans a walk backwards, so a step onto the gate
+## during AUTO is an accident rather than a retreat.
+##
+## It is deliberately NOT gated on a clear or on whose turn it is: walking back is
+## how the player retreats from a fight they cannot win (the defeat retreat they
+## already have, chosen instead of forced) and how they re-enter a farmed stage,
+## so it must work during the fight and during the free roam after a clear.
+##
+## Public because the HUD hint needs the same answer as the gate below.
+func can_return_to_previous_stage() -> bool:
+	if stage_manager == null or stage_manager.stage_state == null:
+		return false
+	if stage_manager.stage_state.stage_number <= 1:
+		return false
+	if auto_combat != null and (auto_combat.is_farming_enabled() or auto_combat.is_auto_enabled()):
+		return false
+	return true
+
+
+## THE single backward-transition seam, the mirror of _advance_after_clear(). It
+## is reached only by walking onto the Stage Starting Point; the defeat retreat
+## keeps its own path because it must revive the hero first.
+func _return_to_previous_stage() -> bool:
+	if not can_return_to_previous_stage():
+		return false
+	return stage_manager.start_previous_stage()
 
 
 # ---------------------------------------------------------------------------
@@ -997,6 +1041,23 @@ func _on_player_moved(from_cell: Vector2i, to_cell: Vector2i, points_remaining: 
 			_last_move_text = "ON THE EXIT — NEXT STAGE READY (STAGE %02d ALREADY CLEARED)" % (
 				stage_manager.stage_state.stage_number + 1
 			)
+	# The Stage Starting Point is the way back: stepping onto it moves the battle
+	# into the previous stage immediately. Every movement path — click-to-move, the
+	# D-pad and the keyboard arrows, plus an AUTO step — ends in this signal, so the
+	# walk back cannot be missed by one input path and honoured by another.
+	if _player_is_on_stage_start():
+		if _return_to_previous_stage():
+			# A fresh stage starts its own turn, so this move must not settle the old
+			# one: return before the settle below can end a turn in the new arena.
+			_last_move_text = "BACK THROUGH THE STARTING POINT — STAGE %02d" % (
+				stage_manager.stage_state.stage_number
+			)
+			queue_redraw()
+			return
+		elif auto_combat.is_farming_enabled():
+			_last_move_text = "FARMING STAYS ON STAGE %d" % stage_manager.stage_state.stage_number
+		elif not auto_combat.is_auto_enabled():
+			_last_move_text = "STAGE 01 — THE STARTING POINT LEADS NOWHERE"
 	# Every movement path — click-to-move, the D-pad and the keyboard arrows — ends
 	# in this signal, so a walk that spends the turn's last movement point settles the
 	# turn here: strike a reachable enemy, or simply be done. Either way the player

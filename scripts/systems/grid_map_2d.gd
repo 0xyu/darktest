@@ -17,6 +17,14 @@ const ORTHOGONAL_DIRECTIONS: Array[Vector2i] = [
 @export var origin: Vector2 = Vector2.ZERO
 @export var blocked_cells: Array[Vector2i] = []
 @export var draw_grid: bool = true
+## 0-based row of the arena gate lane, or -1 for a plain rectangular grid.
+##
+## The StageManager owns which row the stage gates sit on and pushes it here
+## (`stage_gate_row`). On a grid WITH a gate lane the leftmost and rightmost
+## column are usable on that row only: every other cell of those two columns is
+## an unusable position. That is what gives the arena one extra cell on each side
+## of the gate row without widening the rows that have no such cell.
+@export_range(-1, 63, 1) var gate_row: int = -1
 
 var _occupied_cells: Dictionary = {}
 var _highlighted_cells: Array[Vector2i] = []
@@ -33,7 +41,15 @@ func is_valid_cell(cell: Vector2i) -> bool:
 
 
 func is_walkable(cell: Vector2i) -> bool:
-	return is_valid_cell(cell) and not blocked_cells.has(cell)
+	return is_valid_cell(cell) and not blocked_cells.has(cell) and not is_gate_margin_cell(cell)
+
+
+## True for a cell of the outer columns that the gate lane does not reach: with a
+## gate lane set, only `gate_row` uses the leftmost and rightmost column.
+func is_gate_margin_cell(cell: Vector2i) -> bool:
+	if gate_row < 0 or cell.y == gate_row:
+		return false
+	return cell.x == 0 or cell.x == grid_size.x - 1
 
 
 func is_occupied(cell: Vector2i) -> bool:

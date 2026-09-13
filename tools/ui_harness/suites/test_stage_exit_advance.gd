@@ -1,13 +1,17 @@
 extends "res://tools/ui_harness/ui_harness_suite.gd"
 
 ## Headless integration suite for the stage-exit gate: the hero must stand on
-## the right Next Stage Point (10,3) before advancing, with a free-roam victory,
+## the right Next Stage Point (12,3) before advancing, with a free-roam victory,
 ## an AUTO walk-to-exit, and FARMING position preservation.
 ##
-## It also covers the replay rule: a stage the player walked back into may be
-## left through the same exit cell WHILE ITS ENEMIES ARE STILL STANDING, because
-## the stage after it has already been cleared (the fight is simply abandoned,
-## and the skipped stage is recorded as cleared by a real clear only).
+## It also covers the arena gate lane (the Starting Cell (0,3) and the Next Stage
+## Point (12,3) are the only usable cells of the two outer columns, and a new
+## stage starts one cell inward from the gate it was entered through), the walk
+## BACK into the previous stage through the Starting Cell, and the replay rule: a
+## stage the player walked back into may be left through the same exit cell WHILE
+## ITS ENEMIES ARE STILL STANDING, because the stage after it has already been
+## cleared (the fight is simply abandoned, and the skipped stage is recorded as
+## cleared by a real clear only).
 ##
 ## Mounts the real game scene (res://scenes/world/Main.tscn) and defeats the
 ## spawned enemies through EnemyController.handle_defeat (deterministic, no
@@ -170,11 +174,34 @@ func test_boot_places_player_at_start() -> void:
 	if _grid_test == null:
 		return
 	var stage := _stage()
-	expect_eq(stage.call("get_stage_start_cell"), Vector2i(0, 3), "start cell is left edge row 3")
-	expect_eq(stage.call("get_stage_exit_cell"), Vector2i(10, 3), "exit cell is right edge row 3")
-	expect_eq(_player().call("get_grid_position"), Vector2i(0, 3), "hero spawns at stage start")
+	expect_eq(stage.call("get_stage_start_cell"), Vector2i(0, 3), "Starting Cell is the extra left cell of row 4")
+	expect_eq(stage.call("get_stage_exit_cell"), Vector2i(12, 3), "Next Stage Cell is the extra right cell of row 4")
+	expect_eq(_player().call("get_grid_position"), Vector2i(1, 3), "hero spawns one cell right of the Starting Cell")
 	expect_eq(_phase(), TurnStateScript.PLAYER_TURN, "stage 1 begins on the player turn")
 	expect(not bool(_player().call("is_free_moving")), "free roam off during combat")
+
+
+## Rule: only row 4 carries the two extra cells. The outer columns are usable
+## there and unusable on every other row, so the gate cells exist without
+## widening rows 1-3 / 5-7.
+func test_the_gate_lane_is_the_only_row_using_the_outer_columns() -> void:
+	await _mount_game()
+	var grid: Node = _grid_test.find_child("Grid", true, false)
+	expect(grid != null, "the arena grid exists")
+	if grid == null:
+		return
+	expect(bool(grid.call("is_walkable", Vector2i(0, 3))), "the Starting Cell is walkable")
+	expect(bool(grid.call("is_walkable", Vector2i(12, 3))), "the Next Stage Cell is walkable")
+	for row in [0, 1, 2, 4, 5, 6]:
+		expect(
+			not bool(grid.call("is_walkable", Vector2i(0, row))),
+			"the left gate column is unusable on row %d" % (row + 1)
+		)
+		expect(
+			not bool(grid.call("is_walkable", Vector2i(12, row))),
+			"the right gate column is unusable on row %d" % (row + 1)
+		)
+	expect(not bool(grid.call("is_occupied", Vector2i(0, 3))), "the Starting Cell starts free")
 
 
 func test_manual_clear_gates_advance_on_exit() -> void:
@@ -190,20 +217,54 @@ func test_manual_clear_gates_advance_on_exit() -> void:
 	expect(bool(button.visible), "next-stage button revealed on victory")
 	expect(bool(button.disabled), "next-stage disabled off the exit")
 
-	# Walk onto the exit (10,3) and confirm the button enables.
-	await _place_player(Vector2i(9, 3))
+	# Walk onto the Next Stage Cell (12,3) and confirm the button enables.
+	await _place_player(Vector2i(11, 3))
 	_player().call("try_move", Vector2i.RIGHT)
 	await flush_frames(2)
-	expect_eq(_player().call("get_grid_position"), Vector2i(10, 3), "hero stepped onto the exit")
+	expect_eq(_player().call("get_grid_position"), Vector2i(12, 3), "hero stepped onto the exit")
 	expect_contains(_status_text(), "ON THE EXIT — NEXT STAGE READY", "reaching the exit is reported")
 	expect(not bool(button.disabled), "next-stage enabled while standing on the exit")
 
-	# Press NEXT STAGE -> stage 2 starts, hero teleported back to the start.
+	# Press NEXT STAGE -> stage 2 starts, the hero arrives beyond the start gate.
 	_hud().emit_signal("next_stage_requested")
 	await flush_frames(6)
 	expect_eq(_stage_number(), 2, "advanced to stage 2")
-	expect_eq(_player().call("get_grid_position"), Vector2i(0, 3), "stage 2 hero teleported to the start")
+	expect_eq(_player().call("get_grid_position"), Vector2i(1, 3), "stage 2 hero enters right of the Starting Cell")
 	expect_eq(_phase(), TurnStateScript.PLAYER_TURN, "stage 2 begins on the player turn")
+
+
+## Rule: the Starting Cell is the gate BACK into the previous stage. Stepping onto
+## it moves the battle one stage back, and the backward arrival is one cell to the
+## left of that stage's Next Stage Cell — the mirror of the forward arrival.
+func test_stepping_on_the_starting_cell_returns_to_the_previous_stage() -> void:
+	await _mount_game()
+	await _defeat_all_enemies()
+	expect(await _stand_on_exit_while_fighting(), "the hero stands on the exit after the clear")
+	_hud().emit_signal("next_stage_requested")
+	await flush_frames(6)
+	expect_eq(_stage_number(), 2, "the battle advanced to stage 2")
+	expect_eq(_player().call("get_grid_position"), Vector2i(1, 3), "stage 2 starts right of the Starting Cell")
+
+	# One step left IS the Starting Cell, so this move must move the battle back.
+	_player().call("try_move", Vector2i.LEFT)
+	await flush_frames(6)
+	expect_eq(_stage_number(), 1, "stepping onto the Starting Cell returned to the previous stage")
+	expect_eq(_player().call("get_grid_position"), Vector2i(11, 3), "the walk back arrives one left of the Next Stage Cell")
+	expect_eq(_phase(), TurnStateScript.PLAYER_TURN, "the previous stage begins on the player turn")
+	expect_contains(_status_text(), "BACK THROUGH THE STARTING POINT", "the walk back is reported")
+	expect(_find_living_enemy() != null, "the previous stage is a real fight again")
+
+
+## The mirror of the forward gate on stage 1: there is nothing behind the first
+## stage, so the Starting Cell is only a cell there.
+func test_the_starting_cell_leads_nowhere_on_stage_1() -> void:
+	await _mount_game()
+	expect_eq(_stage_number(), 1, "the boot stage is stage 1")
+	expect(not bool(_grid_test.call("can_return_to_previous_stage")), "stage 1 has no previous stage")
+	_player().call("try_move", Vector2i.LEFT)
+	await flush_frames(4)
+	expect_eq(_stage_number(), 1, "stepping onto the Starting Cell kept the battle on stage 1")
+	expect_eq(_player().call("get_grid_position"), Vector2i(0, 3), "the hero is standing on the Starting Cell")
 
 
 func test_auto_walks_to_exit_when_enabled() -> void:
@@ -211,7 +272,7 @@ func test_auto_walks_to_exit_when_enabled() -> void:
 	await _defeat_all_enemies()
 	expect_eq(_phase(), TurnStateScript.VICTORY, "clear reaches VICTORY")
 	# Place the hero one cell left of the exit so the walk is short and certain.
-	await _place_player(Vector2i(9, 3))
+	await _place_player(Vector2i(11, 3))
 	_auto().call("set_game_speed", 2)  # FASTEST
 	_auto().call("set_auto_enabled", true)
 	# FASTEST action delay = 0.05s; headless frame delta ~1/60 => allow many frames.
@@ -323,7 +384,7 @@ func test_replay_skips_the_fight_when_the_next_stage_is_cleared() -> void:
 	await flush_frames(6)
 	expect_eq(_stage_number(), 3, "the replay skip advanced to the already-cleared stage 3")
 	expect_eq(int(_progress().get("current_stage_number")), 3, "the position followed the skip")
-	expect_eq(_player().call("get_grid_position"), Vector2i(0, 3), "the new stage re-enters through the start cell")
+	expect_eq(_player().call("get_grid_position"), Vector2i(1, 3), "the new stage enters right of the Starting Cell")
 	expect_eq(_phase(), TurnStateScript.PLAYER_TURN, "the new stage begins on the player turn")
 
 
