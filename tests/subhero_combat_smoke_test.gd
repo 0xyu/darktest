@@ -37,6 +37,20 @@ class MockEnemy:
 		return defeated_flag
 
 
+## A target that exposes real `EnemyStats`, so the armor entry has a defense to read.
+class MockArmoredEnemy:
+	extends Node
+
+	var enemy_stats: EnemyStats
+
+	func _init(source_hp: int, source_defense: int) -> void:
+		enemy_stats = EnemyStats.new()
+		enemy_stats.max_hp = maxi(source_hp, 1)
+		enemy_stats.current_hp = enemy_stats.max_hp
+		enemy_stats.attack = 1
+		enemy_stats.defense = maxi(source_defense, 0)
+
+
 var _failures: Array[String] = []
 var _attack_results: Array[Resource] = []
 var _deaths: Array[Node] = []
@@ -87,8 +101,27 @@ func _run() -> void:
 	manager._process(10.0)
 	_expect(high_hp_enemy.current_hp == 72, "stopped combat should not leak attacks")
 
-	var scaled_damage: int = manager.calculate_subhero_damage(skeleton_data, InstanceScript.new(&"skeleton_archer", 3))
-	_expect(scaled_damage == 10, "damage calculation should scale moderately with level")
+	var scaled_damage: int = manager.calculate_subhero_damage(skeleton_data, InstanceScript.new(&"skeleton_archer", 3), null)
+	_expect(scaled_damage == 8, "an unarmored target takes the Sub Hero's attack power unchanged (got %d)" % scaled_damage)
+
+	# §4.1/§6.2: a Sub Hero resolves through the SAME armor entry as every other damage source, so an
+	# armored target takes less while a weak attacker still chips instead of hitting a wall.
+	var armored := MockArmoredEnemy.new(1000, 8)
+	root.add_child(armored)
+	var armored_damage: int = manager.calculate_subhero_damage(skeleton_data, InstanceScript.new(&"skeleton_archer", 3), armored)
+	_expect(
+		armored_damage < scaled_damage and armored_damage >= 1,
+		"armor reduces Sub Hero damage but never below 1 (got %d vs %d)" % [armored_damage, scaled_damage]
+	)
+	var expected_armored: int = maxi(
+		roundi(BalanceFormulas.armor_damage(BalanceProfile.get_default(), float(scaled_damage), 8.0)),
+		1
+	)
+	_expect(
+		armored_damage == expected_armored,
+		"the armored hit IS the shared armor formula (%d vs %d)" % [armored_damage, expected_armored]
+	)
+	armored.free()
 
 	manager.free()
 	combat_system.free()

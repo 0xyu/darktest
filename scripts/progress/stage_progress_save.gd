@@ -123,9 +123,23 @@ const StorageInventoryScript := preload("res://scripts/items/storage_inventory.g
 const EquipmentInstanceScript := preload("res://scripts/items/equipment_instance.gd")
 const SubHeroProgressionServiceScript := preload("res://scripts/sub_hero/sub_hero_progression_service.gd")
 const PlayerProgressionScript := preload("res://scripts/player/player_progression.gd")
+const BalanceMigrationScript := preload("res://scripts/progress/balance_migration_v4.gd")
 
 ## Bumped only when the stored shape changes in a way that needs migration.
-const FORMAT_VERSION := 3
+##
+## Version 4 is the §9 balance migration: the character's EXP and Gold, every item's derived
+## values and the Sub Hero coordinates are converted from the v3 scale onto the v4 one, with a
+## one-time backup of the untouched file. A version 3 file still loads — it is CONVERTED as it is
+## read and the converted payload replaces the file, so the next load is already v4.
+const FORMAT_VERSION := 4
+## The balance contract version this build writes. Distinct from the format version on purpose: the
+## stored SHAPE and the balance SCALE can move independently, and a save whose shape did not change
+## still has to say which scale its numbers belong to.
+const BALANCE_VERSION := 4
+## §9: the untouched pre-migration file, written once and never overwritten by a later save.
+const BACKUP_SUFFIX := ".v3.bak"
+## The scratch file the new payload is written to before it replaces the save atomically.
+const TEMP_SUFFIX := ".tmp"
 const SAVE_DIR := "user://save/"
 const SAVE_FILE_NAME := "stage_progress.json"
 const DEFAULT_SAVE_PATH := SAVE_DIR + SAVE_FILE_NAME
@@ -146,6 +160,10 @@ signal saved(save_path: String)
 ## state instead of a half-restored one, and the reason is reported rather than
 ## silently swallowing a damaged save.
 signal load_rejected(reason: String)
+## §9: raised once, right after a pre-v4 save was converted and the converted payload written. The
+## payload is the migration report (`migrated_from_balance_version`, `snapshot`, `audit`), which is
+## what a player-facing "your save was migrated" note is built from.
+signal load_migrated(report: Dictionary)
 
 ## Player map / stage progress (position, unlock ceiling, completions).
 var progress: PlayerProgress
@@ -167,6 +185,12 @@ var sub_heroes: SubHeroProgressionService
 ## The CHARACTER's own numbers: level, experience, gold, skill points and the
 ## learned skill levels. Shared with the hero — see adopt_player_progression.
 var player_progression: PlayerProgression
+## §7: the profile the §9 migration converts onto. Handed in by the host that owns the provider; a
+## headless caller without one gets the shipped default rather than a restated balance number.
+var balance_profile: BalanceProfile
+## §9: what the last read converted, for a one-time player-facing migration note. Empty when the
+## last load needed no conversion.
+var migration_report: Dictionary = {}
 ## Where this save is read from / written to.
 var path: String = ""
 
@@ -298,6 +322,7 @@ func unbind() -> void:
 func to_save_data() -> Dictionary:
 	return {
 		"version": FORMAT_VERSION,
+		"balance_version": BALANCE_VERSION,
 		"current_stage_number": clampi(progress.current_stage_number, MIN_STAGE_NUMBER, MAX_STAGE_NUMBER),
 		"highest_stage_reached": clampi(progress.highest_stage_reached, MIN_STAGE_NUMBER, MAX_STAGE_NUMBER),
 		"completed_stages": _sorted_string_keys(progress.completed_stages),
@@ -305,12 +330,26 @@ func to_save_data() -> Dictionary:
 		"inventory": _items_to_save_data(inventory.items),
 		"storage": _items_to_save_data(storage.items),
 		"sub_heroes": sub_heroes.to_save_data(),
-		"level": clampi(player_progression.level, MIN_CHARACTER_LEVEL, MAX_CHARACTER_LEVEL),
+		"level": clampi(player_progression.level, MIN_CHARACTER_LEVEL, _max_character_level()),
 		"experience": maxi(player_progression.experience, 0),
 		"gold": maxi(player_progression.gold, 0),
 		"skill_points": clampi(player_progression.skill_points, 0, MAX_CHARACTER_LEVEL),
 		"skill_levels": _skill_levels_to_save_data(player_progression.skill_levels),
+		"migrated_from_balance_version": int(migration_report.get("migrated_from_balance_version", 0)),
 	}
+
+
+## §5: the character's level ceiling, from the profile when there is one. The write path uses the
+## same ceiling the live progression enforces, so a capped hero is never saved above it.
+func _max_character_level() -> int:
+	if balance_profile != null:
+		return maxi(balance_profile.max_character_level, MIN_CHARACTER_LEVEL)
+	var profile: BalanceProfile = get_balance_profile()
+	return maxi(profile.max_character_level, MIN_CHARACTER_LEVEL)
+
+
+func get_balance_profile() -> BalanceProfile:
+	return balance_profile if balance_profile != null else BalanceProfile.get_default()
 
 
 ## Restores the player-state objects from a payload and returns true. Returns false
@@ -364,7 +403,7 @@ func load_save_data(data: Dictionary) -> bool:
 	# The character's own numbers. The level is restored FIRST: the EXP domain
 	# depends on it (see below).
 	player_progression.level = clampi(
-		_to_int(data.get("level"), MIN_CHARACTER_LEVEL), MIN_CHARACTER_LEVEL, MAX_CHARACTER_LEVEL
+		_to_int(data.get("level"), MIN_CHARACTER_LEVEL), MIN_CHARACTER_LEVEL, _max_character_level()
 	)
 	# EXP lives INSIDE one level: add_experience() always leaves it below the
 	# threshold, so an amount at or past the requirement is damage. The level field
@@ -406,6 +445,12 @@ func save() -> bool:
 ## Reads the save from disk into this object. Returns false (leaving the fresh
 ## state alone) when there is no file, or when the file cannot be used; the reason
 ## is reported through load_rejected.
+##
+## §9 migration: a file written by a build that predates the v4 balance is converted HERE, in
+## memory, and the converted payload is what lands in the live objects. Only once the conversion
+## has succeeded is the untouched original copied to the backup path and the converted payload
+## written back, so an interrupted migration leaves the old save exactly as it was and never a
+## half-converted one.
 func load() -> bool:
 	if not FileAccess.file_exists(path):
 		return false
@@ -419,11 +464,85 @@ func load() -> bool:
 		return _reject("save file '%s' is not valid JSON (%s)" % [path, json.get_error_message()])
 	if not (json.data is Dictionary):
 		return _reject("save file '%s' is not a JSON object" % path)
-	return load_save_data(json.data as Dictionary)
+	var raw: Dictionary = json.data as Dictionary
+	var result: Dictionary = BalanceMigrationScript.migrate(raw, get_balance_profile())
+	var payload: Dictionary = result.get("payload", raw)
+	migration_report = {}
+	if bool(result.get("migrated", false)):
+		# The original file is preserved BEFORE anything overwrites it, and only the first
+		# migration writes it: a later save must not clobber the true pre-migration state.
+		_preserve_pre_migration_backup(text)
+		if not _write_payload_atomically(payload):
+			# The conversion is already applied in memory, so the session can continue; what the
+			# player must not get is a second conversion, which the in-memory `balance_version`
+			# below already prevents for this session.
+			push_warning("StageProgressSave could not persist the v%d balance migration." % BALANCE_VERSION)
+		migration_report = {
+			"migrated_from_balance_version": int(payload.get("migrated_from_balance_version", 3)),
+			"snapshot": result.get("snapshot", {}),
+			"audit": result.get("audit", []),
+		}
+		load_migrated.emit(migration_report)
+	return load_save_data(payload)
 
 
 func has_save() -> bool:
 	return FileAccess.file_exists(path)
+
+
+## §9: the untouched pre-migration text, copied to `<save>.v3.bak` exactly once. A second migration
+## (or a later save) must never overwrite the true original, which is the file a rollback needs.
+func _preserve_pre_migration_backup(original_text: String) -> void:
+	var backup_path: String = path + BACKUP_SUFFIX
+	if FileAccess.file_exists(backup_path):
+		return
+	var file := FileAccess.open(backup_path, FileAccess.WRITE)
+	if file == null:
+		push_warning("StageProgressSave could not write the migration backup '%s'." % backup_path)
+		return
+	file.store_string(original_text)
+	file.close()
+
+
+## §9: write the converted payload to a scratch file and only then move it into place, so an
+## interrupted write leaves the original save readable. Returns true when the save file now holds
+## the new payload.
+func _write_payload_atomically(payload: Dictionary) -> bool:
+	var temp_path: String = path + TEMP_SUFFIX
+	var file := FileAccess.open(temp_path, FileAccess.WRITE)
+	if file == null:
+		push_warning("StageProgressSave could not write the migration scratch file '%s'." % temp_path)
+		return false
+	file.store_string(JSON.stringify(payload, "\t"))
+	file.close()
+	var replace_error := DirAccess.rename_absolute(temp_path, path)
+	if replace_error == OK:
+		saved.emit(path)
+		return true
+	# A destination that already exists at the target path is the one case a plain rename may
+	# refuse on some platforms, so the original is moved aside first and restored on failure.
+	var displaced_path: String = temp_path + ".old"
+	if DirAccess.rename_absolute(path, displaced_path) != OK:
+		DirAccess.remove_absolute(temp_path)
+		push_warning("StageProgressSave could not replace '%s' with the migrated payload." % path)
+		return false
+	if DirAccess.rename_absolute(temp_path, path) != OK:
+		DirAccess.rename_absolute(displaced_path, path)
+		push_warning("StageProgressSave could not move the migrated payload into '%s'." % path)
+		return false
+	DirAccess.remove_absolute(displaced_path)
+	saved.emit(path)
+	return true
+
+
+## The scratch path a migration writes to before replacing the save. Exposed so a test can assert
+## that an interrupted migration leaves nothing behind.
+func get_migration_backup_path() -> String:
+	return path + BACKUP_SUFFIX
+
+
+func get_migration_temp_path() -> String:
+	return path + TEMP_SUFFIX
 
 
 func delete_save() -> void:
@@ -505,6 +624,12 @@ func _items_from_save_data(value: Variant) -> Array[EquipmentInstance]:
 		var item := EquipmentInstanceScript.from_save_data(entry as Dictionary)
 		if item == null or seen_ids.has(item.instance_id):
 			continue
+		# §1/§9: an item level past the release range is damage rather than content — the highest
+		# item the shipped loot tables can produce is `max_item_level`. The item itself is kept.
+		if item.definition != null:
+			item.definition.item_level = clampi(
+				item.definition.item_level, 1, maxi(get_balance_profile().max_item_level, 1)
+			)
 		seen_ids[item.instance_id] = true
 		result.append(item)
 	return result
@@ -565,7 +690,9 @@ func _skill_levels_from_save_data(value: Variant) -> Dictionary:
 
 
 ## A stage number is accepted anywhere inside the field's declared domain; only a
-## value outside it (damage, or a hand-edited file) is pulled to the nearest edge.
+## value outside it (damage, or a hand-edited file) is pulled to the nearest edge. The §1 release
+## range is NOT applied here: a position past the last authored stage is the normal state at the end
+## of the content, and pulling it back would be the drift the Global Stage Range model removed.
 func _sanitize_position(stage_number: int) -> int:
 	return clampi(stage_number, MIN_STAGE_NUMBER, MAX_STAGE_NUMBER)
 

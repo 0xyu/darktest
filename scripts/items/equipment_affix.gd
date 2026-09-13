@@ -38,6 +38,14 @@ enum Type {
 ## its `stat_id` instead (see `get_label()`), so a new affix cannot ship as the
 ## misleading default "Attack".
 @export var display_name: String = ""
+## The signed base a HAND-AUTHORED affix was rebuilt from during the v3 → v4 migration
+## (`docs/balance-rework-implementation.md` §9). Empty for every generated affix: it exists so a
+## legacy authored value can be re-derived without being mistaken for a positive random roll, and
+## it is what `source_kind` = `legacy_authored` refers to.
+@export var signed_base: float = 0.0
+## `""` for a rolled affix, `"legacy_authored"` for an affix the migration rebuilt from an
+## authored value with no recoverable roll.
+@export var source_kind: String = ""
 
 
 ## Plain-Dictionary form, so a rolled affix survives a save / load round trip
@@ -51,6 +59,8 @@ func to_save_data() -> Dictionary:
 		"roll_ratio": roll_ratio,
 		"is_percentage": is_percentage,
 		"display_name": display_name,
+		"signed_base": signed_base,
+		"source_kind": source_kind,
 	}
 
 
@@ -71,6 +81,8 @@ static func from_save_data(save_data: Dictionary) -> EquipmentAffix:
 	affix.roll_ratio = clampf(_to_float(save_data.get("roll_ratio"), 0.5), 0.0, 1.0)
 	affix.is_percentage = bool(save_data.get("is_percentage", false))
 	affix.display_name = str(save_data.get("display_name", ""))
+	affix.signed_base = _to_float(save_data.get("signed_base"), 0.0)
+	affix.source_kind = str(save_data.get("source_kind", ""))
 	return affix
 
 

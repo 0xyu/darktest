@@ -19,12 +19,12 @@ no legacy gap is closed by the document edit.
 | Work item | Shipped behavior → finalized target |
 |---|---|
 | P0 stat reconstruction | **Shipped** (legacy formulas kept): one idempotent rebuild from level + equipped items (`PlayerController.recompute_stats_from_level_and_equipment`), used by boot, level-up, equip/unequip and load → the finalized level_scale/equipment aggregation |
-| Combat/scaling | Subtractive armor and separate exponentials → shared armor and power-law G |
-| Equipment | Additive old flat/utility scaling → inherent per-slot growth, normalized flat budgets, bounded utilities |
-| EXP/Gold/economy | Legacy exponentials and k50 → shared G, joint expected value, BaseItemValue 30 / k 100 |
-| Sub Heroes | Linear damage bypasses armor, fixed 250 summons → armor-resolved investment growth and collection-based pricing |
-| Persistence/boundary | Format 3 and oversized stages → backed-up format 4 migration and validated Stage 1..1000 release |
-| Verification | Document analytic/discrete/EXP-only probes → production M1–M8 still required |
+| Combat/scaling | **Shipped (R1)**: shared armor `A/(1+D/A)` and the power-law `G` |
+| Equipment | **Shipped (R1)**: inherent per-slot growth, normalized flat budgets, bounded utilities |
+| EXP/Gold/economy | **Shipped (R2)**: shared `G`, the joint expected value, BaseItemValue 30 / sell cap 100 |
+| Sub Heroes | **Shipped (R2)**: armor-resolved investment growth and collection-based pricing |
+| Persistence/boundary | **Shipped (R2)**: backed-up, atomic, re-entrant format 4 migration and the validated Stage 1..1000 / level 1..1000 / il 1..1003 release range |
+| Verification | Document analytic/discrete/EXP-only probes → production M1–M8; the R2 half now has production tests (see below), M5/M8 remain R3 |
 
 ### R0 shipped: profile, pure formulas, analytic fixtures, comparison table (2026-09-13)
 
@@ -89,6 +89,61 @@ The compare CARD still renders the raw affix deltas it always did; the same-sour
 preview exists as data (`PlayerController.preview_equipment_block`, `EquipmentStatBlock.compare`)
 and gets its UI surface in the R3 acceptance pass. `docs/gameplay-spec.md` still describes the
 legacy numbers; its text is updated with the release pass in R3.
+
+### R2 shipped: EXP/Gold/prices/Sub Heroes, one settlement, v4 migration (2026-09-13)
+
+R2 of [the final contract](balance-rework-implementation.md) §8 is implemented and verified
+headless. **Every runtime number now comes from the v4 formulas**: the hero, the enemies, the
+rewards, the prices and the Sub Heroes. The v3 → v4 save migration ships with the atomic,
+re-entrant conversion the contract requires, so the switch can no longer strand an existing save.
+
+| Delivered | Where |
+|---|---|
+| §5 `need(L) = round(100 * count(L) * G(L))`, `catchup(S,L) = clamp(1 + 0.10*(S-L), 0.25, 2.0)`, `kill_exp = max(1, round(100 * G(S) * offset_mult * type_exp * catchup))`; the level cap banks no EXP and pays no skill point | `scripts/balance/balance_formulas.gd`, `scripts/player/player_progression.gd`, `scripts/systems/experience_system.gd` |
+| §6.1 `stage_clear_gold = round(50 * G(S))`, `enemy_gold = round(base_gold * G(S) * offset_mult * type_gold)`; the legacy `rate^(stage-1)` reward curve is DELETED (`EnemyScaling.scale_value` is gone) and the rewards are written onto the runtime once, at stage build, with the same offset multiplier the combat stats use | `scripts/systems/enemy_scaling.gd`, `scripts/systems/gold_system.gd`, `scripts/systems/stage_manager.gd` |
+| §8 "all rewards settle exactly once": the EXP and the Gold each have ONE settlement entry keyed by the enemy's runtime instance id, and the combat log reads the amount that was actually paid instead of recomputing it | `scripts/systems/experience_system.gd`, `scripts/systems/gold_system.gd`, `scripts/world/grid_combat.gd` |
+| §6.1 prices on the shared scale: `item_level_multiplier = G(il)`, `Buy = max(floor(Value*4), Sell+1, 1)`, `Sell = max(1, floor(min(Value*0.25, 100 * StageExpectedSell)))`; `StageExpectedSell` uses the **enumerated joint** `E[RarityMultiplier * AffixMultiplier]` over the real catalogue | `scripts/economy/item_economy.gd`, `scripts/economy/economy_config.gd`, `scripts/balance/balance_formulas.gd` |
+| §6.2 Sub Heroes: `investment_level = 1 + (hero_level-1)/(8*p_i)`, `combat_level = min(main_level, investment)`, `hero_attack = base_damage * quality_multiplier * G(combat_level)` resolved through the §4.1 armor entry, and `summon_cost = max(250, ceil(10 * G(min(1000, 1 + owned_draws/24))))` priced BEFORE the draw from the whole collection | `scripts/sub_hero/sub_hero_combat_manager.gd`, `scripts/sub_hero/sub_hero_summon_service.gd`, `scripts/ui/sub_hero_shop_panel.gd` |
+| §9 v3 → v4 migration: the EXP as a level FRACTION, the Gold at the highest unlocked stage's own ratio (log domain), every item's identity/roll/unique effect kept with derived values recomputed, authored and negative affixes rebuilt from a signed base, out-of-range records clamped into the release range with the legacy values stored in `legacy_snapshot` | `scripts/progress/balance_migration_v4.gd`, `scripts/progress/stage_progress_save.gd` |
+| §9 backup and atomicity: the untouched original is copied to `<save>.v3.bak` exactly once, the converted payload is written to a scratch file and only then moved into place, and the rewritten file carries `version 4` / `balance_version 4` so a second load converts nothing | `scripts/progress/stage_progress_save.gd` |
+
+Verified green: `balance_migration_v4` (new), `enemy_experience_scaling` (rewritten for §5/§6.1),
+`economy` (rewritten for §6.1), `subhero_summon` (rewritten for the derived price),
+`subhero_combat` (§6.2 coordinate + the armor entry), plus unchanged
+`balance_formulas`, `balance_aggregation`, `enemy_stat_scaling`, `combat_affix`, `magic_tome`,
+`player_progress`, `subhero_kill_reward`, `subhero_runtime`, `subhero_progression`, `subhero_data`,
+`stage_progress_save`, `stage_content`, `skill_progression`, `scavenger_shop`,
+`beginner_sword_drop`, `item_registry`, and the UI suites `test_stage_save`, `test_subhero_shop`,
+`test_item_popup`.
+
+Three production bugs were found and fixed by the R2 work rather than by the document:
+`item_level_multiplier` used `G(il)^0.6` instead of `G(il)` (prices were ~45 % low at il 11 and
+worse above); `BalanceFormulas.affix_value` clamped a negative authored value to 0, which silently
+deleted every cursed item's drawback; and the converted payload was not stamped with the new
+version, so the migration re-applied itself on every load.
+
+**Deviation from the contract's constant (§6.1).** The contract's `2.136384474` and its `k ≥ 83.85`
+bound were derived by the probe in `balance-scale-rebase.md` §7, whose script samples with the
+**combat roll weights** `(1.2, 1.2, 1.1, .9, .8, .7, .6, .55, .45, .45, .25, .35)`. §6.1 specifies
+`Σ(roll_ratio × economic_weight)`, and the catalogue's own economic column is
+`(1.0, 0.9, 0.8, 1.5, 1.4, 1.3, 2.5, 2.0, 2.0, 1.5, 1.8, 2.2)`. Implemented as specified — the
+clamp applied per item, over every ordered draw without replacement — the joint expectation is
+**2.2376738**, confirmed by two independent computations (the production recurrence and a
+brute-force enumeration of all 95 040 five-affix sequences, asserted equal in
+`tests/economy_smoke_test.gd`). The document's own probe instead averages the weight SUM first and
+clamps afterwards, which is what produces 2.136384474 for its (roll-weight) column.
+
+`sell_cap_stages` is **100**, unchanged: the contract's own bound with the corrected mean is
+`k ≥ 35 × 3 × 1.706 / 2.2376738 ≈ 80.05`, so 100 clears it with more margin than the document
+claimed. `tests/economy_smoke_test.gd` asserts that bound against the profile rather than against a
+copied constant. The document's probe script should use the economic weights and clamp per item
+before its table is regenerated.
+
+Explicitly NOT in R2: M5 (the 100-seed × S1..1000 progression simulation) and M8 (AUTO speeds,
+Boss drops, the UI preview-vs-equipped comparison surface), which are R3, and the
+`docs/gameplay-spec.md` rewrite that goes with the release pass. The compare card still renders raw
+affix deltas; `EquipmentInstance.get_equipment_score()` is still a display value that no longer
+feeds a price, but AUTO re-equip still needs its R3 verdict swap.
 
 ## 1. Implemented Systems
 
@@ -271,10 +326,10 @@ test_subhero_shop          test_town_view            test_world_map
 Headless smoke tests (`res://tests/*_smoke_test.gd`):
 
 ```text
-area_stage_data   balance_formulas   balance_aggregation   player_progress
-skill_progression stage_content     stage_database     stage_progress_save
-stage_router      subhero_combat    subhero_data   subhero_progression
-subhero_runtime   subhero_summon    enemy_experience_scaling
+area_stage_data   balance_formulas   balance_aggregation   balance_migration_v4
+player_progress   skill_progression  stage_content     stage_database
+stage_progress_save   stage_router   subhero_combat    subhero_data
+subhero_progression   subhero_runtime   subhero_summon   enemy_experience_scaling
 enemy_stat_scaling   subhero_kill_reward   beginner_sword_drop
 scavenger_shop    economy   combat_affix      item_registry   magic_tome
 ```

@@ -329,10 +329,15 @@ func _get_enemy_grid_path() -> NodePath:
 	return NodePath("../" + parent_grid_path)
 
 
-## §4.2/§4.3: the stats one spawn fights with. The stage manager supplies only the stage-level
-## inputs — the frozen encounter size, the real level offset and the per-stat variance — and
-## [EnemyScaling] owns the formula, so difficulty(S) is applied exactly once (it travels on the
-## StageDefinition) and a per-entry correction is applied once, on the stat it names.
+## §4.2/§4.3/§5/§6.1: the stats AND the rewards one spawn fights and pays with. The stage manager
+## supplies only the stage-level inputs — the frozen encounter size, the real level offset and the
+## per-stat variance — and [EnemyScaling] owns the formulas, so difficulty(S) is applied exactly
+## once (it travels on the StageDefinition), a per-entry correction is applied once, on the stat it
+## names, and the reward curve is written with the same offset multiplier the stats used.
+##
+## R2 removed the legacy `rate^(stage-1)` reward scaling from this path: EXP and Gold now come from
+## `G(S)`, and both [ExperienceSystem] and [GoldSystem] read the runtime value instead of scaling
+## it a second time.
 func _scale_enemy_runtime(
 	enemy: EnemyController,
 	stage_number: int,
@@ -357,24 +362,11 @@ func _scale_enemy_runtime(
 		enemy_offset,
 		encounter_count,
 		_roll_variance(encounter_kind),
-		_entry_multipliers(entry)
+		_entry_multipliers(entry),
+		enemy.enemy_data.enemy_type
 	)
 	if scaled_stats == null:
 		return
-	# Rewards stay on the legacy `rate^(stage-1)` curve until R2 moves Gold and EXP onto G(S)
-	# (§5, §6): R1 switches the combat stats only, so a stage cannot pay out a half-switched
-	# reward while it fights with the new numbers.
-	if _level_manager != null:
-		scaled_stats.gold_reward = EnemyScalingSystem.scale_value(
-			base_stats.gold_reward,
-			_level_manager.get_gold_growth_rate(),
-			stage_number
-		)
-		scaled_stats.experience_reward = EnemyScalingSystem.scale_value(
-			base_stats.experience_reward,
-			_level_manager.get_exp_growth_rate(),
-			stage_number
-		)
 	enemy.initialize_runtime_from_stats(scaled_stats)
 
 
@@ -447,7 +439,12 @@ func _on_summon_requested(boss: EnemyController, summon_count: int) -> void:
 			stage_state.stage_number,
 			spawn_cell,
 			StringName("stage_%d_summon_%d" % [stage_state.stage_number, summon_index]),
-			stage_state.stage_number
+			stage_state.stage_number,
+			null,
+			EnemyScalingSystem.Kind.NORMAL,
+			# §4.2: the encounter size a summon fights under is the group the stage opened
+			# with — a summon joins that encounter, it does not re-freeze it.
+			maxi(stage_state.spawned_enemy_count, 1)
 		)
 		if summon != null:
 			enemy_spawned.emit(summon)

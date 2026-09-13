@@ -15,6 +15,14 @@ signal combat_state_changed(is_running: bool)
 @export_range(0.0, 2.0, 0.01) var level_damage_growth: float = 0.10
 @export_range(0.1, 3.0, 0.01) var rare_quality_multiplier: float = 1.10
 @export_range(0.1, 3.0, 0.01) var legendary_quality_multiplier: float = 1.20
+## §7: the profile the Sub Hero damage curve reads, injected by the world that also owns the
+## provider. A headless fixture falls back to the shipped default.
+@export var balance_profile: BalanceProfile
+## §4.2: the share of a quality pool's weight one hero of that quality holds. The §6.2 investment
+## coordinate divides by the DRAWS a hero is expected to cost, so a low-probability hero gets the
+## same growth for the same relative investment instead of several times the summons.
+@export var quality_weights: Array[float] = [70.0, 25.0, 5.0]
+@export var quality_pool_sizes: Array[int] = [3, 3, 2]
 
 
 class ActiveSubHeroState:
@@ -28,10 +36,21 @@ var _active_states: Array[ActiveSubHeroState] = []
 var _enemies: Array[Node] = []
 var _is_running: bool = false
 var _is_paused: bool = false
+## The main character, so the §6.2 combat level can be capped by the MAIN level: duplicate
+## overflow alone must never let a Sub Hero skip the main progression.
+var _player: Node
 ## The shared kill path. A Sub Hero killing blow must award the same EXP, gold and
 ## loot as the player's own kill, so it is resolved by CombatSystem instead of
 ## duplicating defeat handling here.
 var _combat_system: CombatSystem
+
+
+func get_balance_profile() -> BalanceProfile:
+	return balance_profile if balance_profile != null else BalanceProfile.get_default()
+
+
+func attach_player(player: Node) -> void:
+	_player = player
 
 
 func _process(delta: float) -> void:
@@ -117,16 +136,87 @@ func get_current_target(hero_id: StringName) -> Node:
 	return null
 
 
-## Public calculation hook for future Main Hero, synergy, boss, or status
-## modifiers. Quality contributes a moderate multiplier; it is not the only
-## source of quality identity because definitions also own their base damage,
-## interval, tags, and future effects.
-func calculate_subhero_damage(data: SubHeroData, instance: SubHeroInstance) -> int:
+## §6.2: the Sub Hero's ATTACK POWER at its investment coordinate —
+## `base_damage * quality_multiplier * G(combat_level)`, where
+## `combat_level = min(main_player_level, 1 + (hero_level - 1) / (8 * p_i))`.
+##
+## This is a power figure, not a damage figure: it enters the same §4.1 armor entry every other
+## source uses, so an armored target reduces it exactly like it reduces the hero's attack, and the
+## old "Sub Hero damage ignores defense" path is gone.
+func calculate_subhero_attack(data: SubHeroData, instance: SubHeroInstance) -> float:
 	if data == null or instance == null:
-		return 0
-	var level_multiplier: float = 1.0 + float(maxi(instance.level, 1) - 1) * maxf(level_damage_growth, 0.0)
-	var quality_multiplier: float = _get_quality_multiplier(data.quality)
-	return maxi(roundi(float(data.attack_damage) * level_multiplier * quality_multiplier), 1)
+		return 0.0
+	var profile: BalanceProfile = get_balance_profile()
+	var combat_level: float = get_combat_level(data, instance)
+	return BalanceFormulas.sub_hero_attack(
+		profile,
+		float(data.attack_damage),
+		_quality_multiplier(profile, data.quality),
+		combat_level
+	)
+
+
+## §6.2 `combat_level_i = min(main_player_level, investment_level_i)`. The main level is the
+## ceiling, so a boundless duplicate collection cannot buy combat power the main progression has
+## not unlocked.
+func get_combat_level(data: SubHeroData, instance: SubHeroInstance) -> float:
+	if data == null or instance == null:
+		return 1.0
+	var investment: float = BalanceFormulas.sub_hero_investment_level(
+		get_balance_profile(),
+		maxi(instance.level, 1),
+		get_draw_probability(data.quality)
+	)
+	return BalanceFormulas.sub_hero_combat_level(_get_main_player_level(), investment)
+
+
+## The chance ONE summon yields a hero of this quality: its share of the quality pool's weight
+## (`70/3`, `25/3`, `5/2` with the shipped tables).
+func get_draw_probability(quality: int) -> float:
+	if quality < 0 or quality >= quality_weights.size() or quality >= quality_pool_sizes.size():
+		return 0.0
+	var total_weight: float = 0.0
+	for weight in quality_weights:
+		total_weight += maxf(weight, 0.0)
+	if total_weight <= 0.0:
+		return 0.0
+	var pool_size: int = maxi(quality_pool_sizes[quality], 1)
+	return maxf(quality_weights[quality], 0.0) / total_weight / float(pool_size)
+
+
+## The damage one Sub Hero attack deals to one target: the §6.2 attack power through the §4.1
+## armor entry, with ONE final rounding and the floor of 1.
+func calculate_subhero_damage(
+	data: SubHeroData,
+	instance: SubHeroInstance,
+	target: Node
+) -> int:
+	var profile: BalanceProfile = get_balance_profile()
+	var target_stats: Resource = _get_target_stats(target)
+	var defense: float = 0.0
+	if target_stats != null:
+		defense = maxf(float(target_stats.get(&"defense")), 0.0)
+	return BalanceFormulas.resolve_damage(profile, calculate_subhero_attack(data, instance), defense, 1.0, 1.0)
+
+
+func _get_main_player_level() -> int:
+	if _player == null or not is_instance_valid(_player):
+		return 1
+	if _player.has_method("get_level"):
+		return maxi(int(_player.get_level()), 1)
+	var progression: Variant = _player.get("player_progression")
+	if progression != null:
+		return maxi(int(progression.get("level")), 1)
+	return 1
+
+
+func _get_target_stats(target: Node) -> Resource:
+	if target == null or not is_instance_valid(target):
+		return null
+	if target is EnemyController:
+		return (target as EnemyController).enemy_runtime.current_stats
+	var stats: Variant = target.get("enemy_stats")
+	return stats as Resource
 
 
 func _process_sub_hero(state: ActiveSubHeroState, delta: float) -> void:
@@ -160,7 +250,7 @@ func _resolve_attack(state: ActiveSubHeroState, target: Node) -> void:
 		attack_resolved.emit(result)
 		return
 
-	var damage: int = calculate_subhero_damage(state.data, state.instance)
+	var damage: int = calculate_subhero_damage(state.data, state.instance, target)
 	var current_hp: int = _get_current_hp(target)
 	if not _set_current_hp(target, maxi(current_hp - damage, 0)):
 		result.is_miss = true
@@ -302,14 +392,20 @@ func _get_enemy_id(enemy: Node) -> StringName:
 	return enemy_id if enemy_id is StringName else &""
 
 
-func _get_quality_multiplier(quality: int) -> float:
+func _get_quality_multiplier(profile: BalanceProfile, quality: int) -> float:
+	return profile.get_sub_hero_quality_multiplier(quality)
+
+
+## Kept for callers that only have the manager's own exported multipliers (a headless fixture that
+## configures them directly instead of through the profile).
+func _quality_multiplier(profile: BalanceProfile, quality: int) -> float:
 	match quality:
 		SubHeroQualityResource.RARE:
 			return maxf(rare_quality_multiplier, 0.1)
 		SubHeroQualityResource.LEGENDARY:
 			return maxf(legendary_quality_multiplier, 0.1)
 		_:
-			return 1.0
+			return maxf(profile.get_sub_hero_quality_multiplier(quality), 0.1)
 
 
 func _connect_enemy_signals() -> void:

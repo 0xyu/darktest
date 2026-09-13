@@ -336,7 +336,11 @@ static func affix_value(
 	value *= roll
 	if is_core:
 		value *= item_scale(profile, item_level)
-	return maxf(value, 0.0)
+	# §3.1/§3.2: no sign clamp. A GENERATED affix is rolled positive, but an AUTHORED one may be
+	# negative on purpose (a cursed `HP -10` item), and §3.1 requires that negative value to travel
+	# the same path instead of being silently turned into a bonus. The aggregation applies the final
+	# floors, so a negative affix can never produce negative HP or a healing attack.
+	return value
 
 
 ## The hero's whole aggregated stat block (§3.1, §3.2), keyed by the [PlayerStats] field each
@@ -453,6 +457,288 @@ static func project_current_hp(previous_max_hp: int, previous_current_hp: int, n
 	if not is_finite(projected):
 		return 0
 	return clampi(floori(projected), 0, maxi(new_max_hp, 0))
+
+
+## A Gold/EXP reward: `round`, floored at `minimum`, saturated at
+## [member BalanceProfile.max_persistent_value] so no reward can overflow the persisted domain
+## (§5/§6.1). NaN, Infinity and negatives produce the minimum instead of a wrapped int.
+static func round_reward(profile: BalanceProfile, value: float, minimum: int = 1) -> int:
+	if profile == null:
+		return maxi(minimum, 0)
+	var safe_minimum: int = maxi(minimum, 0)
+	if is_nan(value) or value <= 0.0:
+		return safe_minimum
+	var ceiling: float = minf(profile.max_persistent_value, 9223372036854775807.0)
+	if is_inf(value) or value >= ceiling:
+		return int(ceiling)
+	return maxi(roundi(value), safe_minimum)
+
+
+## §5 `need(L) = round(100 * count(L) * G(L))`: the EXP one level costs. `count(L)` reuses the
+## encounter-size curve, so the requirement grows with the same shape the kills do. At the level
+## cap the hero stops banking EXP (the caller checks the cap; this function stays pure).
+static func experience_required(profile: BalanceProfile, level: int) -> int:
+	if profile == null:
+		return 1
+	var safe_level: int = maxi(level, 1)
+	var required: float = profile.experience_base \
+		* float(enemy_count(profile, safe_level)) \
+		* g(profile, float(safe_level))
+	return round_reward(profile, required, 1)
+
+
+## §5 `catchup(S, L) = clamp(1 + 0.10 * (S - L), 0.25, 2.0)`. Measured against the MAIN
+## character's level, so a player who fell behind catches up and a player who out-levelled the
+## stage is paid less — old stages stay worth replaying, they are just not worth farming forever.
+static func experience_catchup(profile: BalanceProfile, stage: int, level: int) -> float:
+	if profile == null:
+		return 1.0
+	var minimum: float = minf(profile.experience_catchup_min, profile.experience_catchup_max)
+	var maximum: float = maxf(profile.experience_catchup_min, profile.experience_catchup_max)
+	var raw: float = 1.0 + profile.experience_catchup_step * float(maxi(stage, 1) - maxi(level, 1))
+	if not is_finite(raw):
+		return maximum
+	return clampf(raw, minimum, maximum)
+
+
+## §5 `kill_exp = max(1, round(100 * G(S) * offset_mult * type_exp * catchup(S, L)))`.
+##
+## `type_exp` is the enemy-type multiplier the stage's reward entry already carries and
+## `offset_mult` the real level offset, so both are applied EXACTLY ONCE — this is the one
+## settlement entry, and a second call for the same kill is a second payment.
+static func kill_experience(
+	profile: BalanceProfile,
+	stage: int,
+	enemy_offset_multiplier: float,
+	type_experience: float,
+	level: int
+) -> int:
+	if profile == null:
+		return 1
+	if not is_finite(enemy_offset_multiplier) or enemy_offset_multiplier <= 0.0:
+		return 1
+	if not is_finite(type_experience) or type_experience <= 0.0:
+		return 1
+	var reward: float = profile.experience_base \
+		* g(profile, float(maxi(stage, 1))) \
+		* enemy_offset_multiplier \
+		* type_experience \
+		* experience_catchup(profile, stage, level)
+	return round_reward(profile, reward, 1)
+
+
+## §6.1 `stage_clear_gold = round(50 * G(S))`: paid once per legal clear, and a stage that could
+## be replayed before still can be.
+static func stage_clear_gold(profile: BalanceProfile, stage: int) -> int:
+	if profile == null:
+		return 0
+	var reward: float = profile.gold_base * g(profile, float(maxi(stage, 1)))
+	return round_reward(profile, reward, 0)
+
+
+## §6.1 `enemy_gold = round(base_gold * G(S) * offset_mult * type_gold)`. Gold carries no player
+## level catch-up; only the enemy's real level offset and its type multiplier move it.
+static func enemy_gold(
+	profile: BalanceProfile,
+	stage: int,
+	enemy_offset_multiplier: float,
+	type_gold: float
+) -> int:
+	if profile == null:
+		return 0
+	if not is_finite(enemy_offset_multiplier) or enemy_offset_multiplier <= 0.0:
+		return 0
+	if not is_finite(type_gold) or type_gold <= 0.0:
+		return 0
+	var reward: float = profile.gold_base \
+		* g(profile, float(maxi(stage, 1))) \
+		* enemy_offset_multiplier \
+		* type_gold
+	return round_reward(profile, reward, 0)
+
+
+## §6.1 `item_level_multiplier = G(il)`: the ONE curve behind an item's value, so prices and the
+## gold curve share a scale instead of drifting apart. This is `G` itself, NOT `item_scale` — the
+## §3.1 `G(il)^0.60` is the EQUIPMENT SHARE of the reference state's log growth and has nothing to
+## do with what an item is worth in gold.
+static func item_level_multiplier(profile: BalanceProfile, item_level: int) -> float:
+	if profile == null:
+		return 1.0
+	return g(profile, float(maxi(item_level, 1)))
+
+
+## §6.1 `E[AffixMultiplier]` for an item that rolls `affix_count` affixes. The affixes are drawn
+## from the catalogue as a WEIGHTED SAMPLE WITHOUT REPLACEMENT (one affix per stat), so the
+## expectation is enumerated over every ordered draw with a running total weight. The clamped
+## mean over that distribution is what the multiplier averages to — averaging the clamped
+## per-count value would hide the clamp and understate the price cap.
+##
+## `economic_weights` is the catalogue's own economic weight column, in catalogue order.
+static func mean_affix_multiplier(
+	profile: BalanceProfile,
+	economic_weights: Array[float],
+	affix_count: int
+) -> float:
+	if profile == null or economic_weights.is_empty() or affix_count <= 0:
+		return 1.0
+	var minimum: float = minf(profile.affix_multiplier_min, profile.affix_multiplier_max)
+	var maximum: float = maxf(profile.affix_multiplier_min, profile.affix_multiplier_max)
+	var weights: Array[float] = []
+	var total_weight: float = 0.0
+	for weight in economic_weights:
+		var safe_weight: float = maxf(weight, 0.0)
+		weights.append(safe_weight)
+		total_weight += safe_weight
+	if total_weight <= 0.0:
+		return minimum
+	var draws: int = mini(affix_count, weights.size())
+	# State: used-affix bitmask -> probability. Each draw divides by the remaining weight, which
+	# is the without-replacement probability the contract's slot filtering must respect.
+	var distribution: Dictionary = {0: 1.0}
+	for _draw in range(draws):
+		var next_distribution: Dictionary = {}
+		for mask in distribution:
+			var probability: float = float(distribution[mask])
+			var used_weight: float = 0.0
+			for index in range(weights.size()):
+				if int(mask) & (1 << index):
+					used_weight += weights[index]
+			var remaining: float = total_weight - used_weight
+			if remaining <= 0.0:
+				continue
+			for index in range(weights.size()):
+				if int(mask) & (1 << index):
+					continue
+				var next_mask: int = int(mask) | (1 << index)
+				next_distribution[next_mask] = float(next_distribution.get(next_mask, 0.0)) \
+					+ probability * weights[index] / remaining
+		distribution = next_distribution
+		if distribution.is_empty():
+			break
+	if distribution.is_empty():
+		return minimum
+	# The recurrence sums the orderings that reach each set, and every ordering of a set carries the
+	# same probability, so the accumulated weight IS the set's probability — the distribution sums to
+	# 1. (Reaching the same set in a different order adds its probability rather than double-counting
+	# it, because the denominators depend only on how MANY affixes were already taken.)
+	var expected: float = 0.0
+	for mask in distribution:
+		var probability: float = float(distribution[mask])
+		var sum_weight: float = 0.0
+		for index in range(weights.size()):
+			if int(mask) & (1 << index):
+				sum_weight += weights[index]
+		expected += probability * clampf(
+			1.0 + profile.affix_value_scale * profile.mean_roll_ratio * sum_weight,
+			minimum,
+			maximum
+		)
+	return clampf(expected, minimum, maximum)
+
+
+## §6.1 `E[RarityMultiplier * AffixMultiplier]` over the calibration drop table. Rarity decides
+## BOTH the rarity multiplier and the affix COUNT, so the two cannot be averaged separately:
+## multiplying two means would misprice the whole catalogue (see
+## docs/implementation-status.md, "economy joint expectation").
+static func mean_rarity_affix_multiplier(
+	profile: BalanceProfile,
+	rarity_multipliers: Array[float],
+	economic_weights: Array[float]
+) -> float:
+	if profile == null or rarity_multipliers.is_empty():
+		return 1.0
+	var total: float = 0.0
+	var count: int = mini(profile.calibration_rarity_weights.size(), rarity_multipliers.size())
+	for rarity in range(count):
+		var probability: float = maxf(profile.calibration_rarity_weights[rarity], 0.0)
+		if is_zero_approx(probability):
+			continue
+		total += probability \
+			* maxf(rarity_multipliers[rarity], 0.0) \
+			* mean_affix_multiplier(profile, economic_weights, EquipmentRarity.affix_count(rarity))
+	return total
+
+
+## §6.2 `investment_level_i = 1 + (hero_level_i - 1) / (8 * p_i)`: the growth coordinate of one
+## owned Sub Hero, normalized by the EXPECTED number of summons that hero costs. Without the
+## normalization a 5 %-quality hero would need several times the summons of a common one for the
+## same damage.
+static func sub_hero_investment_level(profile: BalanceProfile, hero_level: int, draw_probability: float) -> float:
+	if profile == null or draw_probability <= 0.0 or not is_finite(draw_probability):
+		return float(maxi(hero_level, 1))
+	var expected_draws: float = 1.0 / draw_probability
+	if not is_finite(expected_draws) or expected_draws <= 0.0:
+		return float(maxi(hero_level, 1))
+	return 1.0 + float(maxi(hero_level, 1) - 1) / expected_draws
+
+
+## §6.2 `combat_level_i = min(main_player_level, investment_level_i)`: the main character's level
+## is the ceiling, so duplicate overflow alone can never skip the main progression.
+static func sub_hero_combat_level(main_level: int, investment_level: float) -> float:
+	return minf(float(maxi(main_level, 1)), maxf(investment_level, 1.0))
+
+
+## §6.2 `hero_attack_i = base_damage_i * quality_multiplier_i * G(combat_level_i)`. The result is
+## the Sub Hero's ATTACK POWER, handed to the same §4.1 armor entry every other damage source
+## uses — a Sub Hero therefore chips a heavily armored target instead of ignoring its defense.
+static func sub_hero_attack(
+	profile: BalanceProfile,
+	base_damage: float,
+	quality_multiplier: float,
+	combat_level: float
+) -> float:
+	if profile == null:
+		return 0.0
+	if not is_finite(base_damage) or base_damage <= 0.0:
+		return 0.0
+	if not is_finite(quality_multiplier) or quality_multiplier <= 0.0:
+		return 0.0
+	return base_damage * quality_multiplier * g(profile, maxf(combat_level, 1.0))
+
+
+## §6.2 `owned_draws = sum_owned(1 + 3 * (hero_level_i - 1) + duplicate_count_i)`: how many
+## summons the whole collection represents. Every term is a non-negative int64 sum, checked
+## before a price is derived from it (§6.2, "never convert an already-overflowed price").
+static func sub_hero_owned_draws(hero_levels: Array[int], duplicate_counts: Array[int], duplicates_per_level: int) -> int:
+	var per_level: int = maxi(duplicates_per_level, 1)
+	var total: int = 0
+	var count: int = hero_levels.size()
+	for index in range(count):
+		var hero_level: int = maxi(hero_levels[index], 1)
+		var duplicates: int = 0
+		if index < duplicate_counts.size():
+			duplicates = maxi(duplicate_counts[index], 0)
+		var draws: int = 1 + per_level * (hero_level - 1) + duplicates
+		if total > 9223372036854775807 - draws:
+			return 9223372036854775807
+		total += draws
+	return total
+
+
+## §6.2 `price_coordinate = min(1000, 1 + owned_draws / 24)`. The cap protects the price
+## computation from an oversized legacy collection; investment beyond it is still owned, it just
+## no longer raises the current combat coordinate.
+static func sub_hero_price_coordinate(profile: BalanceProfile, owned_draws: int) -> float:
+	if profile == null:
+		return 1.0
+	var interval: int = maxi(profile.sub_hero_draws_per_level, 1)
+	var coordinate: float = 1.0 + float(maxi(owned_draws, 0)) / float(interval)
+	return minf(float(maxi(profile.summon_price_coordinate_cap, 1)), coordinate)
+
+
+## §6.2 `summon_cost = max(250, ceil(10 * G(price_coordinate)))`. Computed from the WHOLE
+## existing collection BEFORE a draw and before any gold is spent, and independent of the current
+## stage: a failed draw costs nothing, and no reset can make the collection cheaper.
+static func sub_hero_summon_cost(profile: BalanceProfile, owned_draws: int) -> int:
+	if profile == null:
+		return 0
+	var coordinate: float = sub_hero_price_coordinate(profile, owned_draws)
+	var cost: float = profile.summon_gold_coordinate_cost * g(profile, coordinate)
+	if not is_finite(cost) or cost <= 0.0:
+		return maxi(profile.summon_gold_floor, 0)
+	if cost >= float(profile.max_persistent_value):
+		return int(profile.max_persistent_value)
+	return maxi(maxi(profile.summon_gold_floor, 0), ceili(cost))
 
 
 static func _base_stat(base_stats: Dictionary, field: StringName) -> float:

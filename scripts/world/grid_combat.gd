@@ -72,6 +72,7 @@ func _ready() -> void:
 	# Sub Heroes. Nothing here builds a second copy of the player's state, so there
 	# is no path that changes the player's gear without the save being able to see it.
 	_stage_save = StageProgressSaveScript.new()
+	_stage_save.balance_profile = stage_manager.get_balance_profile()
 	# The character's own numbers are the one piece that travels the other way: the
 	# hero builds its progression when it is constructed and the HUD's panels bind to
 	# that resource while the scene is still coming up (a child is ready before this
@@ -95,6 +96,9 @@ func _ready() -> void:
 	# Injection happens BEFORE the first rebuild, so the hero boots with the profile the world
 	# actually plays with.
 	player.balance_profile = stage_manager.get_balance_profile()
+	# §5: the character's own EXP requirement reads the same profile instance the hero, the enemies
+	# and the rewards use — no consumer restates a balance number (§7).
+	player.player_progression.balance_profile = player.balance_profile
 	combat_system.balance_profile = player.balance_profile
 	player.recompute_stats_from_level_and_equipment()
 	grid.queue_redraw()
@@ -117,11 +121,13 @@ func _ready() -> void:
 	combat_system.actor_died.connect(_on_actor_died)
 	experience_system.attach_player(player)
 	experience_system.attach_combat_system(combat_system)
+	experience_system.balance_profile = player.balance_profile
 	experience_system.experience_awarded.connect(_on_experience_awarded)
 	experience_system.level_up.connect(_on_level_up)
 	gold_system.attach_player(player)
 	gold_system.attach_combat_system(combat_system)
 	gold_system.attach_stage_manager(stage_manager)
+	gold_system.balance_profile = player.balance_profile
 	gold_system.gold_awarded.connect(_on_gold_awarded)
 	loot_system.attach_combat_system(combat_system)
 	loot_system.attach_stage_manager(stage_manager)
@@ -140,6 +146,8 @@ func _ready() -> void:
 	# A Sub Hero kill takes the same path as the player's own kill, so it awards
 	# the same EXP, gold and loot.
 	sub_hero_combat_manager.attach_combat_system(combat_system)
+	sub_hero_combat_manager.balance_profile = player.balance_profile
+	sub_hero_combat_manager.attach_player(player)
 	sub_hero_combat_manager.attack_resolved.connect(_on_sub_hero_attack_resolved)
 	sub_hero_combat_manager.attack_feedback_requested.connect(_on_sub_hero_attack_feedback_requested)
 	sub_hero_combat_manager.cooldown_started.connect(_on_sub_hero_cooldown_started)
@@ -1339,7 +1347,7 @@ func _on_actor_died(actor: Node) -> void:
 		if enemy != null:
 			hud.log_event("log.kill_exp", {
 				"name": enemy.get_display_name(),
-				"amount": experience_system.calculate_enemy_experience(enemy),
+				"amount": experience_system.get_settled_experience(enemy),
 			})
 		_select_next_target()
 	# §15: an enemy died, so whatever route navigation had is stale. The walk is

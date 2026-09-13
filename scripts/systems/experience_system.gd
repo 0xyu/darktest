@@ -13,9 +13,22 @@ signal level_up(new_level: int, max_hp_gain: int, attack_gain: int, defense_gain
 @export_range(0.0, 100.0, 0.1) var treasure_experience_multiplier: float = 1.5
 @export_range(0.0, 100.0, 0.1) var gold_experience_multiplier: float = 1.5
 @export_range(0.0, 100.0, 0.1) var cursed_experience_multiplier: float = 2.0
+## §7: injected by the host that also owns the provider; a headless fixture falls back to the
+## shipped default instead of restating a balance number.
+@export var balance_profile: BalanceProfile
 
 var _player: PlayerController
 var _combat_system: CombatSystem
+## §5: one settlement per kill. A farming respawn, a lobby teardown or a second
+## `resolve_defeat()` for the same enemy must not pay a second time, so every settled enemy is
+## remembered by its runtime instance id.
+var _settled_enemies: Dictionary = {}
+## What each settled kill paid, so the combat log reads the SAME number that reached the purse.
+var _settled_amounts: Dictionary = {}
+
+
+func get_balance_profile() -> BalanceProfile:
+	return balance_profile if balance_profile != null else BalanceProfile.get_default()
 
 
 func attach_player(player: PlayerController) -> void:
@@ -32,31 +45,39 @@ func attach_combat_system(combat_system: CombatSystem) -> void:
 		_combat_system.actor_died.connect(_on_actor_died)
 
 
-func calculate_enemy_experience(enemy: Node) -> int:
+## §5: the EXP ONE kill pays, settled at the moment of the kill:
+## `max(1, round(100 * G(S) * offset_mult * type_exp * catchup(S, L)))`.
+##
+## The enemy's runtime `experience_reward` already carries `100 * G(S)`, the real level offset and
+## the type multiplier, applied exactly ONCE when the stage was built ([EnemyScaling] writes it).
+## This function adds the `catchup(S, L)` factor and nothing else — a second G or a second type
+## multiplier here is exactly the double settlement §8's R2 forbids.
+##
+## `stage_number` is optional: a caller that knows the stage passes it, and otherwise the enemy's
+## own runtime level stands in for it, which is the stage it was spawned for.
+func calculate_enemy_experience(enemy: Node, stage_number: int = 0) -> int:
 	if enemy == null or not is_instance_valid(enemy):
 		return 0
 	var enemy_stats: EnemyStats
-	var enemy_level: int = 1
 	if enemy is EnemyController:
-		var enemy_controller: EnemyController = enemy as EnemyController
-		enemy_stats = enemy_controller.enemy_runtime.current_stats
-		enemy_level = maxi(enemy_controller.enemy_level, 1)
+		enemy_stats = (enemy as EnemyController).enemy_runtime.current_stats
 	else:
 		var enemy_stats_variant: Variant = enemy.get("enemy_stats")
 		if not enemy_stats_variant is EnemyStats:
 			return 0
 		enemy_stats = enemy_stats_variant as EnemyStats
-	var enemy_type: int = EnemyType.NORMAL
-	if enemy is EnemyController and (enemy as EnemyController).enemy_data != null:
-		enemy_type = (enemy as EnemyController).enemy_data.enemy_type
-	var level_multiplier: float = 1.0 + float(enemy_level - 1) * 0.10
-	var reward: float = float(maxi(enemy_stats.experience_reward, 0)) * level_multiplier
-	reward *= get_enemy_type_multiplier(enemy_type)
+	if enemy_stats == null:
+		return 0
+	var reward: float = float(maxi(enemy_stats.experience_reward, 0))
 	if reward <= 0.0 or is_nan(reward):
 		return 0
-	if is_inf(reward):
-		return 2147483647
-	return maxi(roundi(reward), 1)
+	var profile: BalanceProfile = get_balance_profile()
+	var safe_stage: int = stage_number if stage_number > 0 else _resolve_stage_number(enemy)
+	# The player's level is sampled BEFORE the settlement (§5), which is what lets one kill cross
+	# several levels and still pay every one of them.
+	var level: int = _get_player_level()
+	var catchup: float = BalanceFormulas.experience_catchup(profile, safe_stage, level)
+	return BalanceFormulas.round_reward(profile, reward * catchup, 1)
 
 
 func get_enemy_type_multiplier(enemy_type: int) -> float:
@@ -109,11 +130,67 @@ func grant_experience(amount: int, source_name: String = "") -> int:
 	return levels_gained
 
 
+## §5/§6 "every reward settles exactly once": the single EXP entry for a kill. The settled set is
+## keyed by the enemy's runtime instance id, so a duplicate death signal, a re-resolved defeat or
+## a Sub Hero finishing a target the player already killed pays nothing the second time.
+func settle_kill_experience(enemy: Node, stage_number: int = 0) -> int:
+	if enemy == null or not is_instance_valid(enemy):
+		return 0
+	var key: int = enemy.get_instance_id()
+	if _settled_enemies.has(key):
+		return 0
+	var reward: int = calculate_enemy_experience(enemy, stage_number)
+	if reward <= 0:
+		return 0
+	_settled_enemies[key] = true
+	_settled_amounts[key] = reward
+	var source_name: String = "enemy"
+	if enemy is EnemyController:
+		source_name = (enemy as EnemyController).get_display_name()
+	grant_experience(reward, source_name)
+	return reward
+
+
+## What this kill actually paid, for the combat log. Reading the settled amount instead of
+## recomputing it is what keeps the number on screen equal to the number in the purse — a second
+## computation could disagree with the settlement it is describing.
+func get_settled_experience(enemy: Node) -> int:
+	if enemy == null or not is_instance_valid(enemy):
+		return 0
+	return int(_settled_amounts.get(enemy.get_instance_id(), 0))
+
+
+## Forgets one enemy's settlement (a respawned stage spawns a NEW node, so this exists only for a
+## fixture that re-uses an instance).
+func clear_kill_settlement(enemy: Node) -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		return
+	_settled_enemies.erase(enemy.get_instance_id())
+
+
+func reset_settlements() -> void:
+	_settled_enemies.clear()
+	_settled_amounts.clear()
+
+
 func _on_actor_died(actor: Node) -> void:
 	if not actor is EnemyController:
 		return
-	var enemy: EnemyController = actor as EnemyController
-	var reward: int = calculate_enemy_experience(enemy)
-	if reward <= 0:
-		return
-	grant_experience(reward, enemy.get_display_name())
+	settle_kill_experience(actor)
+
+
+## The main character's level, sampled before the settlement. Without a hero (a headless fixture)
+## the catch-up is neutral, which is the same as a level-synced player.
+func _get_player_level() -> int:
+	if _player == null or not is_instance_valid(_player) or _player.player_progression == null:
+		return 1
+	return maxi(_player.player_progression.level, 1)
+
+
+## The stage a kill belongs to, read from the enemy's own runtime level when the caller did not
+## pass one. `enemy_level` is what the stage build wrote (`S + offset`, clamped), so it is a
+## better source than the scene's current stage number while a stage is being torn down.
+func _resolve_stage_number(enemy: Node) -> int:
+	if enemy is EnemyController:
+		return maxi((enemy as EnemyController).enemy_level, 1)
+	return 1

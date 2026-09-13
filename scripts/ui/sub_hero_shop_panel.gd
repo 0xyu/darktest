@@ -32,10 +32,21 @@ var _last_result: Dictionary = {}
 func _ready() -> void:
 	if summon_service == null:
 		summon_service = SubHeroSummonServiceResource.new()
+	_sync_balance_profile()
 	_build_ui()
 	_layout_panel()
 	_render_result()
 	_refresh()
+
+
+## §7: the summon PRICE comes from the profile's `G`, so the service is handed the same profile
+## instance the hero and the enemies read — never a restated constant.
+func _sync_balance_profile() -> void:
+	if summon_service == null or _player == null:
+		return
+	var player_profile: Variant = _player.get("balance_profile")
+	if player_profile is BalanceProfile and player_profile != null:
+		summon_service.balance_profile = player_profile as BalanceProfile
 
 
 func _notification(what: int) -> void:
@@ -45,6 +56,7 @@ func _notification(what: int) -> void:
 
 func set_player(player: Node) -> void:
 	_player = player
+	_sync_balance_profile()
 	_refresh()
 
 
@@ -309,8 +321,17 @@ func _refresh() -> void:
 	_gold_label.text = "GOLD %s" % _format_number(progression.gold)
 	var owned_count: int = _player.get_sub_hero_progression().get_owned_count() if _player.has_method("get_sub_hero_progression") else 0
 	_owned_label.text = "OWNED %d / %d" % [owned_count, SubHeroCatalogResource.get_all_data().size()]
-	_summon_button.text = "SUMMON  •  %d GOLD" % maxi(summon_service.summon_cost, 0)
-	_summon_button.disabled = progression.gold < maxi(summon_service.summon_cost, 0)
+	if summon_service == null:
+		_summon_button.disabled = true
+		return
+	if summon_service == null:
+		_summon_button.disabled = true
+		return
+	# §6.2: the price is recomputed here from the current collection, so the button can never
+	# advertise a stale cost after a successful summon.
+	var summon_cost: int = maxi(summon_service.calculate_summon_cost(_player), 0)
+	_summon_button.text = "SUMMON  •  %d GOLD" % summon_cost
+	_summon_button.disabled = progression.gold < summon_cost
 	if _last_result.is_empty():
 		_render_result()
 

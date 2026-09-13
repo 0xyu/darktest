@@ -17,4 +17,11 @@ func test_configured_odds_are_visible() -> void:
 	# The implementation intentionally builds the content dynamically. Verify
 	# the data-driven table instead of coupling this test to generated node names.
 	expect(shop.summon_service.summon_table.get_total_weight() > 0.0, "summon table should have configured weights")
-	expect_eq(shop.summon_service.summon_cost, 250, "summon cost should come from the resource")
+	# §6.2: the price is a FLOOR for an empty collection and is derived from the whole collection
+	# afterwards, so a mounted shop with no player quotes the floor rather than a stored constant.
+	var profile := BalanceProfile.get_default()
+	expect_eq(
+		shop.summon_service.calculate_summon_cost(shop.get("_player")),
+		profile.summon_gold_floor,
+		"an unowned collection quotes the floor price"
+	)

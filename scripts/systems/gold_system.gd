@@ -1,13 +1,9 @@
 class_name GoldSystem
 extends Node
 
-const EnemyScalingSystem = preload("res://scripts/systems/enemy_scaling.gd")
-
-## Awards Gold from defeated enemies and completed stages.
+## Awards Gold from defeated enemies and completed stages (§6.1).
 signal gold_awarded(amount: int, current_gold: int, source_name: String)
 
-@export_range(0, 999999, 1) var base_stage_gold: int = 50
-@export_range(0.1, 10.0, 0.01) var gold_growth_rate: float = 1.18
 @export_range(0.0, 100.0, 0.1) var normal_gold_multiplier: float = 1.0
 @export_range(0.0, 100.0, 0.1) var elite_gold_multiplier: float = 2.0
 @export_range(0.0, 100.0, 0.1) var special_gold_multiplier: float = 2.5
@@ -15,10 +11,20 @@ signal gold_awarded(amount: int, current_gold: int, source_name: String)
 @export_range(0.0, 100.0, 0.1) var treasure_gold_multiplier: float = 3.0
 @export_range(0.0, 100.0, 0.1) var gold_monster_multiplier: float = 5.0
 @export_range(0.0, 100.0, 0.1) var cursed_gold_multiplier: float = 1.5
+## §7: injected by the host that also owns the provider; a headless fixture falls back to the
+## shipped default instead of restating a balance number.
+@export var balance_profile: BalanceProfile
 
 var _player: PlayerController
 var _combat_system: CombatSystem
 var _stage_manager: StageManager
+## §6.1: one settlement per kill, keyed by the enemy's runtime instance id — see
+## [method ExperienceSystem.settle_kill_experience] for the same rule on the EXP side.
+var _settled_enemies: Dictionary = {}
+
+
+func get_balance_profile() -> BalanceProfile:
+	return balance_profile if balance_profile != null else BalanceProfile.get_default()
 
 
 func attach_player(player: PlayerController) -> void:
@@ -41,11 +47,14 @@ func attach_stage_manager(stage_manager: StageManager) -> void:
 	_stage_manager = stage_manager
 	if _stage_manager == null:
 		return
-	gold_growth_rate = _stage_manager.gold_growth_rate
 	if not _stage_manager.stage_completed.is_connected(_on_stage_completed):
 		_stage_manager.stage_completed.connect(_on_stage_completed)
 
 
+## §6.1 `enemy_gold = round(base_gold * G(S) * offset_mult * type_gold)`. The enemy's runtime
+## `gold_reward` already carries all three factors — [EnemyScaling] writes it once when the stage
+## is built — so this reads it and applies nothing a second time. Gold has NO player-level
+## catch-up by design.
 func calculate_enemy_gold(enemy: Node) -> int:
 	if enemy == null or not is_instance_valid(enemy):
 		return 0
@@ -57,15 +66,12 @@ func calculate_enemy_gold(enemy: Node) -> int:
 		if not enemy_stats_variant is EnemyStats:
 			return 0
 		enemy_stats = enemy_stats_variant as EnemyStats
-	var enemy_type: int = EnemyType.NORMAL
-	if enemy is EnemyController and (enemy as EnemyController).enemy_data != null:
-		enemy_type = (enemy as EnemyController).enemy_data.enemy_type
-	var reward: float = float(maxi(enemy_stats.gold_reward, 0)) * get_enemy_type_multiplier(enemy_type)
+	if enemy_stats == null:
+		return 0
+	var reward: float = float(maxi(enemy_stats.gold_reward, 0))
 	if reward <= 0.0 or is_nan(reward):
 		return 0
-	if is_inf(reward):
-		return 2147483647
-	return maxi(roundi(reward), 1)
+	return BalanceFormulas.round_reward(get_balance_profile(), reward, 0)
 
 
 func get_enemy_type_multiplier(enemy_type: int) -> float:
@@ -86,8 +92,10 @@ func get_enemy_type_multiplier(enemy_type: int) -> float:
 			return maxf(normal_gold_multiplier, 0.0)
 
 
+## §6.1 `stage_clear_gold = round(50 * G(S))`, the shared formula the stage build and the clear
+## reward both use.
 func calculate_stage_gold(stage_number: int) -> int:
-	return EnemyScalingSystem.scale_value(base_stage_gold, gold_growth_rate, maxi(stage_number, 1))
+	return BalanceFormulas.stage_clear_gold(get_balance_profile(), maxi(stage_number, 1))
 
 
 func grant_gold(amount: int, source_name: String = "") -> int:
@@ -105,13 +113,31 @@ func grant_stage_reward(stage_number: int) -> int:
 	return grant_gold(reward, "Stage %d clear" % maxi(stage_number, 1))
 
 
+## §6.1: the single Gold entry for a kill, guarded so a duplicate death signal pays once.
+func settle_kill_gold(enemy: Node) -> int:
+	if enemy == null or not is_instance_valid(enemy):
+		return 0
+	var key: int = enemy.get_instance_id()
+	if _settled_enemies.has(key):
+		return 0
+	var reward: int = calculate_enemy_gold(enemy)
+	if reward <= 0:
+		return 0
+	_settled_enemies[key] = true
+	var source_name: String = "enemy"
+	if enemy is EnemyController:
+		source_name = (enemy as EnemyController).get_display_name()
+	return grant_gold(reward, source_name)
+
+
+func reset_settlements() -> void:
+	_settled_enemies.clear()
+
+
 func _on_actor_died(actor: Node) -> void:
 	if not actor is EnemyController:
 		return
-	var enemy: EnemyController = actor as EnemyController
-	var reward: int = calculate_enemy_gold(enemy)
-	if reward > 0:
-		grant_gold(reward, enemy.get_display_name())
+	settle_kill_gold(actor)
 
 
 func _on_stage_completed(stage_state: StageState) -> void:

@@ -1,16 +1,18 @@
 class_name EnemyScaling
 extends RefCounted
 
-## Turns one enemy's pool base stats into the stats the stage actually spawns (§4.2, §4.3).
+## Turns one enemy's pool base stats into the stats the stage actually spawns (§4.2, §4.3), and
+## writes the §5/§6.1 rewards the same spawn pays.
 ##
 ## The stage-level inputs are applied HERE and only here: [LevelProvider] writes difficulty(S)
 ## onto the [StageDefinition], [StageManager] freezes the encounter size c when the stage is
 ## built, and neither of them multiplies anything a second time. The offset, the per-stat
 ## variance and every group factor are folded into ONE rounding per stat.
 ##
-## Gold and EXP are deliberately NOT part of this switch — they still ride the existing
-## `rate^(stage-1)` curve until R2 replaces the reward formulas, which is why
-## [method scale_value] is still here.
+## Gold and EXP are written into the runtime at the same moment and with the same
+## offset multiplier, so the reward a kill pays (`G(S)`, the real offset and the type multiplier)
+## is applied exactly once and [ExperienceSystem] / [GoldSystem] only add their own rule on top
+## (the EXP catch-up). The legacy `rate^(stage-1)` reward curve is gone with R2.
 
 ## Which §4.2 / §4.3 rule set a spawn uses.
 enum Kind {
@@ -19,8 +21,9 @@ enum Kind {
 	MINI_BOSS, ## §4.3: the normal reference enemy on a frozen c = 4 basis, three multipliers
 }
 
-## Legacy reward bound, used by [method scale_value] for Gold/EXP until R2.
-const MAX_SCALED_VALUE: float = 1000000000000.0
+## §4.3: a Mini Boss pays 4× EXP and 4× Gold relative to ONE normal enemy — the same factor on
+## both sides, and deliberately not the encounter size.
+const BOSS_REWARD_MULTIPLIER: float = 4.0
 
 
 ## The three independent per-stat variance factors of §4.2: no variance at all.
@@ -39,6 +42,12 @@ static func unity_variance() -> Array[float]:
 ## training stages and Mini Bosses pass [method unity_variance] and no entry corrections.
 ##
 ## HP/ATK floor at 1, DEF at 0, and every value saturates at the profile's combat bound (§2).
+##
+## `enemy_type` (an [enum EnemyType] value) selects the §4.3 Mini Boss rule: a Mini Boss's HP/ATK/
+## DEF are the reference enemy's multipliers on a frozen c = 4 basis and its rewards are the
+## fixed 4× EXP / 4× Gold relative to ONE normal enemy. A normal spawn of any other type pays
+## exactly the reference reward, which is what "all reward resources are normalized to the
+## reference EXP 100 / the existing Gold base" means in practice.
 static func build_combat_stats(
 	profile: BalanceProfile,
 	base_stats: EnemyStats,
@@ -47,7 +56,8 @@ static func build_combat_stats(
 	enemy_offset: int,
 	encounter_count: int,
 	variance: Array[float] = [],
-	base_multipliers: Array[float] = []
+	base_multipliers: Array[float] = [],
+	enemy_type: int = EnemyType.NORMAL
 ) -> EnemyStats:
 	if base_stats == null:
 		return null
@@ -148,22 +158,32 @@ static func build_combat_stats(
 
 	scaled_stats.level = maxi(safe_stage + safe_offset, 1)
 	scaled_stats.current_hp = scaled_stats.max_hp
+	# §5/§6.1: the rewards this spawn will pay, written with the SAME offset multiplier the combat
+	# stats used. `reference_enemy_exp` / `gold_base` are the ONE base pair; the 24 pool resources
+	# and the training enemy no longer carry their own reward numbers, so a kill cannot pay a
+	# curve the stage never used.
+	scaled_stats.experience_reward = BalanceFormulas.kill_experience(
+		profile,
+		safe_stage,
+		offset_multiplier,
+		reward_type_multiplier(kind, enemy_type),
+		1
+	)
+	scaled_stats.gold_reward = BalanceFormulas.enemy_gold(
+		profile,
+		safe_stage,
+		offset_multiplier,
+		reward_type_multiplier(kind, enemy_type)
+	)
 	return scaled_stats
 
 
-## The legacy `rate^(stage-1)` reward curve, still used for Gold and EXP until R2 moves the
-## rewards onto `G(S)` (§5, §6).
-static func scale_value(base_value: int, growth_rate: float, stage_number: int) -> int:
-	if base_value <= 0:
-		return 0
-	var safe_rate: float = maxf(growth_rate, 0.0)
-	var exponent: int = maxi(stage_number - 1, 0)
-	var scaled_value: float = float(base_value) * pow(safe_rate, exponent)
-	if is_nan(scaled_value) or scaled_value <= 0.0:
-		return 0
-	if is_inf(scaled_value) or scaled_value > MAX_SCALED_VALUE:
-		return int(MAX_SCALED_VALUE)
-	return maxi(roundi(scaled_value), 1)
+## §4.3/§5/§6.1: the `type_exp` / `type_gold` share a Mini Boss's reward carries. It is the SAME
+## factor on both sides and it is the ONLY type factor applied — the encounter size c = 4 is a
+## combat basis, never a second reward multiplier. Every other spawn pays one reference kill.
+static func reward_type_multiplier(kind: int, _enemy_type: int = EnemyType.NORMAL) -> float:
+	return BOSS_REWARD_MULTIPLIER if kind == Kind.MINI_BOSS else 1.0
+
 
 
 ## One entry of a per-stat factor array (variance or per-entry correction). A missing,

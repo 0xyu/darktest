@@ -9,11 +9,11 @@ extends Resource
 ## helpers take it as an argument. No gameplay code restates a default and nothing reads
 ## these numbers from a global — there is no autoload (contract §7).
 ##
-## Scope: this class carries exactly the parameters R0/R1 read — the shared scale, the
+## Scope: this class carries exactly the parameters R0/R1/R2 read — the shared scale, the
 ## difficulty ramp, the armor/damage bounds, the reference enemies, the equipment weights,
-## the affix generation constants and the effective utility caps. The EXP, Gold,
-## item-economy and Sub Hero parameters join this same class when their consumers switch
-## over in R2, so the profile never holds a value nothing reads yet.
+## the affix generation constants, the effective utility caps, and the R2 group: EXP/level
+## requirements, kill rewards, stage Gold, item/potion prices and the Sub Hero investment and
+## summon pricing. The profile never holds a value nothing reads.
 
 ## Canonical balance stat ids. The affix catalogue uses the same three ids;
 ## [code]player_controller.gd[/code] maps its stat-block key [code]&"max_hp"[/code] onto
@@ -157,6 +157,63 @@ static func get_default() -> BalanceProfile:
 @export var boss_attack_multiplier: float = 1.5
 @export var boss_defense_multiplier: float = 1.25
 
+@export_group("Experience")
+## §5: `need(L) = round(experience_base * count(L) * G(L))`. The `count(L)` factor reuses the
+## encounter-size curve, so the requirement grows with the same shape the kills do.
+@export var experience_base: float = 100.0
+## §5: `catchup(S, L) = clamp(1 + step * (S - L), min, max)`. It keeps a player who fell
+## behind from having to farm forever, and never turns a cleared stage into a locked door:
+## replaying an old stage still pays.
+@export_range(0.0, 1.0, 0.01) var experience_catchup_step: float = 0.10
+@export_range(0.0, 10.0, 0.01) var experience_catchup_min: float = 0.25
+@export_range(0.0, 10.0, 0.01) var experience_catchup_max: float = 2.0
+
+@export_group("Gold")
+## §6.1: `stage_clear_gold = round(gold_base * G(S))`. One clear pays this once; a stage that
+## could be farmed before can still be farmed.
+@export var gold_base: float = 50.0
+
+@export_group("Item economy")
+## §6.1: `item_level_multiplier = G(il)` replaces the legacy `1.18^(il-1)`, so prices and the
+## gold curve share ONE scale. `BaseItemValue` is 30 rather than the legacy 32, which is what
+## keeps a normal equipment sale at 5..18 % of the stage's combat Gold.
+@export_range(0.0, 10000.0, 1.0) var base_item_value: float = 30.0
+@export_range(0.0, 1.0, 0.01) var vendor_sell_multiplier: float = 0.25
+## §6.1: `Sell = max(1, floor(min(Value * sell_multiplier, sell_cap_stages *
+## StageExpectedSell)))`. The cap clips windfalls; it is not an inflation control.
+@export_range(1.0, 1000.0, 1.0) var sell_cap_stages: float = 100.0
+## §6.1: `Buys = max(floor(Value * 4), Sell + 1, 1)`.
+@export_range(1.0, 100.0, 0.1) var vendor_buy_multiplier: float = 4.0
+## `AffixMultiplier = clamp(1 + scale * SUM(roll_ratio * economic_weight), min, max)`.
+@export_range(0.0, 1.0, 0.01) var affix_value_scale: float = 0.15
+@export_range(1.0, 10.0, 0.1) var affix_multiplier_min: float = 1.0
+@export_range(1.0, 10.0, 0.1) var affix_multiplier_max: float = 3.0
+## The drop-rarity distribution the §6.1 joint expectation is computed over. It is the §13
+## normal-enemy weight table, and it decides both which rarity multiplier and how MANY affixes
+## an item carries — which is exactly why the two cannot be averaged separately.
+@export var calibration_rarity_weights: Array[float] = [0.60, 0.25, 0.10, 0.04, 0.01, 0.0]
+## Mean `roll_ratio` of a rolled affix: the §3.2 roll band is uniform, so half of the 0..1
+## normalized band is the expectation.
+@export_range(0.0, 1.0, 0.01) var mean_roll_ratio: float = 0.5
+
+@export_group("Sub Heroes")
+## §6.2: `investment_level_i = 1 + (hero_level_i - 1) / (pool_size * p_i)` — 24 expected draws
+## per hero, so a low-probability hero does not need several times the summons for the same
+## growth.
+@export_range(1, 64, 1) var sub_hero_pool_size: int = 8
+@export_range(1, 64, 1) var sub_hero_draws_per_level: int = 24
+## `price_coordinate = min(cap, 1 + owned_draws / draws_per_level)` and
+## `summon_cost = max(floor_cost, ceil(gold_base_cost * G(price_coordinate)))`. The cap keeps an
+## oversized legacy collection from overflowing the price computation.
+@export_range(1, 100000, 1) var summon_price_coordinate_cap: int = 1000
+## 10 gold at the coordinate's `G`: the first tier of investment costs about 240 Gold, while the
+## 250 floor keeps the early-game gate the shop already has.
+@export_range(0.0, 10000.0, 1.0) var summon_gold_coordinate_cost: float = 10.0
+@export_range(0, 1000000, 1) var summon_gold_floor: int = 250
+## §6.2: the rarity quality multipliers the Sub Hero already shipped with (Common / Rare /
+## Legendary). The base damage and the real-time interval stay authored per hero.
+@export var sub_hero_quality_multipliers: Array[float] = [1.0, 1.1, 1.2]
+
 
 ## `G(L)^0.40` — the level share of the reference growth.
 func get_level_exponent() -> float:
@@ -193,3 +250,10 @@ func get_slot_weights(stat_id: StringName) -> Array[float]:
 			return slot_defense_weights.duplicate()
 	push_warning("BalanceProfile: unknown stat id %s" % stat_id)
 	return []
+
+
+## The §6.2 quality multiplier of a [enum SubHeroQuality] value, or 1.0 for an unknown one.
+func get_sub_hero_quality_multiplier(quality: int) -> float:
+	if quality < 0 or quality >= sub_hero_quality_multipliers.size():
+		return 1.0
+	return maxf(sub_hero_quality_multipliers[quality], 0.0)
