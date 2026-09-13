@@ -19,6 +19,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/TownView.tscn" id="27_town"]
 [ext_resource type="PackedScene" path="res://scenes/ui/WorldMapView.tscn" id="28_worldmap"]
 [ext_resource type="PackedScene" path="res://scenes/ui/ScavengerShopPanel.tscn" id="29_scavenger"]
+[ext_resource type="PackedScene" path="res://scenes/ui/CharacterPanel.tscn" id="30_character"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
 bg_color = Color(0.0706, 0.0627, 0.102, 0.97)
@@ -414,6 +415,10 @@ grow_horizontal = 1
 grow_vertical = 1
 
 [node name="EnemyBestiaryPanel" parent="Root" unique_id=202036707 instance=ExtResource("19_bestiary")]
+unique_name_in_owner = true
+layout_mode = 1
+
+[node name="CharacterPanel" parent="Root" unique_id=1272460678 instance=ExtResource("30_character")]
 unique_name_in_owner = true
 layout_mode = 1
 

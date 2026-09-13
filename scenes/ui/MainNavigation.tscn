@@ -54,6 +54,7 @@ size_flags_horizontal = 3
 
 [node name="Control" type="Control" parent="Margin/Row/CharacterBtn" unique_id=157964582]
 layout_mode = 1
+mouse_filter = 2
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -101,6 +102,7 @@ size_flags_horizontal = 3
 
 [node name="Control" type="Control" parent="Margin/Row/InventoryBtn" unique_id=1325682625]
 layout_mode = 1
+mouse_filter = 2
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -240,6 +242,7 @@ size_flags_horizontal = 3
 
 [node name="Control" type="Control" parent="Margin/Row/ShopBtn" unique_id=239139954]
 layout_mode = 1
+mouse_filter = 2
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -280,3 +283,7 @@ theme_override_font_sizes/font_size = 10
 text = "SHOP"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[connection signal="pressed" from="Margin/Row/CharacterBtn" to="." method="_on_character_pressed"]
+[connection signal="pressed" from="Margin/Row/InventoryBtn" to="." method="_on_inventory_pressed"]
+[connection signal="pressed" from="Margin/Row/ShopBtn" to="." method="_on_shop_pressed"]

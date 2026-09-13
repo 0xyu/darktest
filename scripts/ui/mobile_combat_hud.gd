@@ -62,6 +62,9 @@ signal battlefield_clicked(screen_position: Vector2)
 # Keep this reference as Control so a cold headless harness does not depend on
 # the newly-added panel class being present in Godot's global class cache.
 @onready var _assignment_panel: Control = %SubHeroAssignmentPanel
+# Same reason as above: the character sheet class may be absent from a cold
+# headless class cache, so it is held as a plain Control.
+@onready var _character_panel: Control = %CharacterPanel
 
 @onready var _main_navigation: MainNavigation = %MainNavigation
 @onready var _enemy_summary_panel: EnemySummaryPanel = %EnemySummaryPanel
@@ -103,6 +106,7 @@ func _ready() -> void:
 	_main_navigation.inventory_pressed.connect(_on_inventory_navigation_pressed)
 	_main_navigation.shop_pressed.connect(_on_shop_button_pressed)
 	_inventory_panel.set_player(_player)
+	_character_panel.set_player(_player)
 	_development_panel.set_player(_player)
 	_development_panel.data_changed.connect(_on_dev_data_changed)
 	_skill_panel.set_player(_player)
@@ -137,6 +141,7 @@ func _ready() -> void:
 	if _sub_hero_row.has_signal("slot_selected"):
 		_sub_hero_row.slot_selected.connect(_on_sub_hero_slot_selected)
 	_inventory_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
+	_character_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_bestiary_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_development_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
 	_skill_panel.visibility_changed.connect(_on_overlay_panel_visibility_changed)
@@ -172,7 +177,7 @@ func _on_shop_button_pressed() -> void:
 	_shop_panel.toggle_panel()
 
 func _on_character_navigation_pressed() -> void:
-	_inventory_panel.show_inventory()
+	_character_panel.toggle_panel()
 
 
 func _on_inventory_navigation_pressed() -> void:
@@ -313,7 +318,7 @@ func _on_overlay_panel_visibility_changed() -> void:
 	if _combat_log == null:
 		return
 	_combat_log.visible = not (
-	_inventory_panel.visible or _development_panel.visible
+	_inventory_panel.visible or _character_panel.visible or _development_panel.visible
 		or _skill_panel.visible or _shop_panel.visible or _assignment_panel.visible
 		or _scavenger_shop_panel.visible
 	)
@@ -323,6 +328,7 @@ func _on_dev_data_changed() -> void:
 	# The dev panel can replace the player's inventory object (demo character),
 	# which orphans panels still bound to the old object. Re-bind and refresh.
 	_inventory_panel.set_player(_player)
+	_character_panel.set_player(_player)
 	_skill_panel.set_player(_player)
 	_shop_panel.set_player(_player)
 	_scavenger_shop_panel.set_player(_player)
