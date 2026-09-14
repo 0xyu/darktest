@@ -290,6 +290,28 @@ func _preview_block(slot: int, item: EquipmentInstance) -> Dictionary:
 	)
 
 
+## §3.2's replacement verdict for `item` in its own slot, from the SAME aggregation the live
+## rebuild uses: the current block, the block after the candidate's inherent slot growth alone,
+## the block after its affixes as well, and the effective power proxy of each. The loot badge and
+## the compare card read this, so "this item is better" never comes from the legacy absolute-affix
+## Power Score. A pure preview: nothing here touches the hero or the inventory.
+func get_equipment_verdict(item: EquipmentInstance) -> Dictionary:
+	if item == null:
+		return {}
+	var target_slot: int = item.get_slot()
+	if not EquipmentSlot.is_valid(target_slot):
+		return {}
+	_ensure_base_stats()
+	return EquipmentStatBlock.verdict(
+		get_balance_profile(),
+		get_level(),
+		EquipmentStatBlock.slots_from_inventory(equipment_inventory),
+		_base_stats,
+		target_slot,
+		item
+	)
+
+
 func get_equipped_item(slot: int) -> EquipmentInstance:
 	return get_inventory().get_equipped_item(slot)
 

@@ -25,6 +25,25 @@ const COLOR_MUTED := Color("8f879d")
 const COLOR_GREEN := Color("82d49b")
 const COLOR_RED := Color("d46a78")
 
+## §3.2: the compare card lists the EFFECTIVE block of the same recompute the hero uses — the
+## field in the aggregated block, the affix catalogue id its label comes from, and whether the
+## value reads as a percentage. The inherent slot growth and the affix influence of the swap are
+## reported separately for each row.
+const EFFECTIVE_COMPARISON_ROWS: Array[Dictionary] = [
+	{"field": &"max_hp", "stat": &"hp", "percent": false},
+	{"field": &"attack", "stat": &"attack", "percent": false},
+	{"field": &"defense", "stat": &"defense", "percent": false},
+	{"field": &"critical_chance", "stat": &"critical_chance", "percent": true},
+	{"field": &"critical_damage", "stat": &"critical_damage", "percent": true},
+	{"field": &"dodge", "stat": &"dodge", "percent": true},
+	{"field": &"life_steal", "stat": &"life_steal", "percent": true},
+	{"field": &"stun_chance", "stat": &"stun_chance", "percent": true},
+	{"field": &"damage_vs_elite", "stat": &"damage_vs_elite", "percent": true},
+	{"field": &"damage_vs_boss", "stat": &"damage_vs_boss", "percent": true},
+	{"field": &"movement_points", "stat": &"movement", "percent": false},
+	{"field": &"attack_range", "stat": &"attack_range", "percent": false},
+]
+
 var _player: PlayerController
 var _item: EquipmentInstance
 var _from_storage: bool = false
@@ -301,14 +320,23 @@ func _refresh() -> void:
 	_clicked_name_label.modulate = _get_rarity_color(rarity)
 	_clicked_details_label.text = _format_equipment_details(_item)
 
-	var comparison: EquipmentComparison = _get_comparison()
-	if comparison != null:
-		_comparison_label.text = _format_comparison(comparison)
-		_comparison_label.modulate = COLOR_GREEN if comparison.is_upgrade() else COLOR_RED
+	# §3.2: the comparison is the EFFECTIVE one — the same aggregation the hero's rebuild uses,
+	# with the inherent slot growth and the affix influence reported separately. The legacy
+	# absolute-affix Power Score stays a display value in each item's own column.
+	var verdict: Dictionary = _get_effective_verdict()
+	if not verdict.is_empty():
+		_comparison_label.text = _format_effective_comparison(verdict)
+		_comparison_label.modulate = COLOR_GREEN if bool(verdict.get("is_upgrade", false)) else COLOR_RED
 		_comparison_label.visible = true
 	else:
-		_comparison_label.text = ""
-		_comparison_label.visible = false
+		var comparison: EquipmentComparison = _get_comparison()
+		if comparison != null:
+			_comparison_label.text = _format_comparison(comparison)
+			_comparison_label.modulate = COLOR_GREEN if comparison.is_upgrade() else COLOR_RED
+			_comparison_label.visible = true
+		else:
+			_comparison_label.text = ""
+			_comparison_label.visible = false
 	_equip_button.disabled = false
 	_store_button.visible = true
 	_store_button.disabled = _is_storage_full()
@@ -441,6 +469,10 @@ func _format_consumable_details(item: EquipmentInstance) -> String:
 func _format_equipment_details(item: EquipmentInstance) -> String:
 	var lines: Array[String] = [
 		"%s  •  物品等级 %d" % [EquipmentSlot.get_display_name(item.get_slot()), item.get_item_level()],
+		# §3.1: the inherent slot growth an item carries by being equipped is shown explicitly —
+		# it does not occupy an affix slot and it is not re-rolled, so a card that listed only the
+		# affixes would hide the growth every item has.
+		"固有成长  ×%.2f" % _get_slot_factor(item),
 	]
 	for affix in item.affixes:
 		if affix == null:
@@ -448,6 +480,13 @@ func _format_equipment_details(item: EquipmentInstance) -> String:
 		var value_text: String = EquipmentAffix.format_value(affix.value, affix.is_percentage)
 		lines.append("%s  %s" % [affix.get_label(), value_text])
 	return "\n".join(lines)
+
+
+func _get_slot_factor(item: EquipmentInstance) -> float:
+	var profile: BalanceProfile = _player.get_balance_profile() if _player != null else null
+	if profile == null:
+		profile = BalanceProfile.get_default()
+	return BalanceFormulas.slot_factor(profile, item.get_rarity(), item.get_item_level())
 
 
 func _format_comparison(comparison: EquipmentComparison) -> String:
@@ -460,6 +499,50 @@ func _format_comparison(comparison: EquipmentComparison) -> String:
 			lines.append("%s  %s" % [row["display_name"], row["formatted_delta"]])
 	lines.append("强度  %s" % ("+%.1f" % comparison.score_delta if comparison.score_delta >= 0.0 else "%.1f" % comparison.score_delta))
 	return "\n".join(lines)
+
+
+## §3.2: the effective comparison of `_item` in its slot, taken from the hero itself so the card
+## and the real rebuild cannot disagree. Empty when there is no hero to compare against (the
+## popup falls back to the raw affix rows then).
+func _get_effective_verdict() -> Dictionary:
+	if _player == null or _item == null or _item.is_consumable() or _item.is_equipped:
+		return {}
+	return _player.get_equipment_verdict(_item)
+
+
+## The §3.2 compare text: every changed effective row as `total (固有 … / 词缀 …)`, followed by
+## the replacement verdict — the effective `ATK × HP` proxy, never the absolute-affix score.
+func _format_effective_comparison(verdict: Dictionary) -> String:
+	var deltas: Dictionary = verdict.get("deltas", {})
+	var inherent: Dictionary = verdict.get("inherent_deltas", {})
+	var affixes: Dictionary = verdict.get("affix_deltas", {})
+	var lines: Array[String] = []
+	for row in EFFECTIVE_COMPARISON_ROWS:
+		var field: StringName = row["field"]
+		var total: float = float(deltas.get(field, 0.0))
+		var core: float = float(inherent.get(field, 0.0))
+		var affix: float = float(affixes.get(field, 0.0))
+		if is_zero_approx(total) and is_zero_approx(core) and is_zero_approx(affix):
+			continue
+		var is_percentage: bool = bool(row["percent"])
+		lines.append("%s  %s  (固有 %s / 词缀 %s)" % [
+			EquipmentAffix.get_display_name_for_stat(row["stat"]),
+			EquipmentAffix.format_value(total, is_percentage),
+			EquipmentAffix.format_value(core, is_percentage),
+			EquipmentAffix.format_value(affix, is_percentage),
+		])
+	if lines.is_empty():
+		lines.append("无属性变化")
+	lines.append("战力(有效 ATK×HP)  %s" % _format_power_delta(verdict))
+	return "\n".join(lines)
+
+
+func _format_power_delta(verdict: Dictionary) -> String:
+	var before: float = float(verdict.get("power_before", 0.0))
+	var after: float = float(verdict.get("power_after", 0.0))
+	if before <= 0.0:
+		return "%.4g" % after if after > 0.0 else "0"
+	return "%+.1f%%" % ((after / before - 1.0) * 100.0)
 
 
 func _get_rarity_color(rarity: int) -> Color:

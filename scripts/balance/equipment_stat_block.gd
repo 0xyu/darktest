@@ -116,3 +116,88 @@ static func compare(
 		"candidate": candidate_block,
 		"deltas": deltas,
 	}
+
+
+## §3.2 "固有成长和词缀影响必须分列": the SAME aggregation evaluated a third time, in two steps,
+## so the compare card can attribute a swap to the item's inherent slot growth and to its affixes
+## instead of showing one blended number.
+##
+## `current` → `inherent` changes ONLY the slot factor (the candidate's own core growth, with the
+## affix sums still the ones the equipped set had), and `inherent` → `candidate` changes only the
+## affix sums (the old item's affixes leave, the candidate's arrive). `power()` is the replacement
+## proxy of §3.2 — the legacy absolute-affix `get_equipment_score()` is a display value and is
+## never a verdict.
+static func split(
+	profile: BalanceProfile,
+	level: int,
+	equipped: Array[EquipmentInstance],
+	base_stats: Dictionary,
+	slot: int,
+	candidate: EquipmentInstance
+) -> Dictionary:
+	if profile == null or slot < 0 or slot >= BalanceProfile.SLOT_COUNT:
+		return {}
+	var current_factors: Array[float] = slot_factors(profile, equipped)
+	var current_flat: Dictionary = flat_totals(equipped)
+	var swapped: Array[EquipmentInstance] = equipped.duplicate()
+	if swapped.size() < BalanceProfile.SLOT_COUNT:
+		swapped.resize(BalanceProfile.SLOT_COUNT)
+	swapped[slot] = candidate
+	var swapped_factors: Array[float] = slot_factors(profile, swapped)
+	var swapped_flat: Dictionary = flat_totals(swapped)
+
+	var current: Dictionary = BalanceFormulas.stat_block(
+		profile, level, current_factors, current_flat, base_stats
+	)
+	var inherent: Dictionary = BalanceFormulas.stat_block(
+		profile, level, swapped_factors, current_flat, base_stats
+	)
+	var candidate_block: Dictionary = BalanceFormulas.stat_block(
+		profile, level, swapped_factors, swapped_flat, base_stats
+	)
+	return {
+		"current": current,
+		"inherent": inherent,
+		"candidate": candidate_block,
+		"deltas": _deltas(current, candidate_block),
+		"inherent_deltas": _deltas(current, inherent),
+		"affix_deltas": _deltas(inherent, candidate_block),
+		"power_before": power(current),
+		"power_after": power(candidate_block),
+	}
+
+
+## The §3.2 replacement verdict for `candidate` in `slot`: the effective power proxy before and
+## after, its delta and whether the swap raises it. It is the ONLY thing a "this item is better"
+## badge may read — never the absolute-affix score.
+static func verdict(
+	profile: BalanceProfile,
+	level: int,
+	equipped: Array[EquipmentInstance],
+	base_stats: Dictionary,
+	slot: int,
+	candidate: EquipmentInstance
+) -> Dictionary:
+	var payload: Dictionary = split(profile, level, equipped, base_stats, slot, candidate)
+	if payload.is_empty():
+		return {}
+	var before: float = float(payload["power_before"])
+	var after: float = float(payload["power_after"])
+	payload["power_delta"] = after - before
+	payload["is_upgrade"] = after > before
+	return payload
+
+
+## The effective power proxy of an aggregated block: what the hero deals times what the hero
+## survives (`attack × max_hp`). It is a PROXY for comparing two loadouts of the same hero, not a
+## claim about encounter outcomes, and it replaces the legacy absolute-affix score as the swap
+## verdict (§3.2).
+static func power(block: Dictionary) -> float:
+	return float(block.get(&"max_hp", 0.0)) * float(block.get(&"attack", 0.0))
+
+
+static func _deltas(from_block: Dictionary, to_block: Dictionary) -> Dictionary:
+	var deltas: Dictionary = {}
+	for field in to_block:
+		deltas[field] = float(to_block[field]) - float(from_block.get(field, 0.0))
+	return deltas

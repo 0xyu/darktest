@@ -88,9 +88,11 @@ func _ready() -> void:
 func take_turn(player: Node, turn_manager: TurnManager) -> void:
 	_sync_legacy_hp_if_needed()
 	if _is_defeated or enemy_runtime.current_hp <= 0:
+		status_effects.complete_turn()
 		turn_manager.complete_enemy_turn(self)
 		return
 	if _grid == null or player == null:
+		status_effects.complete_turn()
 		turn_manager.complete_enemy_turn(self)
 		return
 	# §12 Stun: a stunned enemy spends the whole turn unable to act. The status is
@@ -104,12 +106,15 @@ func take_turn(player: Node, turn_manager: TurnManager) -> void:
 	_target = player
 	target_selected.emit(_target)
 	if _try_boss_turn(player, turn_manager):
+		status_effects.complete_turn()
 		return
 	var target_cell: Vector2i = _get_target_cell(player)
 	if _grid_distance(grid_position, target_cell) > enemy_runtime.current_stats.attack_range:
 		_move_toward_target(target_cell)
 	if _grid_distance(grid_position, target_cell) <= enemy_runtime.current_stats.attack_range:
 		attack_requested.emit(self, _target)
+	# §3.2: this turn was played, so the post-stun immunity window it was paying for is over.
+	status_effects.complete_turn()
 	turn_manager.complete_enemy_turn(self)
 
 

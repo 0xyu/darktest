@@ -7,6 +7,9 @@ extends Resource
 @export var skill_id: StringName = &""
 @export var raw_damage: int = 0
 @export var final_damage: int = 0
+## §4.1: the HP the target ACTUALLY lost, which is `final_damage` capped by the HP it had.
+## Overkill is not part of it, so life steal can never pay for damage that never landed.
+@export var hp_lost: int = 0
 @export var is_critical: bool = false
 ## The strike dealt no damage: either it was refused or the target dodged it.
 @export var is_miss: bool = false

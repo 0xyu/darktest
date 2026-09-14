@@ -162,12 +162,19 @@ static func build_combat_stats(
 	# stats used. `reference_enemy_exp` / `gold_base` are the ONE base pair; the 24 pool resources
 	# and the training enemy no longer carry their own reward numbers, so a kill cannot pay a
 	# curve the stage never used.
+	#
+	# §5: the stored EXP carries `G(S)`, the real offset and the type multiplier and NOTHING else —
+	# the catch-up factor belongs to the settlement, where the player's level is known
+	# ([method ExperienceSystem.calculate_enemy_experience]). Passing the stage itself as the level
+	# makes `experience_catchup(S, S)` exactly 1.0, which is the neutral value; the earlier
+	# hard-coded 1 sampled `catchup(S, 1)`, whose ceiling is 2.0, and the settlement multiplied by
+	# the real catch-up again — every kill from S11 paid twice.
 	scaled_stats.experience_reward = BalanceFormulas.kill_experience(
 		profile,
 		safe_stage,
 		offset_multiplier,
 		reward_type_multiplier(kind, enemy_type),
-		1
+		safe_stage
 	)
 	scaled_stats.gold_reward = BalanceFormulas.enemy_gold(
 		profile,

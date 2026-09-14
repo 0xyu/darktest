@@ -134,7 +134,65 @@ func test_equipment_comparison_shows_current_slot_item() -> void:
 	var comparison_label: Label = popup.get("_comparison_label")
 	expect(comparison_label != null and comparison_label.visible, "comparison deltas shown when both items present")
 	if comparison_label is Label:
-		expect_contains(comparison_label.text, "强度", "comparison shows the strength delta")
+		# §3.2 / R3: the card renders the EFFECTIVE comparison — the same aggregation the hero's
+		# rebuild uses — and its verdict is the effective `ATK × HP` proxy, not the legacy
+		# absolute-affix score.
+		expect_contains(comparison_label.text, "战力(有效 ATK×HP)", "comparison shows the effective verdict")
+
+
+func test_equipment_comparison_matches_the_equipped_stats() -> void:
+	await _mount_panel_with_player()
+	var rare_weapon: EquipmentInstance = null
+	for item in _inventory.get_items():
+		if item.get_rarity() == EquipmentRarity.RARE and item.get_slot() == EquipmentSlot.WEAPON:
+			rare_weapon = item
+			break
+	expect(rare_weapon != null, "fixture inventory has a rare weapon")
+	if rare_weapon == null:
+		return
+	expect(_player.equip_item(rare_weapon), "rare weapon equipped")
+	var cell: Node = _find_cell_where(func(item): return item != null and item.get_slot() == EquipmentSlot.WEAPON and item != rare_weapon)
+	expect(cell != null, "a second weapon cell exists")
+	if cell == null:
+		return
+	var candidate: EquipmentInstance = cell.get("item")
+	click_cell(cell)
+	await flush_frames()
+	var comparison_label: Label = popup_label()
+	var verdict: Dictionary = _player.get_equipment_verdict(candidate)
+	expect(not verdict.is_empty(), "the popup's item has an effective verdict")
+	if verdict.is_empty():
+		return
+	# M8 "UI 预览与实装一致": the card text and the actual equip come from one source. The card
+	# must quote the delta the aggregation produces...
+	var attack_delta: float = float((verdict["deltas"] as Dictionary).get(&"attack", 0.0))
+	if comparison_label != null and not is_zero_approx(attack_delta):
+		expect_contains(
+			comparison_label.text,
+			EquipmentAffix.format_value(attack_delta, false),
+			"the card quotes the effective attack delta"
+		)
+	# ...and equipping the item must produce exactly the block the card previewed.
+	var previewed: Dictionary = verdict["candidate"]
+	expect(_player.equip_item(candidate), "the compared item equips")
+	await flush_frames()
+	var actual: Dictionary = _player.get_stat_block()
+	expect(
+		int(actual[&"max_hp"]) == int(previewed[&"max_hp"])
+		and int(actual[&"attack"]) == int(previewed[&"attack"])
+		and int(actual[&"defense"]) == int(previewed[&"defense"]),
+		"the previewed block is the block the hero actually gets (%s vs %s)" % [previewed, actual]
+	)
+	expect(
+		is_equal_approx(float(actual[&"critical_chance"]), float(previewed[&"critical_chance"]))
+		and int(actual[&"movement_points"]) == int(previewed[&"movement_points"])
+		and int(actual[&"attack_range"]) == int(previewed[&"attack_range"]),
+		"the previewed effective utility is what the hero actually gets"
+	)
+
+
+func popup_label() -> Label:
+	return _popup().get("_comparison_label") as Label
 
 
 # --- Consumable popup -------------------------------------------------------

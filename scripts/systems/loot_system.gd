@@ -12,6 +12,8 @@ var _stage_manager: StageManager
 ## Which guaranteed drops this save has already granted. The same store the save
 ## persists, so a stage's fixed reward is one-per-save rather than one-per-kill.
 var _content_state: AuthoredContentState
+## The hero, read only for the equipment slots that are still EMPTY (§8 M5 slot coverage).
+var _player: PlayerController
 
 
 func _ready() -> void:
@@ -32,6 +34,26 @@ func attach_stage_manager(stage_manager: StageManager) -> void:
 	_stage_manager = stage_manager
 
 
+## Wires the hero whose EMPTY equipment slots a drop should cover (§8 M5 "保底掉落的槽位覆盖").
+## Optional: without a player a drop rolls its slot at random, which is the pre-R3 behaviour.
+func attach_player(player: PlayerController) -> void:
+	_player = player
+
+
+## The equipment slots the hero has nothing equipped in. Empty when no player is attached.
+func get_empty_equipment_slots() -> Array[int]:
+	var slots: Array[int] = []
+	if _player == null or not is_instance_valid(_player):
+		return slots
+	var inventory: EquipmentInventory = _player.get_inventory()
+	if inventory == null:
+		return slots
+	for slot in range(EquipmentSlot.WEAPON, EquipmentSlot.AMULET + 1):
+		if inventory.get_equipped_item(slot) == null:
+			slots.append(slot)
+	return slots
+
+
 ## Wires the one-shot store the guaranteed-drop rule records into. Optional: with no
 ## store the fixed drops still happen, they just cannot be recorded as granted.
 func attach_content_state(content_state: AuthoredContentState) -> void:
@@ -45,7 +67,12 @@ func get_loot_generator() -> LootGenerator:
 
 
 func generate_loot_for_enemy(enemy: EnemyController, stage_number: int = 1) -> Array[EquipmentInstance]:
-	var loot: Array[EquipmentInstance] = get_loot_generator().generate_loot(enemy, stage_number)
+	# §8 M5: while the hero still has empty equipment slots, a drop covers one of them instead of
+	# rolling a random slot — without it the seven slots are only covered by luck (a coupon
+	# collector needs ~30 drops, and the first nine stages offer ~18 kills).
+	var loot: Array[EquipmentInstance] = get_loot_generator().generate_loot(
+		enemy, stage_number, get_empty_equipment_slots()
+	)
 	# The stage's authored fixed drops ride on top of the rolled loot, and only off
 	# the boss: the stage grants them, the boss is what has to fall for them.
 	if _is_boss(enemy):

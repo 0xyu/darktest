@@ -268,9 +268,20 @@ func _test_affixes_in_combat(
 	_expect(skip_count[0] == 1, "a stunned enemy must skip its turn")
 	_expect(attack_count[0] == 0, "a stunned enemy must not attack")
 	_expect(not enemy.is_stunned(), "a 1-turn stun is spent by the turn it suppressed")
+	# §3.2 "解除后的下一个自身回合完成前不能再次被眩晕": the released stun leaves an immunity
+	# window, which is what stops a 100 % stun chance from taking every turn away forever.
+	_expect(enemy.status_effects.is_stun_immune(), "the release opens the immunity window")
+	_expect(not enemy.apply_stun(StatusEffectComponent.STUN_TURNS), "a stun inside the window is refused")
+	_expect(not enemy.is_stunned(), "the refused stun leaves no status behind")
 
 	enemy.take_turn(player, turn_manager)
 	_expect(skip_count[0] == 1, "an enemy that is no longer stunned takes a normal turn")
+	_expect(
+		not enemy.status_effects.is_stun_immune(),
+		"the completed own turn closes the immunity window"
+	)
+	_expect(enemy.apply_stun(StatusEffectComponent.STUN_TURNS), "the enemy is stunnable again afterwards")
+	enemy.status_effects.clear_all()
 
 	combat.queue_free()
 

@@ -131,6 +131,9 @@ func _ready() -> void:
 	gold_system.gold_awarded.connect(_on_gold_awarded)
 	loot_system.attach_combat_system(combat_system)
 	loot_system.attach_stage_manager(stage_manager)
+	# §8 M5 slot coverage: the loot system reads the hero's still-empty equipment slots so an
+	# early drop fills one instead of rolling a slot the hero cannot use yet.
+	loot_system.attach_player(player)
 	loot_system.loot_dropped.connect(_on_loot_dropped)
 	turn_manager.state_changed.connect(_on_turn_state_changed)
 	stage_manager.stage_started.connect(_on_stage_started)
@@ -1253,8 +1256,11 @@ func _on_loot_dropped(_enemy: Node, loot: Array[EquipmentInstance]) -> void:
 			player.add_healing_items(1)
 			added_count += 1
 			continue
-		var comparison: EquipmentComparison = player.get_inventory().create_comparison(item)
-		var is_upgrade: bool = comparison != null and comparison.is_upgrade()
+		# §3.2: "this drop is better than what is equipped" is the EFFECTIVE verdict — inherent
+		# slot growth and affixes aggregated by the same function the rebuild uses. The legacy
+		# absolute-affix Power Score no longer decides it.
+		var verdict: Dictionary = player.get_equipment_verdict(item) if player != null else {}
+		var is_upgrade: bool = bool(verdict.get("is_upgrade", false))
 		if player.add_equipment(item):
 			added_count += 1
 		elif player.add_to_storage(item):

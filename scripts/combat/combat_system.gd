@@ -174,7 +174,11 @@ func _resolve_attack(
 			critical_damage
 		)
 
-	var remaining_hp: int = maxi(_get_current_hp(target, target_stats) - result.final_damage, 0)
+	var target_hp_before: int = maxi(_get_current_hp(target, target_stats), 0)
+	var remaining_hp: int = maxi(target_hp_before - result.final_damage, 0)
+	# §4.1: the damage that LANDED, not the damage that was rolled. A 400-damage hit on a
+	# 40-HP enemy costs it 40 HP, and life steal pays on those 40 — overkill heals nothing.
+	result.hp_lost = target_hp_before - remaining_hp
 	_set_current_hp(target, target_stats, remaining_hp)
 	_consume_player_action(attacker, consume_player_action)
 	result.target_defeated = remaining_hp <= 0
@@ -414,13 +418,17 @@ func _get_enemy_tier_multiplier(attacker_stats: Resource, target: Node) -> float
 ## §12 Life Steal: a fraction of the damage actually dealt comes back as HP, capped
 ## at the attacker's maximum. The amount that landed is reported on the result so
 ## the presentation layer can show it.
+##
+## §4.1: the fraction is taken from `result.hp_lost` — the target's real HP loss — never from
+## `final_damage`, so a killing blow on an almost-dead enemy steals the HP it removed instead of
+## the whole overkill number.
 func _apply_life_steal(attacker: Node, attacker_stats: Resource, result: DamageResult) -> void:
-	if result.final_damage <= 0:
+	if result.hp_lost <= 0:
 		return
 	var life_steal: float = maxf(_get_stat_float(attacker_stats, &"life_steal"), 0.0)
 	if life_steal <= 0.0:
 		return
-	var requested: int = roundi(float(result.final_damage) * life_steal)
+	var requested: int = roundi(float(result.hp_lost) * life_steal)
 	if requested <= 0:
 		return
 	var max_hp: int = maxi(int(_get_stat_float(attacker_stats, &"max_hp")), 0)

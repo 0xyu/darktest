@@ -13,13 +13,25 @@ one is a data change, not a design change.
 
 ## Balance v4 status and authority
 
-The balance rules below are finalized on 2026-09-13 and **pending implementation**.
-The detailed equations, parameter tables, source units, migration and release gates in
+The balance rules below are finalized on 2026-09-13 and **implemented** (R0–R3). The detailed
+equations, parameter tables, source units, migration and release gates in
 [balance-rework-implementation.md](balance-rework-implementation.md) are incorporated
 by reference into §§5, 9, 10, 12, 15, 17 and 19 of this spec. Its companion
 [balance-scale-rebase.md](balance-scale-rebase.md) is explanatory and reproducible,
-not evidence of runtime verification. Current shipped behavior remains recorded in
-[implementation-status.md](implementation-status.md).
+not evidence of runtime verification.
+
+**Release status: NOT released.** The §8 M5 progression simulation now runs on the production
+formulas ([balance-progression-simulation.md](balance-progression-simulation.md)) and fails **two**
+of its seven targets — the every-20-encounter success window and the Mini Boss action band, the
+latter recorded as a known deviation for this version. Two others (the seven-slot coverage before
+S10 and the §5 level tracking) were closed in R3: the first by the drop slot-coverage rule of §13,
+the second by measuring the "逐关全清" trajectory that §5 names. The M5 model also uses the §16 AUTO
+potion rule instead of contract §8's "no potions" clause, because a potion-free model measures a hero
+nobody plays. The measured numbers, their root causes, the two sensitivity tables and the decision
+each open item needs are in [implementation-status.md](implementation-status.md) §"R3 shipped". A
+clean M1/M2/M7/M8 pass does not close the two. Reproduce the gate with
+`godot --headless --path . -s res://tools/balance_progression_sim.gd` (100 seeds × S1..1000, under
+two minutes; it exits non-zero while a target is unmet and rewrites the report).
 
 ## 1. Combat Grid
 
@@ -255,9 +267,11 @@ enemy_gold = round(base_gold × G(S) × offset_mult × type_gold)
 
 Type EXP: normal1, elite2, special2.5, mini boss4, treasure1.5, gold1.5, cursed2.
 Keep authored base_gold and gold type multipliers, except the Mini Boss rule in §9.
-Rewards apply G/type only once. Player level is sampled immediately before each kill
-reward. Carry excess EXP through multiple levels; at level 1000 stop gaining EXP.
-Every level still grants 1 skill point; no talent tree or free stat allocation.
+Rewards apply G/type only once. The `catchup(S,L)` factor is applied **once**, at settlement, where
+the player's level is known: a spawn's stored `experience_reward` carries `100 × G(S) × offset_mult ×
+type_exp` and no catch-up, so a settlement can never pay the factor twice. Player level is sampled
+immediately before each kill reward. Carry excess EXP through multiple levels; at level 1000 stop
+gaining EXP. Every level still grants 1 skill point; no talent tree or free stat allocation.
 
 Player stat bases are HP121.2 / ATK51.8 / DEF5 with level scale G(L)^0.4.
 Equipment is combined by §12; rebuilding replaces old +20/+2/+1 increments.
@@ -313,7 +327,9 @@ Weapon, Helmet, Armor, Gloves, Boots, Ring, Amulet. Consumables are slot-less.
 - Rarity affects affix count, affix strength, unique-effect chance and presentation.
 - Mythic is a special-source tier, not part of the normal rarity roll.
 - Item score = `item_level × (1 + rarity × 0.25) + Σ|affix value| × (100 if percentage else 1)`
-  — used only as a comparison signal, never as the sole measure of value.
+  — a **display value only**. It ranks nothing: whether a drop should replace what is equipped is
+  decided by the effective block (below), which is aggregated by the same function the hero's
+  rebuild uses.
 
 ### Affixes
 
@@ -389,6 +405,11 @@ Multipliers from all equipped items multiply together.
 - One enemy drops at most one item per clear.
 - **15 %** of successful drops become a potion instead of equipment (tunable).
 - Rarity weights are stage-independent; item level scales with stage.
+- **Slot coverage (R3).** While the hero has EMPTY equipment slots, an equipment drop is generated
+  for one of them instead of a random slot, so the seven slots are covered by the first seven drops.
+  Without the rule a random slot needs ~30 drops to cover seven (coupon collector) while S1..S9
+  offers ~18 kills, which is why the early game used to reach the S10 challenge with empty slots.
+  Once every slot is filled the slot is random again. A potion is unaffected.
 - Authored stage content (chests, springs, caches) may also grant gold, healing or items.
 
 ### Guaranteed stage drops
@@ -428,8 +449,11 @@ enemy dies → item rolls → added to bag (or storage)
 ```
 
 - The reveal must not block or pause combat.
-- Comparison shows the equipped item and the new item side by side with per-stat deltas
-  and a score delta. Power Score alone must not decide.
+- Comparison is the **effective** one: the same aggregation the hero's rebuild uses
+  (`EquipmentStatBlock`, i.e. §12's `effective_X`), so the card and the equipped hero cannot
+  disagree. Each row splits the candidate's **inherent slot growth** from its **affix influence**, an
+  item's card states its own inherent growth, and the replacement verdict is the effective
+  `ATK × HP` proxy — the §12 item score is displayed but decides nothing.
 - Item actions: **Equip, Keep, Sell, Discard.** Sell pays the item's §19 `SellPrice`.
 - The town's **Scavenger Shop** has a buyback tab: an item the player discards is stocked
   there and can be bought back. Buyback price = the `SellPrice` it was given up at (§19) —
@@ -714,11 +738,16 @@ Use production functions and resources in the existing economy smoke suite:
 
 **Resolved and now part of this spec:**
 
-- Balance v4 (§§5/9/10/12/15/17/19): shared G, equipment growth, enemy offset, bounded utilities, Gold/EXP range and migration are finalized; implementation is pending.
+- Balance v4 (§§5/9/10/12/15/17/19): shared G, equipment growth, enemy offset, bounded utilities, Gold/EXP range and migration are finalized and implemented (R0–R3). The §8 M5 release gate is still open — see the release status above.
 - Farming × AUTO behavior (§16) — the four-mode matrix, already implemented.
 - Buyback pricing (§14) — buying an item back from the Scavenger Shop charges the
   `SellPrice` it was given up at (§19). The Power Score is no longer a price, and the
   Scavenger Shop migrates to the §19 model.
+- Drop slot coverage (§13, M5) — **resolved in R3**: while an equipment slot is empty a drop covers
+  it instead of rolling a random slot. This closed the M5 "seven slots before S10" target (74 % →
+  100 % of trajectories).
+- Balance v4 release gate (§8 M5) — **not closed**: the 20-encounter success window and the Mini Boss
+  action band are still unmet; see the release status above and the two open items below.
 
 **Still open:**
 
@@ -734,3 +763,19 @@ Use production functions and resources in the existing economy smoke suite:
 4. **Potion replenishment** — potions must come from somewhere beyond the starting stock
    and loot drops (§7): confirm town purchase, stage resupply, or loot only. Their sell price
    is now specified (§19).
+5. **Recovery between stages (§16/§17, M5)** — the hero's HP survives stage clears and only a defeat
+   refills it, and a stage costs roughly half the hero's maximum HP. The R3 decision was to model the
+   game's REAL recovery (the §16 AUTO potion rule: drink at 35 % HP, 35 % heal, counter restocked by
+   loot) rather than invent one; the sensitivity run
+   (`--sensitivity`) shows potions alone cannot carry it — the worst 20-encounter window is 75 % at
+   the shipped 15 % potion drop share and still 70 % at 60 % — while restoring 50 % of maximum HP on
+   a clear reaches the 90 % target (95 %). Decide: build a between-stages/town recovery service
+   (a new system), raise the potion supply far beyond a 60 % drop share, or restate the M5 window
+   statistic.
+6. **The M2 reference state versus real loadouts (§12, M5)** — **recorded as a known deviation in
+   R3**: a real drop-driven loadout is measured at ~1.88× the §3.1 reference fixture in attack and
+   ~1.84× in HP (P10 1.51×), because the fixture is a lower bound (rarity_core ≥ 1, affixes ≥ 0) and
+   the §8 swap policy ratchets. The §4.3 reference Mini Boss therefore dies in 5 player actions where
+   §4.3 predicts 9 and §8 M5 asks for 8..14. Decide whether the M5 action band moves to the measured
+   loadout, whether the §4.3 boss multipliers rise (which moves the M2/M3 reference band with them),
+   or whether the reference fixture should carry the expected drop quality.
